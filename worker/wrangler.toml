@@ -1,0 +1,43 @@
+# FileClear.
+#
+# Assets only for now: there is no application yet, so this Worker has no `main`
+# and the runtime serves site/ directly. Routing every request through a script
+# that would only call env.ASSETS.fetch is a hop for nothing.
+#
+# When the application lands this file gains `main = "src/index.ts"` and
+# not_found_handling flips to "none", so that /, /privacy, /terms and /support
+# stay files while /dashboard, /onboarding and the rest fall through to code.
+# That is the shape TradeClear already runs, and it is why the site lives in
+# this repository rather than in a second one.
+
+name = "fileclear"
+compatibility_date = "2026-09-08"
+
+# One address. A workers.dev URL beside the custom domain is a second copy of
+# the same pages for a search engine to find and rank.
+workers_dev = false
+preview_urls = false
+
+# The application owns the domain, the way TradeClear owns tradeclear.ca. A
+# director typing the name wants their filing calendar, not a page describing
+# one. fileclear.antipodetech.com redirects here.
+routes = [{ pattern = "fileclear.ca", custom_domain = true }]
+
+[assets]
+# Relative to this file. The marketing pages sit at the repository root beside
+# worker/, so that the application Worker can serve them later without moving.
+directory = "../site"
+
+# No `binding` here on purpose: an assets-only Worker rejects one, because there
+# is no script to bind it into. It comes back alongside `main`.
+
+# Workers does not find 404.html on its own the way Pages did. Without this a
+# mistyped URL gets a bare platform 404 instead of the page offering a way back.
+not_found_handling = "404-page"
+
+# html_handling stays at its default, "auto-trailing-slash": /support serves
+# support.html and /support.html redirects to /support. The canonical links
+# point at the extensionless form, so that behaviour has to hold.
+
+[observability]
+enabled = true

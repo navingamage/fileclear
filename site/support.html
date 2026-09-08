@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support &middot; FileClear</title>
+<meta name="description" content="How to get help with FileClear, and answers to the questions asked most often.">
+<link rel="canonical" href="https://fileclear.ca/support">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2222%22%20fill%3D%22%230b0e1e%22/%3E%3Cpath%20d%3D%22M30%2022h26l16%2016v40a4%204%200%200%201-4%204H30a4%204%200%200%201-4-4V26a4%204%200%200%201%204-4z%22%20fill%3D%22none%22%20stroke%3D%22%235b6480%22%20stroke-width%3D%226%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M56%2022v16h16%22%20fill%3D%22none%22%20stroke%3D%22%235b6480%22%20stroke-width%3D%226%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M38%2060l9%209%2018-20%22%20fill%3D%22none%22%20stroke%3D%22%233cd682%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light dark;
+
+    /* Light is white. Not off-white, not tinted: the page is paper and the
+       colour on it is the product's own. */
+    --bg: #ffffff;
+    --bg-2: #f6f7f9;
+    --surface: #ffffff;
+    --panel: #f6f7f9;
+
+    --ink: #0d1017;
+    --ink-2: #39414f;
+    --muted: #5c6070;
+
+    --line: #e5e7ec;
+    --line-2: #d2d6de;
+
+    /* The house blue, one step deeper than it was, because the old value fell
+       just under 4.5:1 on the pale chips it gets printed on. Every pair below
+       was measured rather than eyeballed. */
+    --accent: #1a63db;
+    --accent-ink: #ffffff;
+    --accent-soft: #e8f0fe;
+    --go: #12703c;
+    --go-soft: #e6f6ec;
+    --warn: #8a5200;
+    --warn-soft: #fdf1dc;
+    --bad: #b42318;
+    --bad-soft: #fdeceb;
+
+    --shadow: 0 1px 2px rgba(13,16,23,.05), 0 10px 28px rgba(13,16,23,.06);
+    --shadow-lg: 0 2px 4px rgba(13,16,23,.05), 0 28px 64px rgba(13,16,23,.11);
+    --radius: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+        /* Dark is the brand navy, which is where this product's colour lives. */
+        --bg: #0b0e1e;
+        --bg-2: #0e1223;
+        --surface: #151932;
+        --panel: #151932;
+
+        --ink: #eef0f7;
+        --ink-2: #c3cad6;
+        --muted: #9aa0b8;
+
+        --line: #242942;
+        --line-2: #333a5c;
+
+        --accent: #6ea8ff;
+        --accent-ink: #08101f;
+        --accent-soft: #16233f;
+        --go: #4ade80;
+        --go-soft: #122a1c;
+        --warn: #f0b45f;
+        --warn-soft: #2e2213;
+        --bad: #f88379;
+        --bad-soft: #33191a;
+
+        --shadow: 0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35);
+        --shadow-lg: 0 2px 6px rgba(0,0,0,.5), 0 24px 64px rgba(0,0,0,.55);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 400 17px/1.65 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+  h1, h2, h3 { letter-spacing: -0.03em; line-height: 1.12; margin: 0; }
+  img { max-width: 100%; }
+
+  /* Keyboard users get the same first move as everyone else: past the nav. */
+  .skip {
+    position: absolute; left: 50%; translate: -50% -200%; z-index: 80;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--line-2);
+    border-radius: 0 0 12px 12px; padding: .7rem 1.2rem; font-weight: 600;
+  }
+  .skip:focus { translate: -50% 0; text-decoration: none; box-shadow: var(--shadow); }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 22px; }
+  .narrow { max-width: 780px; margin-left: auto; margin-right: auto; }
+  section { padding: 5.5rem 0; }
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: .12em; font-size: .76rem;
+    font-weight: 650; color: var(--accent); margin: 0 0 .9rem;
+  }
+  .lead { color: var(--ink-2); font-size: 1.12rem; }
+  .muted { color: var(--muted); }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+
+  /* Navigation */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-in { display: flex; align-items: center; gap: 1.6rem; padding: .75rem 0; }
+  .brand { display: flex; align-items: center; gap: .55rem; font-weight: 700;
+    letter-spacing: -.03em; font-size: 1.1rem; color: var(--ink); }
+  .brand:hover { text-decoration: none; }
+  .brand svg { width: 30px; height: 30px; border-radius: 8px; }
+  .nav-links { display: flex; gap: 1.4rem; margin-left: auto; }
+  .nav-links a { color: var(--muted); font-size: .93rem; font-weight: 500; }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-cta { display: flex; gap: .55rem; align-items: center; }
+  .nav-signin {
+    color: var(--muted); font-size: .93rem; font-weight: 500;
+    padding: .4rem .5rem; white-space: nowrap;
+  }
+  .nav-signin:hover { color: var(--ink); text-decoration: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+    font-size: .95rem; font-weight: 600; padding: .68rem 1.2rem; min-height: 44px;
+    border-radius: 12px; border: 1px solid var(--line-2); color: var(--ink);
+    background: var(--surface); cursor: pointer; white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(16,32,64,.05);
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .btn:hover { text-decoration: none; border-color: var(--accent); color: var(--accent);
+    transform: translateY(-1px); }
+  .btn.primary {
+    background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 26%, transparent);
+  }
+  .btn.primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
+  .btn.big { font-size: 1.03rem; padding: .9rem 1.7rem; border-radius: 14px; }
+
+  /* Hero. The wash is two pale blooms on the page colour, so the top of the
+     page is the lightest thing on screen and the headline sits in open air. */
+  .hero { padding: 5rem 0 3rem; position: relative; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -30% -10% auto -10%; height: 760px;
+    background:
+      radial-gradient(44% 54% at 26% 2%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 68%),
+      radial-gradient(40% 48% at 78% 0%, color-mix(in srgb, var(--go) 10%, transparent), transparent 66%);
+    pointer-events: none; z-index: -1;
+  }
+  /* The headline is written as two clauses with a hard break between them, and
+     the type has to be small enough that the first clause actually fits on one
+     line. At 3.9rem it did not: "Know which trades are cleared and insured,"
+     needed about 1150px inside a 1036px column, so it wrapped and left
+     "insured," alone on a line of its own, which put the clause that matters
+     third and smallest.
+     3.3rem fits it with roughly 50px to spare at full width, and 4.8vw keeps
+     that margin down to about 800px rather than losing it at 1080. Below the
+     floor nothing changes: 2.3rem governed every phone width before and still
+     does.
+     text-wrap: balance is the net rather than the mechanism. At any width where
+     the line does break anyway it spreads the words evenly instead of leaving a
+     single word stranded. Browsers that do not know it ignore it and get the
+     same two lines. */
+  .hero h1 {
+    font-size: clamp(2.3rem, 4.8vw, 3.3rem); font-weight: 700;
+    text-wrap: balance;
+  }
+  .hero h1 .hl { color: var(--accent); }
+  .hero p.lead { font-size: clamp(1.05rem, 2vw, 1.28rem); margin: 1.3rem auto 0; max-width: 40rem; }
+  .hero-cta { display: flex; gap: .7rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem; }
+  .hero-note { color: var(--muted); font-size: .88rem; margin-top: 1rem; }
+  .center { text-align: center; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: .5rem; padding: .4rem .95rem;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+    color: var(--ink-2); font-size: .85rem; font-weight: 500; margin-bottom: 1.6rem;
+    box-shadow: var(--shadow);
+  }
+  .pill .dot { width: .5rem; height: .5rem; border-radius: 999px; background: var(--go); }
+
+  /* The animated product demo */
+  .demo-frame {
+    margin: 3.2rem auto 0; border-radius: 20px; overflow: hidden;
+    border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-lg);
+  }
+  .demo-bar {
+    display: flex; align-items: center; gap: .45rem; padding: .7rem .9rem;
+    border-bottom: 1px solid var(--line); background: var(--bg-2);
+  }
+  .demo-bar i { width: 11px; height: 11px; border-radius: 999px; background: var(--line-2); display: block; }
+  .demo-url {
+    margin-left: .7rem; font-size: .8rem; color: var(--muted); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px; padding: .2rem .75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .demo-scroll { overflow-x: auto; }
+  table.demo { width: 100%; border-collapse: collapse; font-size: .9rem;
+    background: var(--surface); table-layout: fixed; }
+  table.demo th {
+    text-align: left; font-size: .7rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); font-weight: 650; padding: .7rem 1rem; background: var(--bg-2);
+    border-bottom: 1px solid var(--line);
+  }
+  table.demo td { padding: .8rem 1rem; border-bottom: 1px solid var(--line); }
+  table.demo tr:last-child td { border-bottom: none; }
+  table.demo th:nth-child(1) { width: 32%; }
+  table.demo th:nth-child(2) { width: 13%; }
+  table.demo th:nth-child(3) { width: 17%; }
+  table.demo th:nth-child(4), table.demo th:nth-child(5) { width: 19%; }
+  table.demo .name { font-weight: 600; }
+  table.demo .why { display: block; font-size: .76rem; color: var(--muted); font-weight: 400; margin-top: .1rem; }
+  .badge {
+    display: inline-flex; align-items: center; gap: .4rem; border-radius: 999px;
+    padding: .22rem .7rem; font-size: .78rem; font-weight: 650; white-space: nowrap;
+  }
+  .badge::before { content: ""; width: .48rem; height: .48rem; border-radius: 999px; background: currentColor; }
+  .badge.go { background: var(--go-soft); color: var(--go); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.bad { background: var(--bad-soft); color: var(--bad); }
+  .badge.idle { background: var(--bg-2); color: var(--muted); }
+
+  /* The one row that animates, so the page shows the moment that matters:
+     a subcontractor uploads and the badge stops being a problem. The second
+     state is hidden from assistive technology, which would otherwise read a
+     row that says both Lapsed and Active. */
+  .flip, table.demo .why.flip { position: relative; display: inline-grid; }
+  .flip > *, table.demo .why.flip > * { grid-area: 1 / 1; align-self: start; }
+  .flip .before { animation: swap 7s infinite; }
+  .flip .after  { animation: swap 7s infinite reverse; }
+  @keyframes swap {
+    0%, 42% { opacity: 1; transform: translateY(0); }
+    50%, 92% { opacity: 0; transform: translateY(-4px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .demo-caption {
+    padding: .85rem 1rem; font-size: .82rem; color: var(--muted);
+    border-top: 1px solid var(--line); background: var(--bg-2);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flip .before, .flip .after { animation: none; }
+    .flip .after { opacity: 0; }
+    html { scroll-behavior: auto; }
+    .btn:hover { transform: none; }
+  }
+
+  /* Generic sections */
+  .band { background: var(--bg-2); border-block: 1px solid var(--line); }
+  h2.title { font-size: clamp(1.7rem, 3.4vw, 2.4rem); font-weight: 700; }
+  .section-head {
+    display: grid; grid-template-columns: 1fr 1fr; column-gap: 3rem;
+    align-items: end; margin-bottom: 3.2rem;
+  }
+  .section-head .eyebrow { grid-column: 1 / -1; }
+  .section-head h2.title { grid-column: 1; }
+  .section-head .lead { grid-column: 2; margin: 0; }
+  .section-head p { margin: 1rem 0 0; }
+  /* Below the point where two columns stop being two columns, the supporting
+     sentence goes back under the heading rather than into a 200px gutter. */
+  @media (max-width: 860px) {
+    .section-head { grid-template-columns: 1fr; }
+    .section-head h2.title, .section-head .lead { grid-column: 1; }
+    .section-head .lead { margin-top: 1rem; }
+  }
+
+  .stat-row { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.5rem 1.4rem; box-shadow: var(--shadow);
+  }
+  .stat-card .n {
+    display: block; font-size: 2.1rem; font-weight: 700; letter-spacing: -.04em;
+    line-height: 1.1; color: var(--accent);
+  }
+  .stat-card p { margin: .5rem 0 0; font-size: .95rem; color: var(--muted); }
+
+  /* Today, and afterwards */
+  .compare { display: grid; gap: 1.1rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .col {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.6rem 1.5rem; box-shadow: var(--shadow);
+  }
+  .col.after { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .col h3 { font-size: 1.1rem; font-weight: 650; margin-bottom: 1rem; }
+  .col ul { list-style: none; padding: 0; margin: 0; }
+  .col li { display: flex; gap: .7rem; align-items: flex-start; margin: .8rem 0;
+    font-size: .97rem; color: var(--ink-2); }
+  .col li svg { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; margin-top: .22rem; }
+  .col.today li svg { color: var(--bad); }
+  .col.after li svg { color: var(--go); }
+
+  .steps { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(216px, 1fr)); }
+  .step {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.6rem 1.5rem; box-shadow: var(--shadow); position: relative;
+  }
+  .step .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2.1rem; height: 2.1rem; border-radius: 999px; background: var(--accent-soft);
+    color: var(--accent); font-weight: 700; font-size: .95rem; margin-bottom: .9rem;
+  }
+  .step h3 { font-size: 1.08rem; font-weight: 650; margin-bottom: .45rem; }
+  .step p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+  .shots { display: grid; gap: 1.6rem; grid-template-columns: 1.55fr 1fr;
+    align-items: start; }
+  .shots figure { margin: 0; min-width: 0; }
+  .shots img {
+    width: 100%; height: auto; display: block; border-radius: 14px;
+    border: 1px solid var(--line-2); box-shadow: var(--shadow-lg); background: var(--surface);
+  }
+  /* The phone is portrait among landscapes, so it is held narrow rather than
+     being allowed to set the row's height. 250 rather than the 290 it used to
+     be: the shot now runs to the bottom of the second step, because the
+     caption promises two steps and the old crop stopped after the first, and
+     at 290 that extra length stood a fifth taller than the roster beside it. */
+  .shots .phone img { max-width: 250px; margin: 0 auto; }
+  .shots figcaption { font-size: .88rem; color: var(--muted); margin-top: .7rem; }
+  @media (max-width: 760px) { .shots { grid-template-columns: 1fr; } }
+
+  /* What makes the record worth keeping */
+  .trust { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .trust div {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.4rem 1.35rem; box-shadow: var(--shadow);
+  }
+  .trust h3 { font-size: 1rem; font-weight: 650; margin-bottom: .4rem; }
+  .trust p { margin: 0; color: var(--muted); font-size: .94rem; }
+
+  /* Pricing */
+  .plans { display: grid; gap: 1.1rem; grid-template-columns: 1fr; }
+  .plan {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.8rem 1.6rem; box-shadow: var(--shadow); position: relative;
+  }
+  /* Line the three plans up row for row. The blurbs run to one line on Starter
+     and two on Enterprise, which used to leave the Start free buttons at three
+     different heights and made the prices look like they were on a slope.
+     Subgrid puts every card's name, price, blurb, button and feature list on
+     the same track, so the comparison reads across as well as down. The row
+     gap has to be reset to 0 because a subgrid inherits the parent's, which
+     would otherwise open 1.1rem between every line inside a card. */
+  @media (min-width: 900px) {
+    .plans { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(6, auto); }
+    .plan { display: grid; grid-template-rows: subgrid; grid-row: span 6; row-gap: 0; }
+  }
+  .plan.featured { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow-lg); }
+  .plan .tag {
+    position: absolute; top: -.8rem; left: 1.6rem; background: var(--accent);
+    color: var(--accent-ink); font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; padding: .3rem .75rem; border-radius: 999px;
+  }
+  .plan h3 { font-size: 1.15rem; font-weight: 650; }
+  .plan .price { font-size: 2.4rem; font-weight: 700; letter-spacing: -.04em; margin: .7rem 0 0; }
+  .plan .price small { font-size: .95rem; font-weight: 400; color: var(--muted); letter-spacing: normal; }
+  .plan .yearly { margin: .35rem 0 0; font-size: .88rem; color: var(--muted); }
+  .plan .blurb { color: var(--muted); font-size: .92rem; margin: .5rem 0 1.3rem; }
+  .plan ul { list-style: none; padding: 0; margin: 1.3rem 0 0; }
+  .plan li { display: flex; gap: .6rem; align-items: flex-start; font-size: .94rem; margin: .6rem 0; color: var(--ink-2); }
+  .plan li svg { width: 1.05rem; height: 1.05rem; flex: 0 0 auto; margin-top: .28rem; color: var(--go); }
+  .plan .btn { width: 100%; }
+
+  /* FAQ */
+  details.faq {
+    border-bottom: 1px solid var(--line); padding: 1.15rem 0;
+  }
+  details.faq summary {
+    cursor: pointer; font-weight: 600; font-size: 1.03rem; list-style: none;
+    display: flex; justify-content: space-between; gap: 1rem; align-items: center;
+  }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 1.4rem; line-height: 1; }
+  details.faq[open] summary::after { content: "\2212"; }
+  details.faq p { margin: .8rem 0 0; color: var(--ink-2); font-size: .97rem; max-width: 46rem; }
+
+  /* Closing call to action */
+  .cta-band {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 24px;
+    padding: 3.5rem 2rem; text-align: center; box-shadow: var(--shadow-lg);
+    position: relative; overflow: hidden;
+  }
+  .cta-band::before {
+    content: ""; position: absolute; inset: -60% -20% auto -20%; height: 420px;
+    background: radial-gradient(46% 60% at 50% 0%,
+      color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%);
+    pointer-events: none;
+  }
+  .cta-band > * { position: relative; }
+
+  .note {
+    border-left: 3px solid var(--line-2); padding: .2rem 0 .2rem 1.1rem;
+    color: var(--muted); font-size: .94rem;
+  }
+
+  footer {
+    border-top: 1px solid var(--line); padding: 3rem 0 3.5rem;
+    color: var(--muted); font-size: .93rem; background: var(--bg-2);
+    text-align: center;
+  }
+  footer .brand { justify-content: center; }
+  .foot-links { display: flex; gap: 1.6rem; flex-wrap: wrap; justify-content: center;
+    margin-top: 1.2rem; }
+  .foot-links a { min-height: 44px; display: inline-flex; align-items: center; }
+  footer p { margin: 1.6rem auto 0; max-width: 44rem; line-height: 1.65; font-size: .86rem;
+    text-align: center; }
+  footer .fine { font-size: .82rem; opacity: .85; }
+
+  /* The demo drops a column at a time rather than growing a sideways
+     scrollbar. The status badge is what the table exists to show, so it is the
+     last thing to go. */
+  /* Each breakpoint restates the widths of the columns that are left. A hidden
+     column's width is not redistributed the way the remaining percentages
+     imply, and the status badge is what ends up hanging out of the frame. */
+  @media (max-width: 980px) {
+    table.demo th:nth-child(2), table.demo td:nth-child(2) { display: none; }
+    table.demo th:nth-child(1) { width: 34%; }
+    table.demo th:nth-child(3) { width: 20%; }
+    table.demo th:nth-child(4), table.demo th:nth-child(5) { width: 23%; }
+  }
+  @media (max-width: 780px) {
+    table.demo th:nth-child(4), table.demo td:nth-child(4) { display: none; }
+    table.demo th:nth-child(1) { width: 44%; }
+    table.demo th:nth-child(3) { width: 26%; }
+    table.demo th:nth-child(5) { width: 30%; }
+    table.demo th, table.demo td { padding: .65rem .75rem; }
+  }
+  @media (max-width: 520px) {
+    table.demo th:nth-child(5), table.demo td:nth-child(5) { display: none; }
+    table.demo th:nth-child(1) { width: 54%; }
+    table.demo th:nth-child(3) { width: 46%; }
+    table.demo { font-size: .86rem; }
+    table.demo th, table.demo td { padding: .6rem .55rem; }
+    table.demo .badge { padding: .2rem .55rem; font-size: .74rem; }
+    table.demo .name { overflow-wrap: anywhere; }
+  }
+
+  @media (max-width: 760px) {
+    section { padding: 3.8rem 0; }
+    .nav-links { display: none; }
+    /* The header is sticky, so whatever is left here is on screen for the
+       whole page. A phone fits the logo and two things beside it, and the
+       three that sit there on a desktop overflow the right edge.
+       Get started is the one to drop: the hero repeats it immediately, every
+       pricing card carries it, and so does the closing band, whereas booking a
+       demo is offered twice on the whole page. Sign in stays because there are
+       customers behind it and no other way in from a phone once the nav links
+       above are hidden. */
+    .nav-cta .btn:not(.primary) { display: none; }
+    .hero { padding: 3rem 0 2rem; }
+  }
+
+  /* The sticky header on a phone, tightened so what is left of it fits inside
+     the page gutter rather than pushing against it. "Book a demo" is a wider
+     label than the "Start free" it replaced, and at this size the difference is
+     the whole margin. Below about 340px the header still runs out of room, as
+     it did before any of this; that is a screen narrower than any iPhone since
+     the SE of 2016. */
+  @media (max-width: 420px) {
+    .nav-in { gap: .8rem; }
+    .nav-signin { font-size: .88rem; padding: .4rem .3rem; }
+    .nav-cta .btn { font-size: .88rem; padding: .58rem .85rem; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#0b0e1e"/>
+        <path d="M30 22h26l16 16v40a4 4 0 0 1-4 4H30a4 4 0 0 1-4-4V26a4 4 0 0 1 4-4z"
+              fill="none" stroke="#5b6480" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M56 22v16h16" fill="none" stroke="#5b6480" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M38 60l9 9 18-20" fill="none" stroke="#3cd682" stroke-width="9"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      FileClear
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="/#what">What it does</a>
+      <a href="/#who">Who it is for</a>
+      <a href="/support">Support</a>
+    </nav>
+    <div class="nav-cta">
+      <!--email_off--><a class="btn" href="mailto:hello@antipodetech.com?subject=FileClear">Get in touch</a><!--/email_off-->
+    </div>
+  </div>
+</header>
+<main id="main">
+<section>
+  <div class="wrap narrow">
+    <p class="eyebrow">Support</p>
+    <h1>Getting help</h1>
+    <p class="lead">Email is the whole support system, and it reaches a person.</p>
+    <p><!--email_off--><a href="mailto:hello@antipodetech.com?subject=FileClear%20support">hello@antipodetech.com</a><!--/email_off--></p>
+    <p>Antipode Technologies Inc., Ontario, Canada.</p>
+
+    <h2>Common questions</h2>
+
+    <h3>Does FileClear file my return for me?</h3>
+    <p>No. It works out what is due and produces the numbers. You file, or your
+    accountant does. It is not certified by CRA to transmit returns.</p>
+
+    <h3>Is this tax advice?</h3>
+    <p>No. Where a decision is a judgement, FileClear shows the arithmetic for each
+    option and the rule behind it, and stops there.</p>
+
+    <h3>Which corporations does it cover?</h3>
+    <p>Canadian corporations, federal or provincial. The rules are most complete for
+    Ontario, which is where it is being built and tested first.</p>
+
+    <h3>Where do the dates come from?</h3>
+    <p>Every obligation links to the CRA, Corporations Canada or Ontario page that
+    publishes it. FileClear tells you a date is coming. It is not the authority on the
+    date, and the link is how you check us.</p>
+  </div>
+</section>
+</main>
+<footer>
+  <div class="wrap">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="#0b0e1e"/>
+        <path d="M30 22h26l16 16v40a4 4 0 0 1-4 4H30a4 4 0 0 1-4-4V26a4 4 0 0 1 4-4z"
+              fill="none" stroke="#5b6480" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M56 22v16h16" fill="none" stroke="#5b6480" stroke-width="6" stroke-linejoin="round"/>
+        <path d="M38 60l9 9 18-20" fill="none" stroke="#3cd682" stroke-width="9"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      FileClear
+    </a>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="/support">Support</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://antipodetech.com/">Antipode Technologies</a>
+    </nav>
+    <p class="fine">FileClear keeps records and works out dates. It is a service from
+    Antipode Technologies Inc. It is not an accountant and it gives no tax advice.
+    It does not file anything with CRA or with the province on your behalf. Every
+    date it shows links to the authority that publishes it, and that authority is
+    the one to check before you rely on a date.</p>
+    <p class="fine">&copy; 2026 Antipode Technologies Inc., made in Ontario, Canada.</p>
+  </div>
+</footer>
+</body>
+</html>

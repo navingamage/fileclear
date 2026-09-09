@@ -61,8 +61,21 @@
   --shadow:    0 1px 2px rgba(11,13,15,.04), 0 8px 22px rgba(11,13,15,.06);
   --shadow-lg: 0 2px 6px rgba(11,13,15,.05), 0 26px 64px rgba(11,13,15,.14);
 
-  --font-display: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-body: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* One superfamily, three roles.
+     
+     The category runs on grotesques rather than serifs: Xero sets National 2,
+     QuickBooks sets Avenir Next, and FreshBooks already sets its body text in
+     IBM Plex. Plex is the one of those that is freely available, and using the
+     Sans and the Mono together means the figures in a ledger and the words
+     around them were drawn by the same hand.
+     
+     It also reads institutional rather than startup, which is the right note
+     for software that produces numbers somebody files with a government.
+     
+     Plex Sans is looser than a geometric face, so display sizes take tighter
+     tracking than Figtree needed; that is set alongside the sizes. */
+  --font-display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 

@@ -24,8 +24,8 @@ const CHROME = `<style>
     font-weight: 500; }
   a:hover { color: var(--brand); }
   :focus-visible { outline: 2.5px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
-  h1, h2, h3 { font-family: var(--font-display); font-weight: 500;
-    letter-spacing: -.028em; line-height: 1.08; margin: 0; text-wrap: balance; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600;
+    letter-spacing: -.035em; line-height: 1.08; margin: 0; text-wrap: balance; }
   h1 { font-size: clamp(2rem, 4.4vw, 2.9rem); }
   h2 { font-size: 1.35rem; }
   h3 { font-size: 1.02rem; font-weight: 700; }
@@ -156,8 +156,9 @@ const CHROME = `<style>
   @media (max-width: 660px) { .stats { grid-template-columns: 1fr; } }
   .stat { background: var(--band); border: 1px solid var(--line);
     border-radius: 16px; padding: 1.1rem 1.2rem; }
-  .stat b { display: block; font-family: var(--font-display); font-weight: 500;
-    font-size: 1.9rem; letter-spacing: -.04em; line-height: 1.1; }
+  .stat b { display: block; font-family: var(--font-mono); font-weight: 500;
+    font-size: 1.75rem; letter-spacing: -.03em; line-height: 1.15;
+    font-variant-numeric: tabular-nums; }
   .stat span { display: block; color: var(--muted); font-size: .88rem; margin-top: .2rem; }
   .stat.bad b { color: var(--danger); }
   .frow .now { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .08em;
@@ -181,7 +182,7 @@ const HEAD = (title: string) => `<!doctype html>
 <meta name="theme-color" content="#14110d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 ${CHROME}
 </head>
 <body>`;

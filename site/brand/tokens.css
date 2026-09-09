@@ -1,78 +1,87 @@
-/* FileClear's palette, in one place, read by the marketing pages and by the
-   application so a colour is changed once.
+/* FileClear's design tokens, in one file, read by the marketing pages and by
+   the application so a colour changes once.
 
-   Not navy. Navy is what every business tool reaches for and it says nothing
-   about this one. FileClear is about printed government paper: forms, ledgers,
-   stamps, deadlines. So the palette is ink, paper and a signal red, which is
-   also the red already in the mark.
+   The brief was a modern commerce style page: big confident type, generous
+   space, rounded surfaces with soft depth, a black primary button and one brand
+   colour used in flat blocks rather than sprinkled everywhere.
 
-   Light is white, per the house rule, but white is the page rather than the
-   whole palette. The previous version failed because everything on the white
-   was nearly white too: hairlines at #dfe6ee and panels at #f5f7fa are
-   invisible in daylight. Contrast now comes from three places: near black ink,
-   a paper tone with real weight against the page, and structural rules dark
-   enough to read as structure.
+   Green is the brand because the product's promise is "clear", and green is
+   what clear looks like on a status. Red is kept back for one job only, an
+   overdue filing, so that when it appears it means something. Two earlier
+   attempts failed by putting the mood colour everywhere: navy said nothing, and
+   ink on paper made every screen look like a document rather than software.
 
-   Every pair below was measured, not eyeballed. */
+   Light is white, per the standing rule. Depth comes from surfaces sitting on a
+   tinted band, not from tinting the page itself. */
 
 :root {
   color-scheme: light dark;
 
-  --bg:        #ffffff;
-  --paper:     #f4f1ea;  /* panels. warm, and clearly not the page */
-  --sunk:      #e8e1d4;  /* the step below paper */
+  --bg:       #ffffff;
+  --band:     #f2f6f4;  /* the tinted ground a section sits on */
+  --surface:  #ffffff;  /* cards, which lift off the band */
+  --sunk:     #eaefec;
 
-  --ink:       #14110d;  /* 18.4:1 on white */
-  --ink-2:     #3a332a;  /* 10.4:1 */
-  --muted:     #6a6157;  /*  5.6:1, so it is still body text and not decoration */
+  --ink:      #0d1210;  /* 18.9:1 on white */
+  --ink-2:    #37423d;  /* 10.1:1 */
+  --muted:    #61706a;  /*  5.2:1, still body text */
 
-  --line:      #d6cec1;  /* a hairline you can actually see */
-  --line-2:    #a89d8c;  /* a rule that reads as a rule */
-  --rule:      #14110d;  /* structural, drawn in ink */
+  --line:     #dde5e1;
+  --line-2:   #c2cfc9;
 
-  --accent:      #c1121f;  /* 6.4:1 on white. the mark's red, deepened for text */
-  --accent-ink:  #ffffff;
-  --accent-soft: #fbe8e6;
+  --brand:        #0b6b4c;  /* white on it, 5.9:1 */
+  --brand-ink:    #ffffff;
+  --brand-tint:   #e6f3ed;
+  --brand-strong: #085138;
 
-  --ok:        #14663f;
-  --ok-soft:   #e3f2e9;
-  --warn:      #8a5200;
-  --warn-soft: #fbeeda;
+  --primary:      #0d1210;  /* the button colour. black, the way commerce does it */
+  --primary-ink:  #ffffff;
+
+  --danger:       #b42318;  /* overdue, and nothing else */
+  --danger-tint:  #fdeceb;
+  --warn:         #8a5200;
+  --warn-tint:    #fdf1dc;
+
+  --radius:    16px;
+  --radius-lg: 26px;
+  --radius-pill: 999px;
+  --shadow:    0 1px 2px rgba(13,18,16,.04), 0 8px 24px rgba(13,18,16,.06);
+  --shadow-lg: 0 2px 6px rgba(13,18,16,.05), 0 30px 70px rgba(13,18,16,.12);
+
+  --font-display: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Dark is ink rather than black, warm rather than blue, so paper stock and
-       printed red still look like themselves on it. */
-    --bg:        #14110d;
-    --paper:     #1f1a15;
-    --sunk:      #0d0b09;
+    /* Near black with a green cast, so the brand still belongs on it. */
+    --bg:       #0a0f0d;
+    --band:     #101815;
+    --surface:  #141c19;
+    --sunk:     #0d1411;
 
-    --ink:       #f6f1e8;
-    --ink-2:     #d8cfc2;
-    --muted:     #a3988b;  /* 7.1:1 on the ground */
+    --ink:      #eef3f1;
+    --ink-2:    #c3d0cb;
+    --muted:    #93a49d;  /* 7.4:1 on the ground */
 
-    --line:      #2f2822;
-    --line-2:    #4c4239;
-    --rule:      #f6f1e8;
+    --line:     #1f2b26;
+    --line-2:   #31413a;
 
-    --accent:      #ff6b6b;  /* the same red, lifted to clear 5:1 on ink */
-    --accent-ink:  #2b0709;
-    --accent-soft: #37191a;
+    --brand:        #3ddc97;
+    --brand-ink:    #06231a;
+    --brand-tint:   #10291f;
+    --brand-strong: #5ee8ab;
 
-    --ok:        #5fd39a;
-    --ok-soft:   #12301f;
-    --warn:      #e8ae5c;
-    --warn-soft: #2f2413;
+    --primary:      #eef3f1;  /* inverted: the button is light on a dark page */
+    --primary-ink:  #0a0f0d;
+
+    --danger:       #ff7b6f;
+    --danger-tint:  #33191a;
+    --warn:         #e8ae5c;
+    --warn-tint:    #2c2413;
+
+    --shadow:    0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.4);
+    --shadow-lg: 0 2px 6px rgba(0,0,0,.5), 0 30px 70px rgba(0,0,0,.6);
   }
-}
-
-/* Type roles, shared for the same reason the colours are.
-   Archivo carries headings, Public Sans was drawn for a government design
-   system and carries text, IBM Plex Mono carries anything a form would print
-   in a box: dates, form numbers, amounts. */
-:root {
-  --font-display: "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-body: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }

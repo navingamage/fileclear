@@ -113,3 +113,27 @@ CREATE TABLE IF NOT EXISTS filing_states (
   PRIMARY KEY (company_id, filing_id)
 );
 CREATE INDEX IF NOT EXISTS filing_states_company ON filing_states (company_id);
+
+-- ------------------------------------------------------------ transactions
+
+-- The ledger. One row is one line on a bank statement or one invoice.
+--
+-- Money is in cents, as an integer. Floating point money is how a return ends
+-- up a penny out from the bank and a person spends an evening on it.
+--
+-- hst_cents is what was actually on the document rather than a computed 13%.
+-- A supplier's rounding is theirs, a supplier outside Canada charges none, and
+-- imputing tax that was never charged is claiming an input tax credit that does
+-- not exist.
+CREATE TABLE IF NOT EXISTS transactions (
+  id          TEXT PRIMARY KEY,
+  company_id  TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  txn_date    TEXT NOT NULL,                 -- yyyy-mm-dd
+  account_id  TEXT NOT NULL,                 -- key into src/rules/gifi.ts
+  amount_cents INTEGER NOT NULL,             -- before HST
+  hst_cents   INTEGER NOT NULL DEFAULT 0,
+  description TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS transactions_company_date
+  ON transactions (company_id, txn_date);

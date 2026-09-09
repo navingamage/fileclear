@@ -20,111 +20,140 @@ const CHROME = `<style>
     font-family: var(--font-body); font-size: 16.5px; line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
-  a { color: var(--accent); text-decoration: none; }
+  a { color: var(--brand); text-decoration: none; font-weight: 500; }
   a:hover { text-decoration: underline; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  :focus-visible { outline: 2.5px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
   h1, h2, h3 { font-family: var(--font-display); font-weight: 800;
-    letter-spacing: -.03em; line-height: 1.1; margin: 0; text-wrap: balance; }
-  h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); }
-  h2 { font-size: 1.3rem; }
-  h3 { font-size: 1rem; font-weight: 700; }
+    letter-spacing: -.035em; line-height: 1.08; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(2rem, 4.4vw, 2.9rem); }
+  h2 { font-size: 1.35rem; }
+  h3 { font-size: 1.02rem; font-weight: 700; }
   p { margin: 0 0 1rem; }
 
-  .wrap { max-width: 940px; margin: 0 auto; padding: 0 22px; }
-  .narrow { max-width: 620px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  .narrow { max-width: 640px; }
 
-  header.app { border-bottom: 2px solid var(--rule); background: var(--bg); }
-  .app-in { display: flex; align-items: center; gap: 1rem; padding: .85rem 0; }
+  header.app { border-bottom: 1px solid var(--line); background: var(--bg);
+    position: sticky; top: 0; z-index: 40; }
+  .app-in { display: flex; align-items: center; gap: 1.4rem; padding: .9rem 0; }
   .brand { display: flex; align-items: center; gap: .55rem; color: var(--ink);
-    font-family: var(--font-display); font-weight: 800; font-size: 1.08rem;
-    letter-spacing: -.03em; }
+    font-family: var(--font-display); font-weight: 800; font-size: 1.1rem;
+    letter-spacing: -.04em; }
   .brand:hover { text-decoration: none; }
-  .brand img { width: 28px; height: 28px; border-radius: 7px; }
-  .app-right { margin-left: auto; display: flex; align-items: center; gap: 1rem;
+  .brand img { width: 30px; height: 30px; border-radius: 8px; }
+  .app-nav { display: flex; gap: 1.3rem; margin-left: 1rem; }
+  .app-nav a { color: var(--muted); font-size: .95rem; font-weight: 500; }
+  .app-nav a:hover { color: var(--ink); text-decoration: none; }
+  .app-nav a.on { color: var(--ink); font-weight: 600; }
+  .app-right { margin-left: auto; display: flex; align-items: center; gap: .9rem;
     font-size: .9rem; color: var(--muted); }
+  @media (max-width: 720px) { .app-nav { display: none; } }
 
-  .label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .16em;
-    text-transform: uppercase; color: var(--muted); display: block;
-    padding-bottom: .45rem; border-bottom: 1px solid var(--line-2);
-    margin: 0 0 1.2rem; }
+  .label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--brand); background: var(--brand-tint);
+    display: inline-block; padding: .35rem .7rem; border-radius: 999px;
+    margin: 0 0 1rem; }
 
-  main { padding: 2.4rem 0 4rem; }
+  main { padding: 2.6rem 0 5rem; }
 
-  /* Forms are drawn like the paper they replace: a label, a rule, a value. */
-  fieldset { border: 0; margin: 0 0 2.2rem; padding: 0; }
-  legend { font-family: var(--font-display); font-weight: 800; font-size: 1.15rem;
-    letter-spacing: -.02em; padding: 0; margin-bottom: .3rem; }
-  .hint { color: var(--muted); font-size: .9rem; margin: 0 0 1.2rem; }
-  .field { margin-bottom: 1.2rem; }
+  fieldset { border: 0; margin: 0 0 2.4rem; padding: 0; }
+  legend { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem;
+    letter-spacing: -.03em; padding: 0; margin-bottom: .3rem; }
+  .hint { color: var(--muted); font-size: .95rem; margin: 0 0 1.4rem; }
+  .field { margin-bottom: 1.15rem; }
   .field > label { display: block; font-weight: 600; font-size: .93rem; margin-bottom: .35rem; }
   .field .sub { display: block; color: var(--muted); font-size: .85rem;
     font-weight: 400; margin-top: .15rem; }
   input[type=text], input[type=email], input[type=password], input[type=date],
   input[type=number], select {
-    width: 100%; padding: .62rem .7rem; font: inherit; font-size: .97rem;
-    color: var(--ink); background: var(--bg);
-    border: 1px solid var(--line-2); border-radius: 3px;
+    width: 100%; padding: .68rem .8rem; font: inherit; font-size: .97rem;
+    color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line-2); border-radius: 10px;
   }
-  input:focus, select:focus { border-color: var(--accent); }
+  input:focus, select:focus { border-color: var(--brand); }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   @media (max-width: 560px) { .row2 { grid-template-columns: 1fr; } }
-  .check { display: flex; gap: .6rem; align-items: flex-start; margin-bottom: .8rem; }
-  .check input { margin-top: .3rem; flex: none; }
+  .check { display: flex; gap: .65rem; align-items: flex-start; margin-bottom: .85rem; }
+  .check input { margin-top: .35rem; flex: none; }
   .check label { font-size: .95rem; }
 
-  .btn { display: inline-block; padding: .7rem 1.3rem; font: inherit;
-    font-weight: 600; font-size: .95rem; cursor: pointer;
-    border: 1.5px solid var(--rule); background: transparent; color: var(--ink);
-    border-radius: 3px; }
-  .btn:hover { background: var(--sunk); text-decoration: none; }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  .btn.primary:hover { filter: brightness(1.08); }
-  .btn.small { padding: .34rem .7rem; font-size: .82rem; }
+  .btn { display: inline-flex; align-items: center; justify-content: center;
+    padding: .68rem 1.25rem; font: inherit; font-weight: 600; font-size: .95rem;
+    cursor: pointer; border: 1.5px solid var(--line-2); background: var(--surface);
+    color: var(--ink); border-radius: 999px; white-space: nowrap; }
+  .btn:hover { text-decoration: none; background: var(--sunk); }
+  .btn.primary { background: var(--primary); border-color: var(--primary);
+    color: var(--primary-ink); }
+  .btn.primary:hover { filter: brightness(1.15); background: var(--primary); }
+  .btn.small { padding: .38rem .85rem; font-size: .85rem; }
 
-  .err { background: var(--accent-soft); border-left: 3px solid var(--accent);
-    padding: .8rem 1rem; margin-bottom: 1.6rem; font-size: .93rem; }
-  .ok-note { background: var(--ok-soft); border-left: 3px solid var(--ok);
-    padding: .8rem 1rem; margin-bottom: 1.6rem; font-size: .93rem; }
+  .err { background: var(--danger-tint); border-left: 3px solid var(--danger);
+    padding: .85rem 1.1rem; border-radius: 0 10px 10px 0; margin-bottom: 1.6rem;
+    font-size: .94rem; }
 
-  /* The calendar. Same sheet as the marketing page, so the product looks like
-     what was advertised. */
-  .sheet { border: 2px solid var(--rule); background: var(--paper); margin-bottom: 2rem; }
+  /* Cards, matching the marketing page: rounded, lifted, quiet borders. */
+  .sheet { border: 1px solid var(--line); background: var(--surface);
+    border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 2rem;
+    overflow: hidden; }
   .sheet-head { display: flex; justify-content: space-between; align-items: baseline;
-    gap: 1rem; padding: .85rem 1.05rem; border-bottom: 2px solid var(--rule);
-    font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
-    text-transform: uppercase; color: var(--muted); }
-  .frow { display: grid; grid-template-columns: 6.2rem 1fr auto auto;
-    gap: .85rem; align-items: baseline; padding: .7rem 1.05rem;
+    gap: 1rem; padding: .95rem 1.25rem; border-bottom: 1px solid var(--line);
+    background: var(--band); font-family: var(--font-mono); font-size: .72rem;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .frow { display: grid; grid-template-columns: 6.4rem 1fr auto auto;
+    gap: .9rem; align-items: center; padding: .85rem 1.25rem;
     border-bottom: 1px solid var(--line); }
   .frow:last-child { border-bottom: 0; }
-  .frow.overdue { background: var(--accent-soft); }
-  .frow.done { opacity: .55; }
+  .frow.overdue { background: var(--danger-tint); }
+  .frow.done { opacity: .5; }
   .frow.done .t { text-decoration: line-through; }
   .frow .d { font-family: var(--font-mono); font-size: .82rem;
-    font-variant-numeric: tabular-nums; }
-  .frow.overdue .d { color: var(--accent); font-weight: 600; }
-  .frow .t { font-size: .95rem; }
-  .frow .f { font-family: var(--font-mono); font-size: .73rem; color: var(--muted);
+    font-variant-numeric: tabular-nums; color: var(--muted); }
+  .frow.overdue .d { color: var(--danger); font-weight: 600; }
+  .frow .t { font-size: .96rem; font-weight: 500; }
+  .frow .f { font-family: var(--font-mono); font-size: .78rem; color: var(--muted);
     white-space: nowrap; }
   .frow form { margin: 0; }
-  @media (max-width: 640px) {
-    .frow { grid-template-columns: 5.4rem 1fr; }
+  @media (max-width: 660px) {
+    .frow { grid-template-columns: 5.6rem 1fr; }
     .frow .f { grid-column: 2; }
   }
 
-  details.why { margin-top: .35rem; }
-  details.why summary { cursor: pointer; font-size: .85rem; color: var(--muted); }
+  details.why { margin-top: .4rem; }
+  details.why summary { cursor: pointer; font-size: .85rem; color: var(--muted);
+    font-weight: 400; }
   details.why p { font-size: .9rem; color: var(--ink-2); margin: .5rem 0 0; }
 
-  .advisory { border: 1px solid var(--line-2); border-left: 3px solid var(--warn);
-    background: var(--warn-soft); padding: .85rem 1rem; margin-bottom: .8rem;
-    font-size: .92rem; }
-  .advisory.info { border-left-color: var(--muted); background: var(--paper); }
+  .advisory { border: 1px solid var(--line); border-left: 3px solid var(--warn);
+    background: var(--warn-tint); padding: .9rem 1.1rem; margin-bottom: .8rem;
+    border-radius: 0 12px 12px 0; font-size: .93rem; }
+  .advisory.info { border-left-color: var(--line-2); background: var(--band);
+    color: var(--ink-2); }
   .advisory b { display: block; margin-bottom: .2rem; }
+
+  .txn-form { border: 1px solid var(--line); border-radius: 16px;
+    padding: 1.2rem 1.3rem; margin-bottom: 1.8rem; background: var(--band); }
+  .txn-grid { display: grid; grid-template-columns: 9rem 1fr 8rem 8rem 1fr auto;
+    gap: .7rem; align-items: end; }
+  .txn-grid .field { margin: 0; }
+  @media (max-width: 980px) { .txn-grid { grid-template-columns: 1fr 1fr; } }
+  .frow .sub { display: block; color: var(--muted); font-size: .82rem;
+    font-weight: 400; }
+  .frow .num { font-variant-numeric: tabular-nums; font-size: .88rem; color: var(--ink); }
+  .frow.total { background: var(--band); }
+  .periods { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+  @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+  .two .sheet { margin-bottom: 0; }
+  .two .sheet.win { border-color: var(--brand); box-shadow: var(--shadow-lg); }
+  .two .frow { grid-template-columns: 1fr auto; }
+  .verdict { margin: 1.5rem 0; padding: 1.1rem 1.3rem; border-radius: 16px;
+    background: var(--band); font-size: .97rem; }
+  .verdict.good { background: var(--brand-tint); }
+  .verdict b { display: block; margin-bottom: .25rem; }
 
   .steps-bar { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
     text-transform: uppercase; color: var(--muted); margin-bottom: 1.6rem; }
-  .steps-bar b { color: var(--accent); }
+  .steps-bar b { color: var(--brand); }
 </style>`;
 
 const HEAD = (title: string) => `<!doctype html>
@@ -145,10 +174,15 @@ ${CHROME}
 </head>
 <body>`;
 
-export function shell(title: string, body: string, email?: string): string {
+export function shell(title: string, body: string, email?: string, active = ''): string {
+  const link = (href: string, label: string) =>
+    `<a href="${href}"${active === href ? ' class="on"' : ''}>${label}</a>`;
   return `${HEAD(title)}
 <header class="app"><div class="wrap app-in">
-  <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="28" height="28">FileClear</a>
+  <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="30" height="30">FileClear</a>
+  ${email ? `<nav class="app-nav" aria-label="Sections">
+    ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
+    ${link('/onboarding', 'Company')}</nav>` : ''}
   ${email ? `<div class="app-right"><span>${esc(email)}</span>
     <form method="post" action="/signout" style="margin:0">
       <button class="btn small" type="submit">Sign out</button></form></div>` : ''}
@@ -417,7 +451,130 @@ ${advisories.map((a) => `<div class="advisory ${a.severity === 'info' ? 'info' :
 <div class="sheet" style="margin-top:1.6rem">
   <div class="sheet-head"><span>Filing calendar</span><span>next 12 months</span></div>
   ${rows || '<div class="frow"><span class="t">Nothing due in the next twelve months.</span></div>'}
-  <div class="sheet-head" style="border-bottom:0;border-top:2px solid var(--rule)">
+  <div class="sheet-head" style="border-bottom:0;border-top:1px solid var(--line)">
     <span>Every date links to the authority that publishes it</span><span></span></div>
-</div>`, email);
+</div>`, email, '/dashboard');
+}
+
+// -------------------------------------------------------------------- books
+
+import { ACCOUNTS, ACCOUNT_BY_ID, type AccountKind } from './rules/gifi';
+import { dollars, type HstReturn } from './rules/hst';
+import type { TxnRow } from './db';
+
+const KIND_LABEL: Record<AccountKind, string> = {
+  revenue: 'Revenue', expense: 'Expenses', asset: 'Assets',
+  liability: 'Liabilities', equity: 'Equity',
+};
+
+export function booksPage(
+  email: string, companyId: string, companyName: string,
+  txns: TxnRow[], today: string, error?: string,
+): string {
+  const grouped: AccountKind[] = ['revenue', 'expense', 'asset', 'liability', 'equity'];
+  const options = grouped.map((kind) => `<optgroup label="${KIND_LABEL[kind]}">${
+    ACCOUNTS.filter((a) => a.kind === kind)
+      .map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')
+  }</optgroup>`).join('');
+
+  const rows = txns.map((t) => {
+    const a = ACCOUNT_BY_ID.get(t.account_id);
+    return `<div class="frow">
+      <span class="d">${esc(t.txn_date)}</span>
+      <span class="t">${esc(a?.name ?? t.account_id)}
+        ${t.description ? `<span class="sub">${esc(t.description)}</span>` : ''}</span>
+      <span class="f">${dollars(t.amount_cents)}</span>
+      <span class="f">${t.hst_cents ? dollars(t.hst_cents) : '&mdash;'}</span>
+      <form method="post" action="/books/delete">
+        <input type="hidden" name="company" value="${esc(companyId)}">
+        <input type="hidden" name="id" value="${esc(t.id)}">
+        <button class="btn small" type="submit">Remove</button>
+      </form>
+    </div>`;
+  }).join('');
+
+  return shell(`${companyName} books`, `
+<span class="label">${esc(companyName)} &middot; ledger</span>
+<h1>The books.</h1>
+<p class="hint">Every line carries the HST that was actually on the document, not a
+computed 13%. A supplier outside Canada charges none, and claiming tax that was never
+charged is claiming a credit that does not exist.
+<a href="/hst">See the HST return</a> this produces.</p>
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+<form method="post" action="/books" class="txn-form">
+  <input type="hidden" name="company" value="${esc(companyId)}">
+  <div class="txn-grid">
+    <div class="field"><label for="date">Date</label>
+      <input id="date" name="date" type="date" required value="${esc(today)}"></div>
+    <div class="field"><label for="account">Account</label>
+      <select id="account" name="account" required>${options}</select></div>
+    <div class="field"><label for="amount">Amount, before HST</label>
+      <input id="amount" name="amount" type="text" inputmode="decimal" required placeholder="1000.00"></div>
+    <div class="field"><label for="hst">HST on the document</label>
+      <input id="hst" name="hst" type="text" inputmode="decimal" placeholder="130.00"></div>
+    <div class="field"><label for="description">Description</label>
+      <input id="description" name="description" type="text" placeholder="Invoice 014"></div>
+    <div class="field"><label>&nbsp;</label>
+      <button class="btn primary" type="submit">Add</button></div>
+  </div>
+</form>
+
+<div class="sheet">
+  <div class="sheet-head"><span>Ledger</span><span>${txns.length} entries</span></div>
+  ${rows || '<div class="frow"><span class="t">Nothing recorded yet.</span></div>'}
+</div>`, email, '/books');
+}
+
+// ---------------------------------------------------------------- hst return
+
+/** A selectable fiscal year on the HST screen. */
+export interface HstPeriodOption { id: string; label: string; from: string; to: string; }
+
+export function hstPage(
+  email: string, companyName: string, r: HstReturn, periods: HstPeriodOption[],
+  active: string,
+): string {
+  const better = r.quickSaves > 0;
+  return shell(`${companyName} HST`, `
+<span class="label">${esc(companyName)} &middot; HST</span>
+<h1>Your HST return.</h1>
+<p class="hint">Computed from the ledger, both ways, for
+${esc(r.from)} to ${esc(r.to)}.</p>
+
+<div class="periods">${periods.map((o) =>
+  `<a class="btn small${o.id === active ? ' primary' : ''}" href="/hst?period=${o.id}">${esc(o.label)}</a>`).join('')}</div>
+
+<div class="two">
+  <div class="sheet">
+    <div class="sheet-head"><span>Regular method</span><span>GST34</span></div>
+    <div class="frow"><span class="t">Line 101 &middot; total revenue</span><span class="f num">${dollars(r.totalRevenue)}</span></div>
+    <div class="frow"><span class="t">Line 105 &middot; HST collected</span><span class="f num">${dollars(r.collected)}</span></div>
+    <div class="frow"><span class="t">Line 108 &middot; input tax credits</span><span class="f num">${dollars(r.itcs)}</span></div>
+    <div class="frow total"><span class="t"><b>Line 109 &middot; net tax</b></span><span class="f num"><b>${dollars(r.netTaxRegular)}</b></span></div>
+  </div>
+
+  <div class="sheet${better ? ' win' : ''}">
+    <div class="sheet-head"><span>Quick Method</span><span>${(r.quick.rate * 100).toFixed(1)}%</span></div>
+    <div class="frow"><span class="t">Sales, HST included</span><span class="f num">${dollars(r.quick.includedSales)}</span></div>
+    <div class="frow"><span class="t">At ${(r.quick.rate * 100).toFixed(1)}%</span><span class="f num">${dollars(Math.round(r.quick.includedSales * r.quick.rate))}</span></div>
+    <div class="frow"><span class="t">Less the 1% credit</span><span class="f num">${dollars(-r.quick.credit)}</span></div>
+    <div class="frow"><span class="t">Less credits on capital</span><span class="f num">${dollars(-r.quick.capitalItcs)}</span></div>
+    <div class="frow total"><span class="t"><b>Net tax</b></span><span class="f num"><b>${dollars(r.quick.netTax)}</b></span></div>
+  </div>
+</div>
+
+<div class="verdict ${better ? 'good' : ''}">
+  ${r.quick.eligible
+    ? (better
+      ? `<b>The Quick Method would have cost ${dollars(r.quickSaves)} less</b>
+         over this period. That is the difference between the two columns above,
+         computed from your own ledger rather than from a rule of thumb.`
+      : `<b>The regular method is cheaper here, by ${dollars(-r.quickSaves)}.</b>
+         Your input tax credits are large enough to beat the flat rate, which is
+         what happens when a business has heavy taxable costs.`)
+    : '<b>The Quick Method is not available at this level of sales.</b>'}
+</div>
+
+${r.caveats.map((c) => `<div class="advisory info">${esc(c)}</div>`).join('')}`, email, '/hst');
 }

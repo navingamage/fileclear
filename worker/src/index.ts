@@ -1,13 +1,19 @@
 import { blankProfile, type CompanyProfile, type Jurisdiction } from './rules/profile';
-import { filingsBetween, advisoriesFor, addDays } from './rules/engine';
+import { filingsBetween, advisoriesFor, addDays, yearEndFor } from './rules/engine';
 import {
   accountForRequest, createSession, endSession, hashPassword, verifyPassword,
   randomId, sessionCookie, clearedCookie, looksLikeEmail, passwordProblem,
 } from './auth';
 import {
   saveCompany, firstCompanyFor, loadCompany, filingStates, setFilingState,
+  addTransaction, deleteTransaction, transactionsFor, toLedger,
 } from './db';
-import { authPage, onboardingPage, dashboardPage, shell, html } from './views';
+import { computeHst } from './rules/hst';
+import { ACCOUNT_BY_ID } from './rules/gifi';
+import {
+  authPage, onboardingPage, dashboardPage, booksPage, hstPage, shell, html,
+  type HstPeriodOption,
+} from './views';
 
 export interface Env {
   DB: D1Database;
@@ -33,6 +39,34 @@ const num = (v: FormValue, fallback = 0): number => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 const on = (v: FormValue): boolean => v === 'on' || v === 'true';
+
+/** Dollars typed by a person into cents, or null if it is not a number. */
+function money(v: FormValue): number | null {
+  const raw = String(v ?? '').replace(/[$,\s]/g, '');
+  if (raw === '') return 0;
+  if (!/^-?\d*(\.\d{0,2})?$/.test(raw)) return null;
+  return Math.round(Number(raw) * 100);
+}
+
+/**
+ * The fiscal years available on the HST screen, newest first.
+ *
+ * Periods are the fiscal year rather than the calendar one, because that is
+ * what an annual filer reports on and what the quarters are counted back from.
+ */
+function hstPeriods(fye: { month: number; day: number }, todayIso: string): HstPeriodOption[] {
+  const year = Number(todayIso.slice(0, 4));
+  const out: HstPeriodOption[] = [];
+  for (let y = year; y >= year - 2; y--) {
+    out.push({
+      id: `fy${y}`,
+      label: `FY${y}`,
+      from: addDays(yearEndFor(fye, y - 1), 1),
+      to: yearEndFor(fye, y),
+    });
+  }
+  return out;
+}
 
 function profileFromForm(form: FormData): { profile: CompanyProfile; error?: string } {
   const p = blankProfile();
@@ -140,7 +174,8 @@ export default {
     }
 
     // ------------------------------------------------------- authenticated
-    const needsAccount = ['/dashboard', '/onboarding', '/filing'].includes(path);
+    const needsAccount = ['/dashboard', '/onboarding', '/filing', '/books',
+      '/books/delete', '/hst'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
     if (path === '/onboarding' && account) {
@@ -179,6 +214,59 @@ export default {
       if (!owned || !filingId) return redirect('/dashboard');
       await setFilingState(env.DB, companyId, filingId, state);
       return redirect('/dashboard');
+    }
+
+    if ((path === '/books' || path === '/books/delete') && account) {
+      const company = await firstCompanyFor(env.DB, account.id);
+      if (!company) return redirect('/onboarding');
+
+      if (path === '/books/delete' && request.method === 'POST') {
+        const form = await request.formData();
+        await deleteTransaction(env.DB, company.id, String(form.get('id') ?? ''));
+        return redirect('/books');
+      }
+
+      if (request.method === 'POST') {
+        const form = await request.formData();
+        const date = String(form.get('date') ?? '').trim();
+        const accountId = String(form.get('account') ?? '');
+        const amount = money(form.get('amount'));
+        const hst = money(form.get('hst'));
+
+        let problem: string | null = null;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) problem = 'Enter a date.';
+        else if (!ACCOUNT_BY_ID.has(accountId)) problem = 'Choose an account.';
+        else if (amount === null || amount === 0) problem = 'Enter an amount.';
+        else if (hst === null) problem = 'The HST amount is not a number.';
+
+        if (problem) {
+          const txns = await transactionsFor(env.DB, company.id);
+          return html(booksPage(account.email, company.id, company.profile.legalName,
+            txns, today(), problem), 400);
+        }
+        await addTransaction(env.DB, randomId(16), company.id, {
+          txn_date: date, account_id: accountId,
+          amount_cents: amount!, hst_cents: hst ?? 0,
+          description: String(form.get('description') ?? '').slice(0, 200),
+        });
+        return redirect('/books');
+      }
+
+      const txns = await transactionsFor(env.DB, company.id);
+      return html(booksPage(account.email, company.id, company.profile.legalName,
+        txns, today()));
+    }
+
+    if (path === '/hst' && account) {
+      const company = await firstCompanyFor(env.DB, account.id);
+      if (!company) return redirect('/onboarding');
+
+      const options = hstPeriods(company.profile.fiscalYearEnd, today());
+      const wanted = url.searchParams.get('period');
+      const chosen = options.find((o) => o.id === wanted) ?? options[0]!;
+      const rows = await transactionsFor(env.DB, company.id, chosen.from, chosen.to);
+      const ret = computeHst(toLedger(rows), chosen.from, chosen.to);
+      return html(hstPage(account.email, company.profile.legalName, ret, options, chosen.id));
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.

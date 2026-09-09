@@ -165,3 +165,60 @@ export async function setFilingState(
        changed_at = datetime('now')`,
   ).bind(companyId, filingId, state).run();
 }
+
+// ------------------------------------------------------------- transactions
+
+import type { LedgerLine } from './rules/hst';
+
+export interface TxnRow {
+  id: string;
+  txn_date: string;
+  account_id: string;
+  amount_cents: number;
+  hst_cents: number;
+  description: string;
+}
+
+export async function addTransaction(
+  db: D1Database, id: string, companyId: string, t: Omit<TxnRow, 'id'>,
+): Promise<void> {
+  await db.prepare(
+    `INSERT INTO transactions
+       (id, company_id, txn_date, account_id, amount_cents, hst_cents, description)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, companyId, t.txn_date, t.account_id, t.amount_cents, t.hst_cents, t.description).run();
+}
+
+export async function deleteTransaction(
+  db: D1Database, companyId: string, id: string,
+): Promise<void> {
+  await db.prepare('DELETE FROM transactions WHERE id = ? AND company_id = ?')
+    .bind(id, companyId).run();
+}
+
+export async function transactionsFor(
+  db: D1Database, companyId: string, from?: string, to?: string,
+): Promise<TxnRow[]> {
+  const sql = from && to
+    ? `SELECT id, txn_date, account_id, amount_cents, hst_cents, description
+         FROM transactions WHERE company_id = ? AND txn_date BETWEEN ? AND ?
+        ORDER BY txn_date DESC, created_at DESC`
+    : `SELECT id, txn_date, account_id, amount_cents, hst_cents, description
+         FROM transactions WHERE company_id = ? ORDER BY txn_date DESC, created_at DESC`;
+  const stmt = from && to
+    ? db.prepare(sql).bind(companyId, from, to)
+    : db.prepare(sql).bind(companyId);
+  const rows = await stmt.all<TxnRow>();
+  return rows.results ?? [];
+}
+
+/** The engine works on plain lines and knows nothing about D1. */
+export function toLedger(rows: TxnRow[]): LedgerLine[] {
+  return rows.map((r) => ({
+    date: r.txn_date,
+    accountId: r.account_id,
+    amount: r.amount_cents,
+    hst: r.hst_cents,
+    description: r.description,
+  }));
+}

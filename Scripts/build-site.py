@@ -40,154 +40,149 @@ STYLE = """<style>
     font-family: var(--font-body); font-size: 17px; line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
-  a { color: inherit; text-decoration: none; }
+  a { color: var(--link); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  :focus-visible { outline: 2.5px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+  :focus-visible { outline: 2.5px solid var(--brand); outline-offset: 3px; border-radius: 4px; }
   img { max-width: 100%; display: block; }
 
-  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
-  .narrow { max-width: 680px; }
-  .center { text-align: center; margin-left: auto; margin-right: auto; }
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 0 28px; }
+  .narrow { max-width: 660px; }
 
+  /* Large and light, the way the reference sets big type. Weight 500 rather
+     than 800: at 60px a heavy face shouts, and this page is not shouting. */
   h1, h2, h3 {
-    font-family: var(--font-display); letter-spacing: -.035em;
-    line-height: 1.03; margin: 0; text-wrap: balance; font-weight: 800;
+    font-family: var(--font-display); letter-spacing: -.028em;
+    line-height: 1.08; margin: 0; text-wrap: balance; font-weight: 500;
   }
-  h1 { font-size: clamp(2.9rem, 7vw, 5rem); }
-  h2 { font-size: clamp(2rem, 4.4vw, 3.1rem); letter-spacing: -.03em; }
-  h3 { font-size: 1.18rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.25; }
+  h1 { font-size: clamp(2.6rem, 5.4vw, 3.9rem); }
+  h2 { font-size: clamp(1.9rem, 3.6vw, 2.7rem); }
+  h3 { font-size: 1.16rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.3; }
   p { margin: 0 0 1.1rem; }
-  .lead { font-size: clamp(1.1rem, 1.7vw, 1.3rem); color: var(--ink-2); line-height: 1.5; }
+  .lead { font-size: clamp(1.06rem, 1.5vw, 1.22rem); color: var(--ink-2); line-height: 1.55; }
   .muted { color: var(--muted); }
   .eyebrow {
-    display: inline-block; font-family: var(--font-mono); font-size: .72rem;
-    letter-spacing: .14em; text-transform: uppercase; color: var(--brand);
-    background: var(--brand-tint); padding: .42rem .8rem;
-    border-radius: var(--radius-pill); margin-bottom: 1.5rem;
+    display: inline-block; font-family: var(--font-mono); font-size: .71rem;
+    letter-spacing: .15em; text-transform: uppercase; color: var(--brand);
+    margin-bottom: 1.1rem;
   }
 
-  .skip {
-    position: absolute; left: 50%; translate: -50% -200%; z-index: 90;
+  .skip { position: absolute; left: 50%; translate: -50% -200%; z-index: 90;
     background: var(--surface); border: 1px solid var(--line-2);
-    padding: .7rem 1.2rem; border-radius: 0 0 14px 14px; font-weight: 600;
-  }
+    padding: .7rem 1.2rem; font-weight: 600; }
   .skip:focus { translate: -50% 0; text-decoration: none; }
 
-  /* Navigation: sticky, quiet, with a pill on the right. */
-  header.nav {
-    position: sticky; top: 0; z-index: 60; background: var(--bg);
-    border-bottom: 1px solid var(--line);
-  }
-  .nav-in { display: flex; align-items: center; gap: 1.8rem; padding: .9rem 0; }
-  .brand {
-    display: flex; align-items: center; gap: .6rem;
-    font-family: var(--font-display); font-weight: 800; font-size: 1.16rem;
-    letter-spacing: -.04em;
-  }
+  header.nav { position: sticky; top: 0; z-index: 60; background: var(--bg);
+    border-bottom: 1px solid var(--line); }
+  .nav-in { display: flex; align-items: center; gap: 2rem; padding: .85rem 0; }
+  .brand { display: flex; align-items: center; gap: .6rem;
+    font-family: var(--font-display); font-weight: 700; font-size: 1.14rem;
+    letter-spacing: -.035em; }
   .brand:hover { text-decoration: none; }
-  .brand img { width: 34px; height: 34px; border-radius: 9px; }
+  .brand img { width: 32px; height: 32px; border-radius: 8px; }
   .nav-links { display: flex; gap: 1.7rem; margin-left: auto; }
-  .nav-links a { color: var(--muted); font-size: .96rem; font-weight: 500; }
+  .nav-links a { color: var(--ink-2); font-size: .95rem; font-weight: 500; }
   .nav-links a:hover { color: var(--ink); text-decoration: none; }
-  @media (max-width: 860px) { .nav-links { display: none; } .nav-in { gap: 1rem; } }
+  @media (max-width: 900px) { .nav-links { display: none; } .nav-in { gap: 1rem; } }
 
-  .btn {
-    display: inline-flex; align-items: center; gap: .5rem;
-    padding: .85rem 1.5rem; border-radius: var(--radius-pill);
+  .btn { display: inline-flex; align-items: center; justify-content: center;
+    padding: .82rem 1.5rem; border-radius: var(--radius-btn);
     font-weight: 600; font-size: 1rem; border: 1.5px solid transparent;
-    background: var(--sunk); color: var(--ink); white-space: nowrap;
-  }
-  .btn:hover { text-decoration: none; filter: brightness(.97); }
+    background: var(--sunk); color: var(--ink); white-space: nowrap; }
+  .btn:hover { text-decoration: none; filter: brightness(.96); }
   .btn.primary { background: var(--primary); color: var(--primary-ink); }
+  .btn.brand { background: var(--brand); color: var(--brand-ink); }
   .btn.ghost { background: transparent; border-color: var(--line-2); }
-  .btn.small { padding: .55rem 1.05rem; font-size: .92rem; }
+  .btn.small { padding: .5rem 1rem; font-size: .92rem; }
+  /* On a black section the buttons invert, the way the reference does it. */
+  .on-dark .btn { background: rgba(255,255,255,.12); color: var(--on-dark);
+    border-radius: var(--radius-pill); }
+  .on-dark .btn.primary { background: #fff; color: #0b0d0f; }
 
-  section { padding: clamp(4rem, 9vw, 7.5rem) 0; }
+  section { padding: clamp(3.6rem, 7vw, 6.4rem) 0; }
   .band { background: var(--band); }
+  .ice { background: var(--ice); }
+  .on-dark { background: var(--dark); color: var(--on-dark); }
+  .on-dark h1, .on-dark h2, .on-dark h3 { color: var(--on-dark); }
+  .on-dark .lead, .on-dark p { color: var(--on-dark-2); }
+  .on-dark .eyebrow { color: #ff8a94; }
 
-  /* Hero: claim, then the product itself, large. */
-  .hero { padding-top: clamp(3.4rem, 7vw, 6rem); padding-bottom: 0; }
-  .hero .lead { max-width: 44ch; }
-  .cta-row { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 2rem; }
-  .hero-note { color: var(--muted); font-size: .95rem; margin-top: 1.5rem; }
+  /* Hero: copy on the left, the product on the right, in one row. Not a
+     headline over a floating panel, which is what read as uneven. */
+  .hero { padding-top: clamp(3rem, 5vw, 4.6rem); }
+  .hero-grid { display: grid; grid-template-columns: minmax(0,.92fr) minmax(0,1.08fr);
+    gap: clamp(2rem, 5vw, 4.5rem); align-items: center; }
+  @media (max-width: 1000px) { .hero-grid { grid-template-columns: 1fr; } }
+  .hero .lead { max-width: 42ch; }
+  .cta-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.9rem; }
+  .hero-note { color: var(--muted); font-size: .93rem; margin-top: 1.4rem; }
 
-  .showcase { padding-top: clamp(3rem, 6vw, 5rem); padding-bottom: 0; }
-  .frame {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
-    overflow: hidden; max-width: 780px; margin: 0 auto;
-  }
-  .frame-bar {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 1rem; padding: 1rem 1.4rem; border-bottom: 1px solid var(--line);
-    background: var(--sunk);
-  }
-  .frame-bar b { font-size: .95rem; font-weight: 700; letter-spacing: -.01em; }
-  .frame-bar span { font-family: var(--font-mono); font-size: .74rem; color: var(--muted); }
-  .frow {
-    display: grid; grid-template-columns: 5.4rem 1fr auto;
-    gap: 1rem; align-items: center; padding: .95rem 1.4rem;
-    border-bottom: 1px solid var(--line);
-  }
+  /* The calendar panel. Sits in the hero grid rather than centred under it. */
+  .panel { background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
+  .panel-bar { display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: .95rem 1.3rem; border-bottom: 1px solid var(--line);
+    background: var(--band); }
+  .panel-bar b { font-size: .93rem; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
+  .panel-bar span { font-family: var(--font-mono); font-size: .72rem; color: var(--muted); }
+  .frow { display: grid; grid-template-columns: 5rem 1fr auto; gap: .9rem;
+    align-items: center; padding: .82rem 1.3rem; border-bottom: 1px solid var(--line); }
   .frow:last-child { border-bottom: 0; }
-  .frow .d {
-    font-family: var(--font-mono); font-size: .82rem;
-    font-variant-numeric: tabular-nums; color: var(--muted);
-  }
-  .frow .t { font-size: .98rem; font-weight: 500; }
-  .frow .tag {
-    font-family: var(--font-mono); font-size: .68rem; letter-spacing: .06em;
-    padding: .28rem .6rem; border-radius: var(--radius-pill);
-    background: var(--sunk); color: var(--muted); white-space: nowrap;
-  }
+  .frow .d { font-family: var(--font-mono); font-size: .8rem;
+    font-variant-numeric: tabular-nums; color: var(--muted); }
+  .frow .t { font-size: .95rem; font-weight: 500; color: var(--ink); }
+  .frow .tag { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .05em;
+    padding: .26rem .58rem; border-radius: var(--radius-pill);
+    background: var(--sunk); color: var(--muted); white-space: nowrap; }
   .frow.soon { background: var(--danger-tint); }
   .frow.soon .d { color: var(--danger); font-weight: 600; }
   .frow.soon .tag { background: var(--danger); color: #fff; }
-  .frow.cleared .tag { background: var(--brand-tint); color: var(--brand); }
+  .frow.cleared .tag { background: #dff3e6; color: #14663f; }
 
-  /* Cards */
-  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin-top: 3rem; }
+  /* Section heading that sits left with supporting copy on the right, which is
+     what stops every section being a centred stack. */
+  .sec-head { display: grid; grid-template-columns: 1.05fr 1fr; gap: 2.5rem;
+    align-items: end; margin-bottom: 2.8rem; }
+  .sec-head .eyebrow { grid-column: 1 / -1; margin-bottom: .4rem; }
+  .sec-head p { margin: 0; }
+  @media (max-width: 860px) { .sec-head { grid-template-columns: 1fr; gap: 1rem; } }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
   @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } }
-  .card {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 1.7rem 1.6rem 1.8rem;
-    box-shadow: var(--shadow);
-  }
-  .card .num {
-    font-family: var(--font-mono); font-size: .74rem; color: var(--brand);
-    letter-spacing: .1em; display: block; margin-bottom: .9rem;
-  }
-  .card p { margin: .55rem 0 0; color: var(--ink-2); font-size: .99rem; }
+  .card { background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 1.6rem 1.5rem 1.7rem; }
+  .on-dark .card { background: var(--dark-2); border-color: rgba(255,255,255,.1); }
+  .card .num { font-family: var(--font-mono); font-size: .72rem; color: var(--brand);
+    letter-spacing: .1em; display: block; margin-bottom: .8rem; }
+  .on-dark .card .num { color: #ff8a94; }
+  .card p { margin: .5rem 0 0; color: var(--ink-2); font-size: .97rem; }
+  .on-dark .card p { color: var(--on-dark-2); }
 
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-top: 3rem; }
-  @media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
-  .split .card .who {
-    font-family: var(--font-mono); font-size: .74rem; color: var(--muted);
-    display: block; margin: .3rem 0 1.1rem;
-  }
-  .split ul { margin: 0; padding-left: 1.15rem; color: var(--ink-2); font-size: .99rem; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+  .split .who { font-family: var(--font-mono); font-size: .72rem; color: var(--muted);
+    display: block; margin: .3rem 0 1rem; }
+  .split ul { margin: 0; padding-left: 1.15rem; color: var(--ink-2); font-size: .97rem; }
   .split li { margin-bottom: .5rem; }
   .split li b { color: var(--ink); font-weight: 700; }
 
-  /* A flat brand block for the closing call, the way commerce sites do it. */
-  .callout {
-    background: var(--brand); color: var(--brand-ink);
-    border-radius: var(--radius-lg); padding: clamp(2.6rem, 5vw, 4.2rem);
-    text-align: center;
-  }
-  .callout h2 { color: var(--brand-ink); }
-  .callout p { color: var(--brand-ink); opacity: .88; }
-  .callout .btn.primary { background: var(--brand-ink); color: var(--brand); }
+  /* A wide row: statement on the left, three figures on the right. */
+  .figures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem;
+    margin-top: 2.4rem; }
+  @media (max-width: 760px) { .figures { grid-template-columns: 1fr; } }
+  .figure b { display: block; font-family: var(--font-display); font-weight: 500;
+    font-size: 2.5rem; letter-spacing: -.04em; line-height: 1; }
+  .figure span { display: block; color: var(--muted); font-size: .95rem; margin-top: .5rem; }
+  .on-dark .figure span { color: var(--on-dark-2); }
 
-  .prose h2 { font-size: 1.45rem; margin: 2.6rem 0 .7rem; letter-spacing: -.02em; }
-  .prose h3 { margin: 1.9rem 0 .35rem; font-size: 1.06rem; }
+  .prose h2 { font-size: 1.4rem; margin: 2.5rem 0 .7rem; font-weight: 600; }
+  .prose h3 { margin: 1.9rem 0 .35rem; font-size: 1.04rem; }
   .prose p { color: var(--ink-2); }
-  .prose a { color: var(--brand); font-weight: 600; }
+  .prose a { color: var(--brand); font-weight: 600; text-decoration: underline; }
 
   footer { border-top: 1px solid var(--line); padding: 3rem 0 4rem; }
   .foot-links { display: flex; flex-wrap: wrap; gap: 1.4rem; margin: 1.3rem 0; }
-  .foot-links a { color: var(--muted); font-size: .95rem; }
-  .fine { color: var(--muted); font-size: .87rem; max-width: 70ch; margin: 0 0 .7rem; }
+  .foot-links a { color: var(--muted); font-size: .94rem; }
+  .fine { color: var(--muted); font-size: .86rem; max-width: 70ch; margin: 0 0 .7rem; }
 
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>"""
@@ -231,21 +226,22 @@ def page(slug: str, title: str, desc: str, body: str, canonical: bool = True) ->
     )
 
 
-INDEX = """<section class="hero"><div class="wrap">
-  <span class="eyebrow">Canadian corporate filings</span>
-  <h1>Never miss a filing again.</h1>
-  <p class="lead">FileClear reads how your corporation is set up and builds the exact
-  filing calendar that follows from it. Every date, every form, every authority.</p>
-  <div class="cta-row">
-    <!--email_off--><a class="btn primary" href="mailto:hello@antipodetech.com?subject=FileClear%20early%20access">Get early access</a><!--/email_off-->
-    <a class="btn ghost" href="#how">See how it works</a>
+INDEX = """<section class="hero"><div class="wrap hero-grid">
+  <div>
+    <span class="eyebrow">Canadian corporate filings</span>
+    <h1>Never miss a filing again.</h1>
+    <p class="lead">FileClear reads how your corporation is set up and builds the exact
+    calendar that follows from it. Every date, every form, every authority.</p>
+    <div class="cta-row">
+      <!--email_off--><a class="btn primary" href="mailto:hello@antipodetech.com?subject=FileClear%20early%20access">Get early access</a><!--/email_off-->
+      <a class="btn ghost" href="#how">See how it works</a>
+    </div>
+    <p class="hero-note">In development. Opening to a first group of Canadian
+    corporations soon.</p>
   </div>
-  <p class="hero-note">In development. Opening to a first group of Canadian corporations soon.</p>
-</div></section>
 
-<section class="showcase"><div class="wrap">
-  <div class="frame">
-    <div class="frame-bar">
+  <div class="panel">
+    <div class="panel-bar">
       <b>Antipode Technologies Inc.</b>
       <span>31 Dec year end &middot; Ontario</span>
     </div>
@@ -253,47 +249,64 @@ INDEX = """<section class="hero"><div class="wrap">
     <div class="frow soon"><span class="d">28 Feb</span><span class="t">T4 and T5 slips</span><span class="tag">14 days</span></div>
     <div class="frow"><span class="d">15 Mar</span><span class="t">Employer health tax return</span><span class="tag">EHT</span></div>
     <div class="frow"><span class="d">31 Mar</span><span class="t">HST return and payment</span><span class="tag">GST34</span></div>
-    <div class="frow"><span class="d">31 Mar</span><span class="t">Corporate tax balance owing</span><span class="tag">Payment</span></div>
+    <div class="frow"><span class="d">31 Mar</span><span class="t">Corporate tax balance</span><span class="tag">Payment</span></div>
     <div class="frow"><span class="d">30 Jun</span><span class="t">Corporate income tax return</span><span class="tag">T2</span></div>
     <div class="frow"><span class="d">30 Jun</span><span class="t">Ontario annual return</span><span class="tag">Registry</span></div>
   </div>
 </div></section>
 
-<section id="how"><div class="wrap">
-  <div class="narrow">
-    <span class="eyebrow">How it works</span>
+<section class="on-dark"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">The problem</span>
     <h2>Six obligations. Four clocks. Two governments.</h2>
-    <p class="lead">That is what an owner managed corporation carries, and no single
-    place tells you which of them are yours.</p>
+    <p class="lead">No single place tells you which of them are yours, which is why
+    the deadline people miss is usually one they never knew existed.</p>
+  </div>
+  <div class="figures">
+    <div class="figure"><b>60 days</b><span>after your incorporation anniversary, if you
+      are federal. Nothing else you owe runs on that clock.</span></div>
+    <div class="figure"><b>3 months</b><span>to pay, but only if you are a CCPC actually
+      claiming the small business deduction. Otherwise two.</span></div>
+    <div class="figure"><b>2021</b><span>when the Ontario annual return moved to the
+      provincial registry and stopped riding along with the T2.</span></div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">How it works</span>
+    <h2>Answer eight questions once.</h2>
+    <p class="lead">All of it comes off documents you already have. Nothing needs an
+    accountant to fill in.</p>
   </div>
   <div class="cards">
     <div class="card">
       <span class="num">01</span>
-      <h3>Answer eight questions</h3>
-      <p>Where you incorporated and when, your year end, your HST registration, whether
-      you run payroll. All of it comes off documents you already have.</p>
+      <h3>Describe the corporation</h3>
+      <p>Where you incorporated and when, your year end, your HST registration,
+      whether you run payroll.</p>
     </div>
     <div class="card">
       <span class="num">02</span>
       <h3>Get your calendar</h3>
       <p>Every date those answers produce, with the form, the authority, and what
-      happens if it slips. Nothing generic, nothing that is not yours.</p>
+      happens if it slips. We email before each one.</p>
     </div>
     <div class="card">
       <span class="num">03</span>
       <h3>File with the numbers</h3>
-      <p>HST returns, year end figures, the amounts each form asks for. Ready to enter
-      or to hand to an accountant.</p>
+      <p>HST returns worked out both ways, year end figures, the amounts each form
+      asks for.</p>
     </div>
   </div>
 </div></section>
 
-<section id="different" class="band"><div class="wrap">
-  <div class="narrow">
+<section class="band" id="different"><div class="wrap">
+  <div class="sec-head">
     <span class="eyebrow">Why yours differs</span>
     <h2>Two corporations, two completely different years.</h2>
-    <p class="lead">Same revenue, same city. One answer during setup, and almost nothing
-    about their calendars matches.</p>
+    <p class="lead">Same revenue, same city. One answer during setup, and almost
+    nothing about their calendars matches.</p>
   </div>
   <div class="split">
     <div class="card">
@@ -319,14 +332,16 @@ INDEX = """<section class="hero"><div class="wrap">
   </div>
 </div></section>
 
-<section><div class="wrap">
-  <div class="callout">
+<section class="on-dark"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">Get in early</span>
     <h2>Tell us your year end.</h2>
     <p class="lead">Say where you incorporated and when your year ends, and you will
-    hear the moment it opens.</p>
-    <div class="cta-row" style="justify-content:center">
-      <!--email_off--><a class="btn primary" href="mailto:hello@antipodetech.com?subject=FileClear%20early%20access">hello@antipodetech.com</a><!--/email_off-->
-    </div>
+    hear the moment it opens. The first corporations in help decide what gets built
+    next.</p>
+  </div>
+  <div class="cta-row">
+    <!--email_off--><a class="btn primary" href="mailto:hello@antipodetech.com?subject=FileClear%20early%20access">hello@antipodetech.com</a><!--/email_off-->
   </div>
 </div></section>"""
 

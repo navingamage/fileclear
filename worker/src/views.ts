@@ -20,11 +20,12 @@ const CHROME = `<style>
     font-family: var(--font-body); font-size: 16.5px; line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
-  a { color: var(--brand); text-decoration: none; font-weight: 500; }
-  a:hover { text-decoration: underline; }
+  a { color: var(--link); text-decoration: underline; text-underline-offset: 2px;
+    font-weight: 500; }
+  a:hover { color: var(--brand); }
   :focus-visible { outline: 2.5px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
-  h1, h2, h3 { font-family: var(--font-display); font-weight: 800;
-    letter-spacing: -.035em; line-height: 1.08; margin: 0; text-wrap: balance; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 500;
+    letter-spacing: -.028em; line-height: 1.08; margin: 0; text-wrap: balance; }
   h1 { font-size: clamp(2rem, 4.4vw, 2.9rem); }
   h2 { font-size: 1.35rem; }
   h3 { font-size: 1.02rem; font-weight: 700; }
@@ -49,15 +50,14 @@ const CHROME = `<style>
     font-size: .9rem; color: var(--muted); }
   @media (max-width: 720px) { .app-nav { display: none; } }
 
-  .label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--brand); background: var(--brand-tint);
-    display: inline-block; padding: .35rem .7rem; border-radius: 999px;
-    margin: 0 0 1rem; }
+  .label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--brand); display: block;
+    margin: 0 0 .8rem; }
 
   main { padding: 2.6rem 0 5rem; }
 
   fieldset { border: 0; margin: 0 0 2.4rem; padding: 0; }
-  legend { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem;
+  legend { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem;
     letter-spacing: -.03em; padding: 0; margin-bottom: .3rem; }
   .hint { color: var(--muted); font-size: .95rem; margin: 0 0 1.4rem; }
   .field { margin-bottom: 1.15rem; }
@@ -80,7 +80,7 @@ const CHROME = `<style>
   .btn { display: inline-flex; align-items: center; justify-content: center;
     padding: .68rem 1.25rem; font: inherit; font-weight: 600; font-size: .95rem;
     cursor: pointer; border: 1.5px solid var(--line-2); background: var(--surface);
-    color: var(--ink); border-radius: 999px; white-space: nowrap; }
+    color: var(--ink); border-radius: 6px; white-space: nowrap; }
   .btn:hover { text-decoration: none; background: var(--sunk); }
   .btn.primary { background: var(--primary); border-color: var(--primary);
     color: var(--primary-ink); }
@@ -156,7 +156,7 @@ const CHROME = `<style>
   @media (max-width: 660px) { .stats { grid-template-columns: 1fr; } }
   .stat { background: var(--band); border: 1px solid var(--line);
     border-radius: 16px; padding: 1.1rem 1.2rem; }
-  .stat b { display: block; font-family: var(--font-display); font-weight: 800;
+  .stat b { display: block; font-family: var(--font-display); font-weight: 500;
     font-size: 1.9rem; letter-spacing: -.04em; line-height: 1.1; }
   .stat span { display: block; color: var(--muted); font-size: .88rem; margin-top: .2rem; }
   .stat.bad b { color: var(--danger); }

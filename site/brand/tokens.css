@@ -1,52 +1,65 @@
 /* FileClear's design tokens, in one file, read by the marketing pages and by
    the application so a colour changes once.
 
-   The brief was a modern commerce style page: big confident type, generous
-   space, rounded surfaces with soft depth, a black primary button and one brand
-   colour used in flat blocks rather than sprinkled everywhere.
+   The reference is QuickBooks Canada, measured rather than remembered: white
+   ground, black used as a full section colour rather than only on buttons, pale
+   ice tints for the bands between, and large headings at a regular weight
+   instead of a heavy one.
 
-   Green is the brand because the product's promise is "clear", and green is
-   what clear looks like on a status. Red is kept back for one job only, an
-   overdue filing, so that when it appears it means something. Two earlier
-   attempts failed by putting the mood colour everywhere: navy said nothing, and
-   ink on paper made every screen look like a document rather than software.
+   The accent is the red already in the mark. Green was wrong twice over: it is
+   what QuickBooks itself owns, and it made the page look like a status light.
+   Red is the only colour in this product's own icon, no accounting competitor
+   uses it, and it is the right register for a page about deadlines.
 
-   Light is white, per the standing rule. Depth comes from surfaces sitting on a
-   tinted band, not from tinting the page itself. */
+   Red does double duty here, as brand and as overdue, which is normally a
+   mistake. It works because the two never share a surface: the brand red is on
+   white as a button or a rule, and the overdue red is a tinted row with its own
+   label. Where a status genuinely needs to be distinguished, amber carries it. */
 
 :root {
   color-scheme: light dark;
 
   --bg:       #ffffff;
-  --band:     #f2f6f4;  /* the tinted ground a section sits on */
-  --surface:  #ffffff;  /* cards, which lift off the band */
-  --sunk:     #eaefec;
+  --band:     #f1f5f7;  /* the cool grey band between white sections */
+  --ice:      #e6eff3;  /* the second, slightly deeper tint */
+  --surface:  #ffffff;
+  --sunk:     #e9eef1;
 
-  --ink:      #0d1210;  /* 18.9:1 on white */
-  --ink-2:    #37423d;  /* 10.1:1 */
-  --muted:    #61706a;  /*  5.2:1, still body text */
+  /* Black is a surface, not just ink. Whole sections sit on it. */
+  --dark:     #0b0d0f;
+  --dark-2:   #16191c;
+  --on-dark:  #ffffff;
+  --on-dark-2:#b9c2ca;
 
-  --line:     #dde5e1;
-  --line-2:   #c2cfc9;
+  --ink:      #0b0d0f;  /* 19.5:1 on white */
+  --ink-2:    #333c45;  /* 11.2:1 */
+  --muted:    #5c6773;  /*  5.9:1 */
 
-  --brand:        #0b6b4c;  /* white on it, 5.9:1 */
+  --line:     #dde4e9;
+  --line-2:   #c3ccd4;
+  /* Body links are ink with an underline. Red is for actions, and red links
+     everywhere make an application look like a wall of errors. */
+  --link:     #0b0d0f;
+
+  --brand:        #c8102e;  /* white on it, 5.9:1 */
   --brand-ink:    #ffffff;
-  --brand-tint:   #e6f3ed;
-  --brand-strong: #085138;
+  --brand-tint:   #fceaec;
+  --brand-strong: #a60d26;
 
-  --primary:      #0d1210;  /* the button colour. black, the way commerce does it */
+  --primary:      #0b0d0f;
   --primary-ink:  #ffffff;
 
-  --danger:       #b42318;  /* overdue, and nothing else */
-  --danger-tint:  #fdeceb;
+  --danger:       #c8102e;
+  --danger-tint:  #fceaec;
   --warn:         #8a5200;
-  --warn-tint:    #fdf1dc;
+  --warn-tint:    #fbf0dc;
 
-  --radius:    16px;
-  --radius-lg: 26px;
+  --radius:    12px;
+  --radius-lg: 20px;
   --radius-pill: 999px;
-  --shadow:    0 1px 2px rgba(13,18,16,.04), 0 8px 24px rgba(13,18,16,.06);
-  --shadow-lg: 0 2px 6px rgba(13,18,16,.05), 0 30px 70px rgba(13,18,16,.12);
+  --radius-btn: 6px;   /* squarer than a pill, the way the reference does it */
+  --shadow:    0 1px 2px rgba(11,13,15,.04), 0 8px 22px rgba(11,13,15,.06);
+  --shadow-lg: 0 2px 6px rgba(11,13,15,.05), 0 26px 64px rgba(11,13,15,.14);
 
   --font-display: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-body: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -55,25 +68,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Measured off the sites that do this well rather than guessed. Linear
-       sits at #08090a on #f7f8f8; Vercel is pure black with #0a0a0a surfaces,
-       #ededed text and borders at rgba(255,255,255,.14).
-
-       Two things they all do that the first attempt here did not.
-
-       The neutrals are genuinely neutral. Tinting the background toward the
-       brand, which is what #0a0f0d was, muddies it: the green reads as a cast
-       over a photograph rather than as a colour anybody chose. Hue belongs in
-       the accent, and the ground stays out of its way.
-
-       Borders are translucent white, not solid grey. A fixed grey line is
-       correct against exactly one surface and slightly wrong against every
-       other one; a white at 9% opacity is right on all of them, and it stays
-       right when a surface changes. */
+    /* Neutral near black, measured off Linear at #08090a and Vercel at #0a0a0a.
+       Tinting the ground toward the accent muddies it; hue belongs in the
+       accent. Borders are translucent white, which is correct against every
+       surface rather than against exactly one. */
     --bg:       #08090a;
     --band:     #0d0e10;
+    --ice:      #111416;
     --surface:  #101113;
     --sunk:     #0b0c0e;
+
+    --dark:     #101113;
+    --dark-2:   #16181b;
+    --on-dark:  #f7f8f8;
+    --on-dark-2:#9b9ea2;
 
     --ink:      #f7f8f8;
     --ink-2:    #c8cacc;
@@ -81,24 +89,23 @@
 
     --line:     rgba(255, 255, 255, .09);
     --line-2:   rgba(255, 255, 255, .17);
+    --link:     #f7f8f8;
 
-    --brand:        #3ecf8e;  /* the one place hue lives. 9.6:1 on the ground */
-    --brand-ink:    #04231a;
-    --brand-tint:   rgba(62, 207, 142, .13);
-    --brand-strong: #6ee7b0;
+    /* Lifted off the ground, because #c8102e on near black is 3.4:1 and text
+       needs 4.5. Same hue, different lightness. */
+    --brand:        #ff5f6d;
+    --brand-ink:    #2b0509;
+    --brand-tint:   rgba(255, 95, 109, .14);
+    --brand-strong: #ff8a94;
 
-    /* Inverted, the way a dark commerce page does it: the primary action is
-       the lightest thing on the screen. */
     --primary:      #f7f8f8;
     --primary-ink:  #08090a;
 
-    --danger:       #ff6369;
-    --danger-tint:  rgba(255, 99, 105, .13);
+    --danger:       #ff5f6d;
+    --danger-tint:  rgba(255, 95, 109, .14);
     --warn:         #f0b45f;
     --warn-tint:    rgba(240, 180, 95, .12);
 
-    /* Depth in dark comes from the border and the surface step, not from a
-       shadow nobody can see against near black. */
     --shadow:    0 0 0 1px rgba(255, 255, 255, .04);
     --shadow-lg: 0 0 0 1px rgba(255, 255, 255, .06), 0 24px 60px rgba(0, 0, 0, .6);
   }

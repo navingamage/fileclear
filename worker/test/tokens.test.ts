@@ -57,12 +57,27 @@ describe('design tokens', () => {
     }
   });
 
-  /** Red means overdue and nothing else, so it must not be the brand. */
-  it('keeps danger separate from the brand colour', () => {
+  /**
+   * Brand and danger are deliberately the same red now.
+   *
+   * That is normally a mistake, and it was forbidden here until the palette
+   * moved to red. It works because the two never share a surface: the brand red
+   * is a rule or a button on white, and the overdue red is a tinted row with
+   * its own label. What must survive is a third colour for status that is not
+   * the brand, otherwise "needs attention" and "this is our colour" become the
+   * same signal and neither means anything.
+   */
+  it('keeps a status colour that is not the brand', () => {
     const brand = tokens.match(/--brand:\s*(#[0-9a-f]{6})/i)?.[1];
-    const danger = tokens.match(/--danger:\s*(#[0-9a-f]{6})/i)?.[1];
+    const warn = tokens.match(/--warn:\s*(#[0-9a-f]{6})/i)?.[1];
     expect(brand).toBeTruthy();
-    expect(danger).toBeTruthy();
-    expect(brand).not.toBe(danger);
+    expect(warn).toBeTruthy();
+    expect(warn).not.toBe(brand);
+  });
+
+  it('gives danger its own tint rather than reusing a solid', () => {
+    const danger = tokens.match(/--danger:\s*(#[0-9a-f]{6})/i)?.[1];
+    const tint = tokens.match(/--danger-tint:\s*(#[0-9a-f]{6})/i)?.[1];
+    expect(danger).not.toBe(tint);
   });
 });

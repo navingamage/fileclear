@@ -55,33 +55,51 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Near black with a green cast, so the brand still belongs on it. */
-    --bg:       #0a0f0d;
-    --band:     #101815;
-    --surface:  #141c19;
-    --sunk:     #0d1411;
+    /* Measured off the sites that do this well rather than guessed. Linear
+       sits at #08090a on #f7f8f8; Vercel is pure black with #0a0a0a surfaces,
+       #ededed text and borders at rgba(255,255,255,.14).
 
-    --ink:      #eef3f1;
-    --ink-2:    #c3d0cb;
-    --muted:    #93a49d;  /* 7.4:1 on the ground */
+       Two things they all do that the first attempt here did not.
 
-    --line:     #1f2b26;
-    --line-2:   #31413a;
+       The neutrals are genuinely neutral. Tinting the background toward the
+       brand, which is what #0a0f0d was, muddies it: the green reads as a cast
+       over a photograph rather than as a colour anybody chose. Hue belongs in
+       the accent, and the ground stays out of its way.
 
-    --brand:        #3ddc97;
-    --brand-ink:    #06231a;
-    --brand-tint:   #10291f;
-    --brand-strong: #5ee8ab;
+       Borders are translucent white, not solid grey. A fixed grey line is
+       correct against exactly one surface and slightly wrong against every
+       other one; a white at 9% opacity is right on all of them, and it stays
+       right when a surface changes. */
+    --bg:       #08090a;
+    --band:     #0d0e10;
+    --surface:  #101113;
+    --sunk:     #0b0c0e;
 
-    --primary:      #eef3f1;  /* inverted: the button is light on a dark page */
-    --primary-ink:  #0a0f0d;
+    --ink:      #f7f8f8;
+    --ink-2:    #c8cacc;
+    --muted:    #9b9ea2;  /* 8.2:1 on the ground */
 
-    --danger:       #ff7b6f;
-    --danger-tint:  #33191a;
-    --warn:         #e8ae5c;
-    --warn-tint:    #2c2413;
+    --line:     rgba(255, 255, 255, .09);
+    --line-2:   rgba(255, 255, 255, .17);
 
-    --shadow:    0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.4);
-    --shadow-lg: 0 2px 6px rgba(0,0,0,.5), 0 30px 70px rgba(0,0,0,.6);
+    --brand:        #3ecf8e;  /* the one place hue lives. 9.6:1 on the ground */
+    --brand-ink:    #04231a;
+    --brand-tint:   rgba(62, 207, 142, .13);
+    --brand-strong: #6ee7b0;
+
+    /* Inverted, the way a dark commerce page does it: the primary action is
+       the lightest thing on the screen. */
+    --primary:      #f7f8f8;
+    --primary-ink:  #08090a;
+
+    --danger:       #ff6369;
+    --danger-tint:  rgba(255, 99, 105, .13);
+    --warn:         #f0b45f;
+    --warn-tint:    rgba(240, 180, 95, .12);
+
+    /* Depth in dark comes from the border and the surface step, not from a
+       shadow nobody can see against near black. */
+    --shadow:    0 0 0 1px rgba(255, 255, 255, .04);
+    --shadow-lg: 0 0 0 1px rgba(255, 255, 255, .06), 0 24px 60px rgba(0, 0, 0, .6);
   }
 }

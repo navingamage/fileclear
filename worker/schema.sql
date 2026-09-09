@@ -137,3 +137,23 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 CREATE INDEX IF NOT EXISTS transactions_company_date
   ON transactions (company_id, txn_date);
+
+-- --------------------------------------------------------------- reminders
+
+-- Phase two. A calendar you have to remember to open is a calendar you have
+-- already failed to use, so the product emails before a window closes.
+ALTER TABLE companies ADD COLUMN remind_email INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE companies ADD COLUMN remind_lead_days INTEGER NOT NULL DEFAULT 14;
+
+-- One row per filing already warned about, so a daily sweep does not send the
+-- same reminder every morning for two weeks.
+--
+-- Keyed by the engine's stable filing id, which means a rule correction that
+-- moves a date produces a filing nobody has been warned about yet, and the
+-- warning goes out again. That is right: the date changed.
+CREATE TABLE IF NOT EXISTS reminders_sent (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  filing_id  TEXT NOT NULL,
+  sent_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (company_id, filing_id)
+);

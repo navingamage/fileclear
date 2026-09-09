@@ -151,6 +151,18 @@ const CHROME = `<style>
   .verdict.good { background: var(--brand-tint); }
   .verdict b { display: block; margin-bottom: .25rem; }
 
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+    margin: 1.6rem 0; }
+  @media (max-width: 660px) { .stats { grid-template-columns: 1fr; } }
+  .stat { background: var(--band); border: 1px solid var(--line);
+    border-radius: 16px; padding: 1.1rem 1.2rem; }
+  .stat b { display: block; font-family: var(--font-display); font-weight: 800;
+    font-size: 1.9rem; letter-spacing: -.04em; line-height: 1.1; }
+  .stat span { display: block; color: var(--muted); font-size: .88rem; margin-top: .2rem; }
+  .stat.bad b { color: var(--danger); }
+  .frow .now { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--brand); }
+
   .steps-bar { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
     text-transform: uppercase; color: var(--muted); margin-bottom: 1.6rem; }
   .steps-bar b { color: var(--brand); }
@@ -389,6 +401,21 @@ export function onboardingPage(email: string, p: CompanyProfile, error?: string)
     </fieldset>
 
     <fieldset>
+      <legend>Reminders</legend>
+      <p class="hint">A calendar you have to remember to open is one you have already
+      failed to use, so FileClear emails you before a window closes.</p>
+      <div class="check">
+        <input id="remindEmail" name="remindEmail" type="checkbox"${sel(p.reminders.email)}>
+        <label for="remindEmail">Email me before a filing is due</label>
+      </div>
+      <div class="field" style="max-width:16rem">
+        <label for="remindLeadDays">How many days ahead</label>
+        <input id="remindLeadDays" name="remindLeadDays" type="number" min="1" max="90"
+          value="${p.reminders.leadDays}">
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Where you have a permanent establishment</legend>
       <p class="hint">Ontario here is what turns on the employer health tax return.</p>
       ${PROVINCES.map(([c, n]) => `<div class="check">
@@ -413,15 +440,34 @@ export function dashboardPage(
   email: string, companyId: string, p: CompanyProfile,
   filings: Filing[], states: Map<string, string>, advisories: Advisory[], today: string,
 ): string {
-  const rows = filings.map((f) => {
+  // Grouped by month. A flat list of forty dated rows is a spreadsheet; the
+  // month heading is what turns it into something a person can plan against.
+  const months: { key: string; label: string; items: Filing[] }[] = [];
+  for (const f of filings) {
+    const key = f.due.slice(0, 7);
+    const [y, m] = key.split('-').map(Number) as [number, number];
+    const last = months[months.length - 1];
+    if (!last || last.key !== key) {
+      months.push({ key, label: `${MONTHS[m - 1]} ${y}`, items: [f] });
+    } else {
+      last.items.push(f);
+    }
+  }
+
+  const row = (f: Filing) => {
     const state = states.get(f.id);
     const done = state === 'done';
     const overdue = !done && f.due < today;
+    // The lead time is the point: a deadline you learn about on the day is not
+    // a deadline you can act on.
+    const starting = !done && !overdue && f.actionableFrom <= today;
     return `<div class="frow${done ? ' done' : overdue ? ' overdue' : ''}">
-      <span class="d">${fmt(f.due)}</span>
+      <span class="d">${fmt(f.due)}${
+        starting ? '<br><span class="now">start now</span>' : ''}</span>
       <span class="t">${esc(f.title)}
         <details class="why"><summary>Why, and what happens if it slips</summary>
           <p>${esc(f.detail)}</p>
+          <p><b>Start acting</b> ${fmt(f.actionableFrom)}.</p>
           <p><b>If it is late.</b> ${esc(f.penalty)}<br>
           <a href="${esc(f.linkUrl)}" rel="noopener" target="_blank">${esc(f.linkLabel)}</a>,
           from ${esc(f.authority)}.</p>
@@ -435,25 +481,37 @@ export function dashboardPage(
         <button class="btn small" type="submit">${done ? 'Undo' : 'Done'}</button>
       </form>
     </div>`;
-  }).join('');
+  };
 
-  const outstanding = filings.filter((f) => states.get(f.id) !== 'done').length;
+  const outstanding = filings.filter((f) => states.get(f.id) !== 'done');
+  const overdue = outstanding.filter((f) => f.due < today).length;
+  const next = outstanding.find((f) => f.due >= today);
 
   return shell(`${p.legalName} filings`, `
 <span class="label">${esc(p.legalName)} &middot; year end ${MONTHS[p.fiscalYearEnd.month - 1]} ${p.fiscalYearEnd.day}</span>
 <h1>What you owe, and when.</h1>
-<p class="hint">${outstanding} outstanding over the next twelve months.
+
+<div class="stats">
+  <div class="stat"><b>${outstanding.length}</b><span>outstanding this year</span></div>
+  <div class="stat${overdue ? ' bad' : ''}"><b>${overdue}</b><span>overdue</span></div>
+  <div class="stat"><b>${next ? fmt(next.due).replace(/ \d{4}$/, '') : 'None'}</b>
+    <span>${next ? esc(next.title) : 'nothing coming up'}</span></div>
+</div>
+
+<p class="hint">${p.reminders.email
+  ? `We will email you ${p.reminders.leadDays} days before each one.`
+  : 'Email reminders are off.'}
 <a href="/onboarding">Change the company details</a> and this list changes with them.</p>
 
 ${advisories.map((a) => `<div class="advisory ${a.severity === 'info' ? 'info' : ''}">
   <b>${esc(a.title)}</b>${esc(a.detail)}</div>`).join('')}
 
-<div class="sheet" style="margin-top:1.6rem">
-  <div class="sheet-head"><span>Filing calendar</span><span>next 12 months</span></div>
-  ${rows || '<div class="frow"><span class="t">Nothing due in the next twelve months.</span></div>'}
-  <div class="sheet-head" style="border-bottom:0;border-top:1px solid var(--line)">
-    <span>Every date links to the authority that publishes it</span><span></span></div>
-</div>`, email, '/dashboard');
+${months.map((m) => `<div class="sheet">
+  <div class="sheet-head"><span>${esc(m.label)}</span><span>${m.items.length} ${
+    m.items.length === 1 ? 'filing' : 'filings'}</span></div>
+  ${m.items.map(row).join('')}
+</div>`).join('') || '<div class="sheet"><div class="frow"><span class="t">Nothing due in the next twelve months.</span></div></div>'}`,
+  email, '/dashboard');
 }
 
 // -------------------------------------------------------------------- books

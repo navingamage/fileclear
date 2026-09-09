@@ -72,7 +72,33 @@ stop there. Presenting numbers is a tool. Printing a recommendation is advice.
 redirecting to it. The same shape as TradeClear: the application owns the domain
 because a director typing the name wants the dashboard, not a page about it.
 
+## Reminders
+
+A calendar you have to remember to open is a calendar you have already failed to
+use, so a daily sweep emails before a window closes. Nothing about what is due
+is stored: filings are recomputed from each profile every run, which means a
+rule correction is live for everybody the next morning rather than only for
+companies created after it.
+
+`reminders_sent` is keyed by the engine's stable filing id, so a rule fix that
+moves a date produces a filing nobody has been warned about, and the warning
+goes out again. That is right, because the date changed.
+
+Cloudflare crons are UTC and Ontario changes offset twice a year, so both
+candidate hours are scheduled and `src/cron.ts` returns immediately unless the
+local hour in Toronto is 07. That is 12:00 UTC through the winter and 11:00
+through the summer, with no edit to the config in March or November.
+
+Mail goes through ZeptoMail, the transactional side of the Zoho arrangement
+Antipode already has. Without `ZEPTOMAIL_TOKEN` and `FC_MAIL_FROM` the sweep
+still runs, works out what is due, and reports that it could not send: a
+scheduled job that throws on a missing secret takes every other company's
+reminder down with it.
+
 ## Status
 
-The obligation engine and its tests. Everything else is ahead: the schema, the
-onboarding that fills a profile, the calendar, HST, and year end.
+Done: the obligation engine, accounts and sessions, onboarding, the filing
+calendar grouped by month, the ledger with GIFI coded accounts, the HST return
+computed both ways, and the daily reminder sweep.
+
+Ahead: year end and the T2 worksheet, then the compensation planner and slips.

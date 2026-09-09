@@ -44,3 +44,23 @@ enabled = true
 binding = "DB"
 database_name = "fileclear"
 database_id = "95918583-9d63-4186-a3f8-507439e0d12a"
+
+# The daily reminder sweep. Both hours fire and src/cron.ts returns immediately
+# unless the local hour in America/Toronto is 07, which is 12:00 UTC through the
+# winter and 11:00 through the summer. Scheduling both is what avoids editing
+# this file twice a year.
+[triggers]
+crons = ["0 11 * * *", "0 12 * * *"]
+
+# Secrets, set with `wrangler secret put <name>`, never written to this file:
+#   ZEPTOMAIL_TOKEN   transactional mail. Antipode's mail runs on Zoho, so this
+#                     is the transactional side of something that already
+#                     exists rather than a new dependency
+#   FC_MAIL_FROM      e.g. "FileClear <reminders@fileclear.ca>"
+#
+# Without them the sweep runs, finds what is due, and reports that it could not
+# send. A scheduled job that throws on a missing secret takes every other
+# company's reminder down with it.
+
+[vars]
+FC_PUBLIC_ORIGIN = "https://fileclear.ca"

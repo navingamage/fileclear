@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "db:local": "wrangler d1 execute fileclear --local --file=schema.sql",
     "db:remote": "wrangler d1 execute fileclear --remote --file=schema.sql",
     "deploy": "wrangler deploy"
@@ -14,6 +14,7 @@
     "@cloudflare/workers-types": "^5.20260815.1",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0",
-    "wrangler": "^4.124.0"
+    "wrangler": "^4.124.0",
+    "@types/node": "^24.13.3"
   }
 }

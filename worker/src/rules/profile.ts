@@ -117,6 +117,9 @@ export interface CompanyProfile {
 
   /** Whether corporate tax instalments are required, i.e. tax payable over $3,000. */
   lastYearTaxPayable: number;
+
+  /** Email before a window closes, and how far ahead to start. */
+  reminders: { email: boolean; leadDays: number };
 }
 
 /**
@@ -139,5 +142,6 @@ export function blankProfile(): CompanyProfile {
     paysDividends: false,
     isConstruction: false,
     lastYearTaxPayable: 0,
+    reminders: { email: true, leadDays: 14 },
   };
 }

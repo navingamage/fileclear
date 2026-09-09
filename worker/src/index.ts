@@ -9,13 +9,14 @@ import {
   addTransaction, deleteTransaction, transactionsFor, toLedger,
 } from './db';
 import { computeHst } from './rules/hst';
+import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
 import { ACCOUNT_BY_ID } from './rules/gifi';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, shell, html,
   type HstPeriodOption,
 } from './views';
 
-export interface Env {
+export interface Env extends CronEnv {
   DB: D1Database;
   ASSETS: Fetcher;
 }
@@ -95,6 +96,10 @@ function profileFromForm(form: FormData): { profile: CompanyProfile; error?: str
   p.paysDividends = on(form.get('paysDividends'));
   p.isConstruction = on(form.get('isConstruction'));
   p.permanentEstablishments = form.getAll('pe').map((v) => String(v) as Jurisdiction);
+  p.reminders = {
+    email: on(form.get('remindEmail')),
+    leadDays: Math.max(1, Math.min(90, num(form.get('remindLeadDays'), 14))),
+  };
 
   if (!p.legalName) return { profile: p, error: 'The corporation needs a legal name.' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(p.incorporationDate)) {
@@ -112,6 +117,21 @@ function profileFromForm(form: FormData): { profile: CompanyProfile; error?: str
 // -------------------------------------------------------------------- routes
 
 export default {
+  /**
+   * Cloudflare crons are UTC and Ontario changes offset twice a year, so both
+   * candidate hours are scheduled and the wrong one returns immediately. That
+   * is 12:00 UTC through the winter and 11:00 through the summer, with no
+   * configuration change in March or November.
+   */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const now = torontoNow();
+    if (now.hour !== SEND_HOUR) return;
+    ctx.waitUntil(sweep(env, now.date).then((r) => {
+      console.log(`sweep ${now.date}: ${r.emailed}/${r.companies} companies emailed, `
+        + `${r.filings} filings` + (r.skipped.length ? `, skipped ${r.skipped.join('; ')}` : ''));
+    }));
+  },
+
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';

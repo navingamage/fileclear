@@ -29,6 +29,8 @@ export interface CompanyRow {
   payroll_on_remuneration: number;
   pays_dividends: number;
   is_construction: number;
+  remind_email?: number;
+  remind_lead_days?: number;
 }
 
 const JURISDICTIONS: Jurisdiction[] = [
@@ -70,6 +72,10 @@ export function rowToProfile(row: CompanyRow, provinces: string[]): CompanyProfi
     paysDividends: !!row.pays_dividends,
     isConstruction: !!row.is_construction,
     lastYearTaxPayable: row.last_year_tax_payable,
+    reminders: {
+      email: row.remind_email === undefined ? true : !!row.remind_email,
+      leadDays: Math.max(1, Math.min(90, row.remind_lead_days || 14)),
+    },
   };
 }
 
@@ -94,6 +100,8 @@ export function profileToColumns(p: CompanyProfile): Record<string, string | num
     payroll_on_remuneration: Math.round(p.payroll.ontarioRemuneration),
     pays_dividends: p.paysDividends ? 1 : 0,
     is_construction: p.isConstruction ? 1 : 0,
+    remind_email: p.reminders.email ? 1 : 0,
+    remind_lead_days: Math.max(1, Math.min(90, Math.round(p.reminders.leadDays))),
   };
 }
 

@@ -15,7 +15,22 @@
 export interface MailEnv {
   ZEPTOMAIL_TOKEN?: string;
   FC_MAIL_FROM?: string;
+  /**
+   * Where a reply goes. Needed because reminders are sent from fileclear.ca,
+   * which has no MX records and never will: it is a sending domain only. Hit
+   * reply on a reminder without this and the answer bounces, which is a bad
+   * way to treat somebody who is asking a question about their own deadline.
+   */
+  FC_MAIL_REPLY_TO?: string;
   FC_PUBLIC_ORIGIN?: string;
+}
+
+/** Splits `Name <addr@example.com>` into its parts. A bare address is fine. */
+function address(value: string, fallbackName: string): { address: string; name: string } {
+  const match = value.match(/^(.*?)\s*<(.+)>$/);
+  return match
+    ? { address: match[2]!, name: match[1]!.trim() || fallbackName }
+    : { address: value, name: fallbackName };
 }
 
 export interface Mail {
@@ -41,9 +56,10 @@ export async function send(env: MailEnv, mail: Mail): Promise<SendResult> {
   if (!env.FC_MAIL_FROM) return { sent: false, reason: 'FC_MAIL_FROM is not set' };
   if (!mail.to.includes('@')) return { sent: false, reason: 'no recipient' };
 
-  const match = env.FC_MAIL_FROM.match(/^(.*?)\s*<(.+)>$/);
-  const fromName = match ? match[1]!.trim() : 'FileClear';
-  const fromAddress = match ? match[2]! : env.FC_MAIL_FROM;
+  const from = address(env.FC_MAIL_FROM, 'FileClear');
+  const replyTo = env.FC_MAIL_REPLY_TO
+    ? [address(env.FC_MAIL_REPLY_TO, 'FileClear')]
+    : undefined;
 
   const response = await fetch(ZEPTO_URL, {
     method: 'POST',
@@ -52,8 +68,9 @@ export async function send(env: MailEnv, mail: Mail): Promise<SendResult> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: { address: fromAddress, name: fromName },
+      from,
       to: [{ email_address: { address: mail.to } }],
+      ...(replyTo ? { reply_to: replyTo } : {}),
       subject: mail.subject,
       textbody: mail.text,
       htmlbody: mail.html,

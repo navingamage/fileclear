@@ -110,6 +110,53 @@ describe('sending refuses rather than throwing', () => {
   });
 });
 
+describe('the envelope', () => {
+  /** Captures the body the mailer would post, without posting it. */
+  async function payload(env: Record<string, string>): Promise<Record<string, any>> {
+    const real = globalThis.fetch;
+    let body = '';
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      body = String(init.body);
+      return new Response('{}', { status: 201 });
+    }) as unknown as typeof fetch;
+    try {
+      await send(env, { to: 'a@b.co', subject: 's', text: 't', html: '<p>t</p>' });
+    } finally {
+      globalThis.fetch = real;
+    }
+    return JSON.parse(body);
+  }
+
+  it('splits a name off the sender', async () => {
+    const p = await payload({ ZEPTOMAIL_TOKEN: 'x', FC_MAIL_FROM: 'FileClear <no-reply@fileclear.ca>' });
+    expect(p.from).toEqual({ address: 'no-reply@fileclear.ca', name: 'FileClear' });
+  });
+
+  it('takes a bare sender as an address', async () => {
+    const p = await payload({ ZEPTOMAIL_TOKEN: 'x', FC_MAIL_FROM: 'no-reply@fileclear.ca' });
+    expect(p.from.address).toBe('no-reply@fileclear.ca');
+    expect(p.from.name).toBe('FileClear');
+  });
+
+  /**
+   * fileclear.ca has no MX records, so a reply to the sending address is lost.
+   * The reply has to be aimed at a mailbox that exists.
+   */
+  it('points replies at the configured mailbox', async () => {
+    const p = await payload({
+      ZEPTOMAIL_TOKEN: 'x',
+      FC_MAIL_FROM: 'FileClear <no-reply@fileclear.ca>',
+      FC_MAIL_REPLY_TO: 'FileClear <hello@antipodetech.com>',
+    });
+    expect(p.reply_to).toEqual([{ address: 'hello@antipodetech.com', name: 'FileClear' }]);
+  });
+
+  it('omits reply_to rather than sending an empty one', async () => {
+    const p = await payload({ ZEPTOMAIL_TOKEN: 'x', FC_MAIL_FROM: 'no-reply@fileclear.ca' });
+    expect('reply_to' in p).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------- the sweep
 
 /** Enough of D1 to run the sweep without a database. */

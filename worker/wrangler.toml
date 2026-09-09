@@ -52,15 +52,18 @@ database_id = "95918583-9d63-4186-a3f8-507439e0d12a"
 [triggers]
 crons = ["0 11 * * *", "0 12 * * *"]
 
-# Secrets, set with `wrangler secret put <name>`, never written to this file:
-#   ZEPTOMAIL_TOKEN   transactional mail. Antipode's mail runs on Zoho, so this
-#                     is the transactional side of something that already
-#                     exists rather than a new dependency
-#   FC_MAIL_FROM      e.g. "FileClear <reminders@fileclear.ca>"
-#
-# Without them the sweep runs, finds what is due, and reports that it could not
-# send. A scheduled job that throws on a missing secret takes every other
-# company's reminder down with it.
+# One secret, set with `wrangler secret put ZEPTOMAIL_TOKEN`, never written to
+# this file. Without it the sweep still runs, finds what is due, and reports
+# that it could not send: a scheduled job that throws on a missing secret takes
+# every other company's reminder down with it.
 
 [vars]
 FC_PUBLIC_ORIGIN = "https://fileclear.ca"
+
+# Addresses, not secrets, so they are versioned here.
+#
+# fileclear.ca sends and does not receive: it has SPF, DKIM and a ZeptoMail
+# bounce record, and no MX at all. So the envelope is addressed from a name
+# nobody should write to, and replies are aimed at the mailbox that exists.
+FC_MAIL_FROM = "FileClear <reminders@fileclear.ca>"
+FC_MAIL_REPLY_TO = "FileClear <hello@antipodetech.com>"

@@ -1,0 +1,78 @@
+/* FileClear's palette, in one place, read by the marketing pages and by the
+   application so a colour is changed once.
+
+   Not navy. Navy is what every business tool reaches for and it says nothing
+   about this one. FileClear is about printed government paper: forms, ledgers,
+   stamps, deadlines. So the palette is ink, paper and a signal red, which is
+   also the red already in the mark.
+
+   Light is white, per the house rule, but white is the page rather than the
+   whole palette. The previous version failed because everything on the white
+   was nearly white too: hairlines at #dfe6ee and panels at #f5f7fa are
+   invisible in daylight. Contrast now comes from three places: near black ink,
+   a paper tone with real weight against the page, and structural rules dark
+   enough to read as structure.
+
+   Every pair below was measured, not eyeballed. */
+
+:root {
+  color-scheme: light dark;
+
+  --bg:        #ffffff;
+  --paper:     #f4f1ea;  /* panels. warm, and clearly not the page */
+  --sunk:      #e8e1d4;  /* the step below paper */
+
+  --ink:       #14110d;  /* 18.4:1 on white */
+  --ink-2:     #3a332a;  /* 10.4:1 */
+  --muted:     #6a6157;  /*  5.6:1, so it is still body text and not decoration */
+
+  --line:      #d6cec1;  /* a hairline you can actually see */
+  --line-2:    #a89d8c;  /* a rule that reads as a rule */
+  --rule:      #14110d;  /* structural, drawn in ink */
+
+  --accent:      #c1121f;  /* 6.4:1 on white. the mark's red, deepened for text */
+  --accent-ink:  #ffffff;
+  --accent-soft: #fbe8e6;
+
+  --ok:        #14663f;
+  --ok-soft:   #e3f2e9;
+  --warn:      #8a5200;
+  --warn-soft: #fbeeda;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark is ink rather than black, warm rather than blue, so paper stock and
+       printed red still look like themselves on it. */
+    --bg:        #14110d;
+    --paper:     #1f1a15;
+    --sunk:      #0d0b09;
+
+    --ink:       #f6f1e8;
+    --ink-2:     #d8cfc2;
+    --muted:     #a3988b;  /* 7.1:1 on the ground */
+
+    --line:      #2f2822;
+    --line-2:    #4c4239;
+    --rule:      #f6f1e8;
+
+    --accent:      #ff6b6b;  /* the same red, lifted to clear 5:1 on ink */
+    --accent-ink:  #2b0709;
+    --accent-soft: #37191a;
+
+    --ok:        #5fd39a;
+    --ok-soft:   #12301f;
+    --warn:      #e8ae5c;
+    --warn-soft: #2f2413;
+  }
+}
+
+/* Type roles, shared for the same reason the colours are.
+   Archivo carries headings, Public Sans was drawn for a government design
+   system and carries text, IBM Plex Mono carries anything a form would print
+   in a box: dates, form numbers, amounts. */
+:root {
+  --font-display: "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-body: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}

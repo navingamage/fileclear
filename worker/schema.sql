@@ -1,0 +1,115 @@
+-- FileClear.
+--
+-- Two ideas shape this schema.
+--
+-- A company profile is a set of answers, and the filing calendar is derived
+-- from it rather than stored. Storing generated deadlines would mean a rule
+-- correction only reaching companies created after it, which is the failure
+-- mode that makes compliance software untrustworthy. So filings are computed on
+-- every read and only the things a person did to them are persisted.
+--
+-- That works because a filing's id is stable: rule id, period and due date. Fix
+-- a rule and the ids that changed are exactly the filings whose dates moved,
+-- which is correct, because a filing that moved is not the one that was ticked.
+
+PRAGMA foreign_keys = ON;
+
+-- ---------------------------------------------------------------- accounts
+
+CREATE TABLE IF NOT EXISTS accounts (
+  id           TEXT PRIMARY KEY,
+  email        TEXT NOT NULL,
+  -- PBKDF2-SHA256, stored as iterations:salt:hash, all base64. Verified in
+  -- constant time. There is no password reset flow yet and no third party
+  -- identity provider; both are deliberate for now rather than forgotten.
+  password     TEXT NOT NULL,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen_at TEXT
+);
+
+-- Case insensitive, because people do not type their own email consistently
+-- and two accounts differing only in case is a support ticket, not a feature.
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_email ON accounts (lower(email));
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id         TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sessions_account ON sessions (account_id);
+CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions (expires_at);
+
+-- --------------------------------------------------------------- companies
+
+-- One row is one CompanyProfile. Column names track the field names in
+-- src/rules/profile.ts so the mapping in src/db.ts stays obvious.
+--
+-- An accountant or a founder with two corporations needs more than one, so
+-- companies belong to an account rather than being the account.
+CREATE TABLE IF NOT EXISTS companies (
+  id                     TEXT PRIMARY KEY,
+  account_id             TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+
+  legal_name             TEXT NOT NULL,
+  -- CBCA for federal, otherwise the province: ON, BC, AB and the rest.
+  -- This decides which annual return exists at all, so it is not nullable.
+  jurisdiction           TEXT NOT NULL,
+  incorporation_date     TEXT NOT NULL,          -- yyyy-mm-dd
+
+  -- A fiscal year end is any date, not necessarily 31 December, and every
+  -- corporate deadline except the federal annual return hangs off it.
+  fye_month              INTEGER NOT NULL CHECK (fye_month BETWEEN 1 AND 12),
+  fye_day                INTEGER NOT NULL CHECK (fye_day BETWEEN 1 AND 31),
+
+  is_ccpc                INTEGER NOT NULL DEFAULT 1,
+  -- Separate from is_ccpc on purpose. A CCPC whose business limit has been used
+  -- up by associated corporations does not get the extra month to pay, and
+  -- collapsing these two into one flag is how that bug gets written.
+  claims_sbd             INTEGER NOT NULL DEFAULT 1,
+
+  gross_revenue          INTEGER NOT NULL DEFAULT 0,
+  last_year_tax_payable  INTEGER NOT NULL DEFAULT 0,
+
+  hst_registered         INTEGER NOT NULL DEFAULT 0,
+  hst_period             TEXT    NOT NULL DEFAULT 'annual',
+  hst_method             TEXT    NOT NULL DEFAULT 'regular',
+  hst_last_year_net_tax  INTEGER NOT NULL DEFAULT 0,
+
+  payroll_account        INTEGER NOT NULL DEFAULT 0,
+  payroll_remitter       TEXT    NOT NULL DEFAULT 'regular',
+  payroll_on_remuneration INTEGER NOT NULL DEFAULT 0,
+
+  pays_dividends         INTEGER NOT NULL DEFAULT 0,
+  is_construction        INTEGER NOT NULL DEFAULT 0,
+
+  created_at             TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS companies_account ON companies (account_id);
+
+-- Permanent establishments, one row per province. A separate table rather than
+-- a delimited column because provincial allocation on the T2 is a join, and
+-- because Ontario employer health tax turns on whether ON is in this list.
+CREATE TABLE IF NOT EXISTS company_provinces (
+  company_id   TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  jurisdiction TEXT NOT NULL,
+  PRIMARY KEY (company_id, jurisdiction)
+);
+
+-- ----------------------------------------------------------------- filings
+
+-- What a person did to a computed filing. The filing itself is not stored.
+--
+-- filing_id is the engine's stable id: "<obligation>|<period>|<due date>". When
+-- a rule is corrected and a date moves, the new filing has a new id and arrives
+-- untouched, which is right: nobody ticked off the corrected one.
+CREATE TABLE IF NOT EXISTS filing_states (
+  company_id  TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  filing_id   TEXT NOT NULL,
+  state       TEXT NOT NULL CHECK (state IN ('done', 'dismissed')),
+  note        TEXT,
+  changed_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (company_id, filing_id)
+);
+CREATE INDEX IF NOT EXISTS filing_states_company ON filing_states (company_id);

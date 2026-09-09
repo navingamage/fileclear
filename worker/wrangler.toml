@@ -1,16 +1,11 @@
 # FileClear.
 #
-# Assets only for now: there is no application yet, so this Worker has no `main`
-# and the runtime serves site/ directly. Routing every request through a script
-# that would only call env.ASSETS.fetch is a hop for nothing.
-#
-# When the application lands this file gains `main = "src/index.ts"` and
-# not_found_handling flips to "none", so that /, /privacy, /terms and /support
-# stay files while /dashboard, /onboarding and the rest fall through to code.
-# That is the shape TradeClear already runs, and it is why the site lives in
-# this repository rather than in a second one.
+# The marketing site and the application are one Worker on one hostname. Assets
+# are checked before the script runs, so /, /privacy, /terms and /support are
+# files, and every path with no matching file falls through to src/index.ts.
 
 name = "fileclear"
+main = "src/index.ts"
 compatibility_date = "2026-09-08"
 
 # One address. A workers.dev URL beside the custom domain is a second copy of
@@ -27,13 +22,13 @@ routes = [{ pattern = "fileclear.ca", custom_domain = true }]
 # Relative to this file. The marketing pages sit at the repository root beside
 # worker/, so that the application Worker can serve them later without moving.
 directory = "../site"
+binding = "ASSETS"
 
-# No `binding` here on purpose: an assets-only Worker rejects one, because there
-# is no script to bind it into. It comes back alongside `main`.
-
-# Workers does not find 404.html on its own the way Pages did. Without this a
-# mistyped URL gets a bare platform 404 instead of the page offering a way back.
-not_found_handling = "404-page"
+# "none" deliberately, now that there is a script. The other values would have
+# the asset layer answer unmatched paths, and unmatched is exactly what has to
+# reach the Worker: /dashboard, /onboarding and /signin are not files. The
+# Worker renders its own 404 for anything it does not recognise either.
+not_found_handling = "none"
 
 # html_handling stays at its default, "auto-trailing-slash": /support serves
 # support.html and /support.html redirects to /support. The canonical links
@@ -41,3 +36,11 @@ not_found_handling = "404-page"
 
 [observability]
 enabled = true
+
+# Company profiles, accounts and what has been ticked off. Filings themselves are
+# not stored: they are computed from the profile on every read, so a corrected
+# rule reaches every company at once rather than only the ones created after it.
+[[d1_databases]]
+binding = "DB"
+database_name = "fileclear"
+database_id = "95918583-9d63-4186-a3f8-507439e0d12a"

@@ -1,21 +1,9 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FileClear: every filing your corporation owes</title>
-<meta name="description" content="FileClear reads how your Canadian corporation is set up and builds the filing calendar that follows from it, with the form, the date and the authority for each.">
-<link rel="canonical" href="https://fileclear.ca/">
-<link rel="stylesheet" href="/brand/tokens.css">
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="/brand/icon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/brand/icon-192.png">
-<link rel="apple-touch-icon" href="/brand/icon-180.png">
-<meta name="theme-color" content="#14110d">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600&display=swap">
-<style>
+import pathlib, re
+
+# Palette lifted off the app icon. Light stays plain white; the icon's navy is
+# the dark ground; the red is the accent in both, deepened for light because
+# #eb1e2b measures about 4:1 on white and body text needs 4.5.
+STYLE = '''<style>
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   body {
@@ -167,10 +155,22 @@
   .fine { color: var(--muted); font-size: .84rem; max-width: 68ch; margin: 0 0 .7rem; }
 
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-</style>
-</head>
-<body>
-<a class="skip" href="#main">Skip to content</a>
+</style>'''
+
+FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n'
+ '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
+ '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
+ 'family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&'
+ 'family=Public+Sans:wght@400;500;600&display=swap">')
+
+ICONS = ('<link rel="stylesheet" href="/brand/tokens.css">\n'
+ '<link rel="icon" href="/favicon.ico" sizes="any">\n'
+ '<link rel="icon" type="image/png" sizes="32x32" href="/brand/icon-32.png">\n'
+ '<link rel="icon" type="image/png" sizes="192x192" href="/brand/icon-192.png">\n'
+ '<link rel="apple-touch-icon" href="/brand/icon-180.png">\n'
+ '<meta name="theme-color" content="#14110d">')
+
+NAV = '''<a class="skip" href="#main">Skip to content</a>
 <header class="nav"><div class="wrap nav-in">
   <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="32" height="32">FileClear</a>
   <nav class="nav-links" aria-label="Main">
@@ -179,9 +179,35 @@
     <a href="/support">Support</a>
   </nav>
   <!--email_off--><a class="btn" href="mailto:hello@antipodetech.com?subject=FileClear">Get in touch</a><!--/email_off-->
-</div></header>
-<main id="main">
-<section>
+</div></header>'''
+
+FOOT = '''<footer><div class="wrap">
+  <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="32" height="32">FileClear</a>
+  <nav class="foot-links" aria-label="Footer">
+    <a href="/support">Support</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <a href="https://antipodetech.com/">Antipode Technologies</a>
+  </nav>
+  <p class="fine">FileClear keeps records and works out dates. It is not an accountant,
+  it gives no tax advice, and it does not file anything with CRA or with the province
+  on your behalf. Every date links to the authority that publishes it, and that
+  authority is the one to check before you rely on a date.</p>
+  <p class="fine">&copy; 2026 Antipode Technologies Inc., made in Ontario, Canada.</p>
+</div></footer>'''
+
+def page(slug, title, desc, body, canonical=True):
+    canon = '\n<link rel="canonical" href="https://fileclear.ca/' + slug + '">' if canonical else ''
+    return ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+      '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+      '<title>' + title + '</title>\n<meta name="description" content="' + desc + '">'
+      + canon + '\n' + ICONS + '\n' + FONTS + '\n' + STYLE + '\n</head>\n<body>\n'
+      + NAV + '\n<main id="main">\n' + body + '\n</main>\n' + FOOT + '\n</body>\n</html>\n')
+
+site = pathlib.Path("site")
+
+# The calendar below is what the engine actually produces for this profile.
+index_body = '''<section>
   <div class="wrap hero-grid">
     <div>
       <span class="field-label">Canadian corporate filings</span>
@@ -291,21 +317,109 @@
       <!--email_off--><a class="btn primary" href="mailto:hello@antipodetech.com?subject=FileClear%20early%20access">hello@antipodetech.com</a><!--/email_off-->
     </div>
   </div>
-</section>
-</main>
-<footer><div class="wrap">
-  <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="32" height="32">FileClear</a>
-  <nav class="foot-links" aria-label="Footer">
-    <a href="/support">Support</a>
-    <a href="/privacy">Privacy</a>
-    <a href="/terms">Terms</a>
-    <a href="https://antipodetech.com/">Antipode Technologies</a>
-  </nav>
-  <p class="fine">FileClear keeps records and works out dates. It is not an accountant,
-  it gives no tax advice, and it does not file anything with CRA or with the province
-  on your behalf. Every date links to the authority that publishes it, and that
-  authority is the one to check before you rely on a date.</p>
-  <p class="fine">&copy; 2026 Antipode Technologies Inc., made in Ontario, Canada.</p>
-</div></footer>
-</body>
-</html>
+</section>'''
+
+(site/"index.html").write_text(page("", "FileClear: every filing your corporation owes",
+  "FileClear reads how your Canadian corporation is set up and builds the filing "
+  "calendar that follows from it, with the form, the date and the authority for each.",
+  index_body))
+
+support_body = '''<section><div class="wrap narrow prose">
+  <span class="field-label">Support</span>
+  <h1>Getting help</h1>
+  <p class="lead">Email is the whole support system, and it reaches a person.</p>
+  <p><!--email_off--><a href="mailto:hello@antipodetech.com?subject=FileClear%20support">hello@antipodetech.com</a><!--/email_off--><br>
+  Antipode Technologies Inc., Ontario, Canada.</p>
+
+  <h2>Common questions</h2>
+  <h3>Does FileClear file my return for me?</h3>
+  <p>No. It works out what is due and produces the numbers. You file, or your
+  accountant does. It is not certified by CRA to transmit returns.</p>
+  <h3>Is this tax advice?</h3>
+  <p>No. Where a decision is a judgement, FileClear shows the arithmetic for each
+  option and the rule behind it, and stops there.</p>
+  <h3>Which corporations does it cover?</h3>
+  <p>Canadian corporations, federal or provincial. The rules are most complete for
+  Ontario, which is where it is being built and tested first.</p>
+  <h3>Where do the dates come from?</h3>
+  <p>Every obligation links to the CRA, Corporations Canada or Ontario page that
+  publishes it. FileClear tells you a date is coming. It is not the authority on the
+  date, and the link is how you check us.</p>
+</div></section>'''
+(site/"support.html").write_text(page("support", "Support &middot; FileClear",
+  "How to get help with FileClear, and answers to the questions asked most often.",
+  support_body))
+
+privacy_body = '''<section><div class="wrap narrow prose">
+  <span class="field-label">Privacy</span>
+  <h1>Privacy policy</h1>
+  <p class="muted">Last updated 8 September 2026</p>
+  <h2>What we hold</h2>
+  <p>What you enter about your corporation: its name, where and when it was
+  incorporated, its year end, its tax registrations, and the transactions and
+  documents you add. This is business information and we treat it as confidential.</p>
+  <h2>What we do with it</h2>
+  <p>We use it to work out your filing calendar and your figures, and for nothing
+  else. We do not sell it, we do not share it, and we do not train anything on it.</p>
+  <h2>Where it lives</h2>
+  <p>On Cloudflare infrastructure. Documents you upload sit in private storage and are
+  served only through the application after it has checked your session, so there is
+  no public link to guess.</p>
+  <h2>Payments</h2>
+  <p>Handled by Stripe. We never see or store a card number.</p>
+  <h2>Getting it back, or deleting it</h2>
+  <p>Ask and we will export everything we hold about your corporation, or delete it.
+  CRA requires business records to be kept six years, so deleting your account is not
+  a substitute for keeping your own copies.</p>
+  <h2>Contact</h2>
+  <p><!--email_off--><a href="mailto:hello@antipodetech.com?subject=FileClear%20privacy">hello@antipodetech.com</a><!--/email_off--></p>
+</div></section>'''
+(site/"privacy.html").write_text(page("privacy", "Privacy &middot; FileClear",
+  "What FileClear holds about your corporation, what it does with it, and how to get "
+  "it back or delete it.", privacy_body))
+
+terms_body = '''<section><div class="wrap narrow prose">
+  <span class="field-label">Terms</span>
+  <h1>Terms of use</h1>
+  <p class="muted">Last updated 8 September 2026</p>
+  <h2>The important one</h2>
+  <p>FileClear is a record keeping and calculation tool. It is not an accountant, it
+  gives no tax, legal or financial advice, and it does not file anything with CRA or
+  with any province on your behalf. Filing correctly and on time remains yours. Every
+  date links to the authority that publishes it, and that authority governs.</p>
+  <h2>What you get</h2>
+  <p>A licence to use FileClear for your own corporations, for as long as your
+  subscription runs. The service is provided as it is, without warranty.</p>
+  <h2>Your records</h2>
+  <p>Your data stays yours. We hold it to run the service and you can export or delete
+  it. CRA requires records to be kept six years, and that obligation is yours.</p>
+  <h2>Payment</h2>
+  <p>Subscriptions are billed through Stripe. Cancel any time; cancelling stops the
+  next renewal and leaves the service running to the end of the period you paid for.</p>
+  <h2>Governing law</h2>
+  <p>Ontario, Canada.</p>
+  <h2>Contact</h2>
+  <p><!--email_off--><a href="mailto:hello@antipodetech.com?subject=FileClear%20terms">hello@antipodetech.com</a><!--/email_off--></p>
+</div></section>'''
+(site/"terms.html").write_text(page("terms", "Terms &middot; FileClear",
+  "The terms covering use of FileClear, including what it is and what it deliberately "
+  "is not.", terms_body))
+
+notfound_body = '''<section><div class="wrap narrow">
+  <span class="field-label">404</span>
+  <h1>That page is not here.</h1>
+  <p class="lead">It may have moved, or the link may be wrong.</p>
+  <div class="cta-row">
+    <a class="btn primary" href="/">Back to the start</a>
+    <a class="btn" href="/support">Support</a>
+  </div>
+</div></section>'''
+(site/"404.html").write_text(page("404", "Not found &middot; FileClear",
+  "That page could not be found.", notfound_body, canonical=False))
+
+ws = re.compile(r'\s+')
+for f in sorted(site.glob("*.html")):
+    b = re.sub(r'<style.*?</style>', '', f.read_text(), flags=re.S)
+    b = re.sub(r'<[^>]+>', ' ', b)
+    print(f.name.ljust(14), str(len(ws.sub(' ', b).split())).rjust(4), "words ",
+          f.stat().st_size // 1024, "KB")

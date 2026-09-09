@@ -60,6 +60,9 @@ const CHROME = `<style>
   legend { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem;
     letter-spacing: -.03em; padding: 0; margin-bottom: .3rem; }
   .hint { color: var(--muted); font-size: .95rem; margin: 0 0 1.4rem; }
+  /* Headings have no margins of their own, so the space under one is set on
+     the pairing rather than letting the lede touch the baseline. */
+  h1 + .hint { margin-top: .85rem; }
   .field { margin-bottom: 1.15rem; }
   .field > label { display: block; font-weight: 600; font-size: .93rem; margin-bottom: .35rem; }
   .field .sub { display: block; color: var(--muted); font-size: .85rem;

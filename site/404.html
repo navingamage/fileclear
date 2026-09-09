@@ -41,6 +41,10 @@
   h3 { font-size: 1.13rem; font-weight: 600; letter-spacing: -.022em; line-height: 1.32; }
   p { margin: 0 0 1.1rem; }
   .lead { font-size: clamp(1.06rem, 1.5vw, 1.22rem); color: var(--ink-2); line-height: 1.55; }
+  /* Headings carry no margins of their own, which is right inside the grids,
+     so the space under a headline is set on the pairing. Without this the lede
+     sits directly against the baseline of a 60px h1. */
+  h1 + .lead { margin-top: clamp(1.05rem, 1.5vw, 1.45rem); }
   .muted { color: var(--muted); }
   .eyebrow {
     display: inline-block; font-family: var(--font-mono); font-size: .71rem;

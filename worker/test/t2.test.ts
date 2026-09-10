@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { schedule1, computeTax, BUSINESS_LIMIT, INSTALMENT_THRESHOLD } from '../src/rules/t2';
+import {
+  schedule1, computeTax, BUSINESS_LIMIT, INSTALMENT_THRESHOLD, PROVINCIAL_RATES,
+} from '../src/rules/t2';
 import { fiscalYears, statementsFor } from '../src/rules/yearend';
 import { schedule8, type AssetRecord } from '../src/rules/cca';
 import { blankProfile, type CompanyProfile } from '../src/rules/profile';
@@ -153,6 +155,91 @@ describe('the tax', () => {
     expect(tax.taxableIncome).toBe(0);
     expect(tax.totalTax).toBe(0);
     expect(tax.effectiveRate).toBe(0);
+  });
+});
+
+describe('provinces other than Ontario', () => {
+  const inProvince = (pe: string, ledger = [line('sales', 10_000_000)]) => {
+    const p = profile({ permanentEstablishments: [pe as never] });
+    const years = fiscalYears(p, '2027-06-01');
+    const year = years.find((y) => y.to === '2026-12-31')!;
+    const s1 = schedule1(statementsFor(ledger, year, isCurrent), ledger, year, EMPTY_S8);
+    return computeTax(p, year, s1, ledger);
+  };
+
+  it('charges each province its own rate', () => {
+    expect(inProvince('BC').provincialTax).toBe(Math.round(10_000_000 * 0.02));
+    expect(inProvince('SK').provincialTax).toBe(Math.round(10_000_000 * 0.01));
+    expect(inProvince('NS').provincialTax).toBe(Math.round(10_000_000 * 0.015));
+  });
+
+  it('charges nothing provincially where the rate is nil', () => {
+    // Manitoba and Yukon both set their lower rate at zero.
+    expect(inProvince('MB').provincialTax).toBe(0);
+    expect(inProvince('YT').provincialTax).toBe(0);
+    expect(inProvince('MB').federalTax).toBeGreaterThan(0);
+  });
+
+  it('names the province it computed for', () => {
+    const t = inProvince('NB');
+    expect(t.province).toBe('NB');
+    expect(t.provinceName).toBe('New Brunswick');
+  });
+
+  /**
+   * Three provinces set a limit above the federal $500,000, so income between
+   * the two is taxed at the general rate federally and the small business rate
+   * provincially. The two columns do not split at the same place.
+   */
+  it('uses the provincial business limit where it is higher', () => {
+    const big = [line('sales', 65_000_000)];   // $650,000
+    const ns = inProvince('NS', big);
+    expect(ns.sbdIncome).toBe(BUSINESS_LIMIT);              // federal stops at 500k
+    expect(PROVINCIAL_RATES.NS!.businessLimit).toBe(700_000_00);
+    // Provincially the whole 650,000 is inside the Nova Scotia limit.
+    expect(ns.provincialTax).toBe(Math.round(65_000_000 * 0.015));
+    expect(ns.notes.join(' ')).toMatch(/own business limit/);
+  });
+
+  it('refuses to compute Quebec and Alberta, and says why', () => {
+    for (const pe of ['QC', 'AB']) {
+      const t = inProvince(pe);
+      expect(t.provincialTax).toBe(0);
+      expect(t.federalTax).toBeGreaterThan(0);
+      expect(t.notes.join(' ')).toMatch(/no corporation tax collection agreement/);
+      expect(t.notes.join(' ')).toMatch(/separate provincial return/);
+    }
+  });
+
+  /**
+   * The provincial lower rate applies to income qualifying for the federal
+   * small business deduction. No federal entitlement, no provincial one.
+   */
+  it('gives no provincial lower rate to a corporation with no federal one', () => {
+    const p = profile({ isCCPC: false, permanentEstablishments: ['BC' as never] });
+    const ledger = [line('sales', 10_000_000)];
+    const years = fiscalYears(p, '2027-06-01');
+    const year = years.find((y) => y.to === '2026-12-31')!;
+    const s1 = schedule1(statementsFor(ledger, year, isCurrent), ledger, year, EMPTY_S8);
+    const t = computeTax(p, year, s1, ledger);
+    expect(t.provincialTax).toBe(Math.round(10_000_000 * 0.12));   // higher rate
+  });
+
+  it('flags that allocation is needed across more than one province', () => {
+    const p = profile({ permanentEstablishments: ['ON' as never, 'BC' as never] });
+    const ledger = [line('sales', 10_000_000)];
+    const years = fiscalYears(p, '2027-06-01');
+    const year = years.find((y) => y.to === '2026-12-31')!;
+    const s1 = schedule1(statementsFor(ledger, year, isCurrent), ledger, year, EMPTY_S8);
+    const t = computeTax(p, year, s1, ledger);
+    expect(t.province).toBe('ON');
+    expect(t.notes.join(' ')).toMatch(/Schedule 5/);
+  });
+
+  it('has a rate for every jurisdiction a company can pick', () => {
+    for (const j of ['BC','MB','NB','NL','NT','NS','NU','ON','PE','SK','YT','QC','AB','CBCA']) {
+      expect(PROVINCIAL_RATES[j]).toBeDefined();
+    }
   });
 });
 

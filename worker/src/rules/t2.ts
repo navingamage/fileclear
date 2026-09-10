@@ -32,12 +32,60 @@ export const SBD_RATE = 0.19;
 /** The general rate reduction, which takes 28% down to 15%. */
 export const GENERAL_REDUCTION = 0.13;
 
-/** Ontario, lower and higher. */
+/** Ontario, lower and higher. Kept as named constants because other files use them. */
 export const ON_LOWER = 0.032;
 export const ON_HIGHER = 0.115;
 
-/** The federal business limit, and Ontario's, both $500,000. */
+/** The federal business limit. Several provinces set their own, higher. */
 export const BUSINESS_LIMIT = 500_000_00;
+
+/**
+ * Provincial and territorial corporate rates, from CRA's own table.
+ *
+ * Two things here are easy to get wrong. Three provinces set a business limit
+ * above the federal $500,000, so a corporation in Nova Scotia gets the small
+ * business rate provincially on income that is taxed at the general rate
+ * federally. And Quebec and Alberta have no collection agreement with CRA at
+ * all: they administer their own corporate tax and want their own return, so a
+ * federal T2 is not the end of the job there.
+ *
+ * `administeredByCra` is false for those two rather than their rates being
+ * guessed at. A number that looks authoritative and was never checked is worse
+ * than an honest gap, and the gap is a separate return rather than a rounding
+ * difference.
+ */
+export interface ProvincialRate {
+  name: string;
+  lower: number;
+  higher: number;
+  /** The provincial limit, which is not always the federal one. */
+  businessLimit: number;
+  administeredByCra: boolean;
+}
+
+export const PROVINCIAL_RATES: Record<string, ProvincialRate> = {
+  BC: { name: 'British Columbia', lower: 0.02, higher: 0.12, businessLimit: 500_000_00, administeredByCra: true },
+  MB: { name: 'Manitoba', lower: 0, higher: 0.12, businessLimit: 500_000_00, administeredByCra: true },
+  NB: { name: 'New Brunswick', lower: 0.025, higher: 0.14, businessLimit: 500_000_00, administeredByCra: true },
+  NL: { name: 'Newfoundland and Labrador', lower: 0.025, higher: 0.15, businessLimit: 500_000_00, administeredByCra: true },
+  NT: { name: 'Northwest Territories', lower: 0.02, higher: 0.115, businessLimit: 500_000_00, administeredByCra: true },
+  NS: { name: 'Nova Scotia', lower: 0.015, higher: 0.14, businessLimit: 700_000_00, administeredByCra: true },
+  NU: { name: 'Nunavut', lower: 0.03, higher: 0.12, businessLimit: 500_000_00, administeredByCra: true },
+  ON: { name: 'Ontario', lower: ON_LOWER, higher: ON_HIGHER, businessLimit: 500_000_00, administeredByCra: true },
+  PE: { name: 'Prince Edward Island', lower: 0.01, higher: 0.15, businessLimit: 600_000_00, administeredByCra: true },
+  SK: { name: 'Saskatchewan', lower: 0.01, higher: 0.12, businessLimit: 600_000_00, administeredByCra: true },
+  YT: { name: 'Yukon', lower: 0, higher: 0.12, businessLimit: 500_000_00, administeredByCra: true },
+
+  // No collection agreement with CRA. Rates deliberately zero: they are not
+  // FileClear's to compute, and a separate return is owed.
+  QC: { name: 'Quebec', lower: 0, higher: 0, businessLimit: 500_000_00, administeredByCra: false },
+  AB: { name: 'Alberta', lower: 0, higher: 0, businessLimit: 500_000_00, administeredByCra: false },
+
+  // A federal corporation is not resident anywhere by virtue of being federal;
+  // its permanent establishments decide the province. Kept so a lookup never
+  // returns undefined.
+  CBCA: { name: 'Federal', lower: ON_LOWER, higher: ON_HIGHER, businessLimit: 500_000_00, administeredByCra: true },
+};
 
 /**
  * Passive income grinds the business limit away.
@@ -151,6 +199,11 @@ export interface TaxComputation {
   generalIncome: number;
 
   federalTax: number;
+  /** The province the provincial tax was computed for. */
+  province: string;
+  provinceName: string;
+  provincialTax: number;
+  /** Kept under its old name because Ontario is still the common case. */
   ontarioTax: number;
   totalTax: number;
   /** Blended, for the one number a person actually remembers. */
@@ -197,6 +250,14 @@ export function computeTax(
       + `down by ${money(aaiiGrind)}. It disappears entirely at $150,000 of passive income.`);
   }
 
+  // Which province the corporation is taxed in. One establishment is the common
+  // case and the only one that can be answered without Schedule 5, which splits
+  // income between provinces on gross revenue and salaries. With more than one,
+  // the primary is used and the allocation is flagged rather than invented.
+  const primary = p.permanentEstablishments[0]
+    ?? (p.jurisdiction === 'CBCA' ? 'ON' : p.jurisdiction);
+  const prov = PROVINCIAL_RATES[primary] ?? PROVINCIAL_RATES.ON!;
+
   const eligible = !p.isCCPC ? 0
     : !p.claimsSmallBusinessDeduction ? 0
     : Math.max(0, proratedLimit - aaiiGrind);
@@ -219,13 +280,45 @@ export function computeTax(
     sbdIncome * (afterAbatement - SBD_RATE)
     + generalIncome * (afterAbatement - GENERAL_REDUCTION));
 
-  const ontarioTax = Math.round(sbdIncome * ON_LOWER + generalIncome * ON_HIGHER);
-  const totalTax = federalTax + ontarioTax;
+  // The provincial limit is not always the federal one. Nova Scotia's is
+  // $700,000 and Saskatchewan's and PEI's are $600,000, so a corporation can be
+  // past the federal limit and still inside the provincial one.
+  const provincialLimit = short
+    ? Math.round(prov.businessLimit * (days / 365))
+    : prov.businessLimit;
 
-  if (!p.permanentEstablishments.includes('ON') || p.permanentEstablishments.length > 1) {
-    notes.push('Provincial tax here is Ontario only. With a permanent establishment in '
-      + 'more than one province, taxable income is allocated between them on Schedule 5 '
-      + 'and each province charges its own rate.');
+  // The provincial lower rate applies to income that qualifies for the federal
+  // small business deduction, measured against the province's own limit. Both
+  // halves of that matter. A corporation with no federal entitlement, because
+  // it is not a CCPC or has used its limit up elsewhere, gets no provincial
+  // lower rate either; and one that is entitled gets the provincial rate up to
+  // the provincial limit even where that is above the federal one.
+  const provEligible = eligible > 0 ? Math.max(0, provincialLimit - aaiiGrind) : 0;
+  const provLower = Math.min(activeIncome, provEligible, taxableIncome);
+  const provHigher = Math.max(0, taxableIncome - provLower);
+
+  const provincialTax = prov.administeredByCra
+    ? Math.round(provLower * prov.lower + provHigher * prov.higher)
+    : 0;
+  const totalTax = federalTax + provincialTax;
+
+  if (!prov.administeredByCra) {
+    notes.push(`${prov.name} has no corporation tax collection agreement with CRA and `
+      + 'administers its own corporate tax, so provincial tax is not computed here and '
+      + 'the federal T2 is not the end of the job. A separate provincial return is owed '
+      + `to ${prov.name} on its own form.`);
+  } else if (provincialLimit !== proratedLimit) {
+    notes.push(`${prov.name} sets its own business limit of ${money(prov.businessLimit)}, `
+      + `above the federal ${money(BUSINESS_LIMIT)}. Income between the two is taxed at the `
+      + 'general rate federally and at the small business rate provincially, which is why '
+      + 'the two columns do not split at the same place.');
+  }
+
+  if (p.permanentEstablishments.length > 1) {
+    notes.push(`Provincial tax is computed for ${prov.name} alone. With a permanent `
+      + 'establishment in more than one province, taxable income is allocated between them '
+      + 'on Schedule 5 using gross revenue and salaries, and each province charges its own '
+      + 'rate on its share. That allocation needs figures FileClear does not hold.');
   }
 
   const instalmentsRequired = totalTax > INSTALMENT_THRESHOLD && !year.first;
@@ -238,7 +331,10 @@ export function computeTax(
     taxableIncome, activeIncome, investmentIncome,
     businessLimit: BUSINESS_LIMIT, proratedLimit, aaiiGrind,
     sbdIncome, generalIncome,
-    federalTax, ontarioTax, totalTax,
+    federalTax,
+    province: primary, provinceName: prov.name,
+    provincialTax, ontarioTax: provincialTax,
+    totalTax,
     effectiveRate: taxableIncome > 0 ? totalTax / taxableIncome : 0,
     instalmentsRequired, instalmentBase: totalTax,
     notes,

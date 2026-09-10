@@ -888,15 +888,16 @@ ${s8.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
     <span class="f num">${dollars(tax.taxableIncome)}</span></div>
   <div class="frow"><span class="d">400</span>
     <span class="t">At the small business rate
-      <span class="sub">9% federal and 3.2% Ontario, up to the business limit of ${dollars(tax.proratedLimit)}.</span></span>
+      <span class="sub">9% federal, plus ${esc(tax.provinceName)}'s lower rate, up to the business limit of ${dollars(tax.proratedLimit)}.</span></span>
     <span class="f num">${dollars(tax.sbdIncome)}</span></div>
   ${tax.generalIncome ? `<div class="frow"><span class="d">405</span>
-    <span class="t">At the general rate<span class="sub">15% federal and 11.5% Ontario.</span></span>
+    <span class="t">At the general rate<span class="sub">15% federal, plus ${esc(tax.provinceName)}'s higher rate.</span></span>
     <span class="f num">${dollars(tax.generalIncome)}</span></div>` : ''}
   <div class="frow"><span class="d">700</span><span class="t">Federal tax</span>
     <span class="f num">${dollars(tax.federalTax)}</span></div>
-  <div class="frow"><span class="d">760</span><span class="t">Ontario tax</span>
-    <span class="f num">${dollars(tax.ontarioTax)}</span></div>
+  <div class="frow"><span class="d">760</span>
+    <span class="t">${esc(tax.provinceName)} tax</span>
+    <span class="f num">${dollars(tax.provincialTax)}</span></div>
   <div class="frow total"><span class="d">770</span>
     <span class="t"><b>Total tax payable</b>
       <span class="sub">${(tax.effectiveRate * 100).toFixed(1)}% of taxable income.</span></span>

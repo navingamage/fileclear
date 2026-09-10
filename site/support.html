@@ -127,9 +127,15 @@
   .frow.cleared .tag { background: #dff3e6; color: #14663f; }
 
   /* Section heading that sits left with supporting copy on the right, which is
-     what stops every section being a centred stack. */
+     what stops every section being a centred stack.
+
+     Baseline rather than end: the two columns line up on the first line of each,
+     which holds whatever their relative heights are. Bottom alignment only looks
+     deliberate while the heading and the copy are close in height, and on the
+     contact section, where a one line heading sits beside three lines of copy,
+     it dropped the heading to the floor of the row and left a hole above it. */
   .sec-head { display: grid; grid-template-columns: 1.05fr 1fr; gap: 2.5rem;
-    align-items: end; margin-bottom: 2.8rem; }
+    align-items: baseline; margin-bottom: 2.8rem; }
   .sec-head .eyebrow { grid-column: 1 / -1; margin-bottom: .4rem; }
   .sec-head p { margin: 0; }
   @media (max-width: 860px) { .sec-head { grid-template-columns: 1fr; gap: 1rem; } }
@@ -170,10 +176,35 @@
   .prose p { color: var(--ink-2); }
   .prose a { color: var(--brand); font-weight: 600; text-decoration: underline; }
 
-  footer { border-top: 1px solid var(--line); padding: 3rem 0 4rem; }
-  .foot-links { display: flex; flex-wrap: wrap; gap: 1.4rem; margin: 1.3rem 0; }
-  .foot-links a { color: var(--muted); font-size: .94rem; }
-  .fine { color: var(--muted); font-size: .86rem; max-width: 70ch; margin: 0 0 .7rem; }
+  /* The footer is a two column band, not a stack.
+
+     It used to be brand, then a row of links, then the disclaimer, all flush
+     left inside a 1220px wrap. Every line of it wrapped inside the left half of
+     the page and the right half was empty, which reads as a column that lost
+     its neighbour rather than as a layout. The links carry their groups now and
+     sit opposite the brand, and the line that has to be read last, the
+     copyright, sits under a rule at the bottom where it is looked for. */
+  footer { border-top: 1px solid var(--line); padding: 3.4rem 0 2.4rem; }
+  .foot-top { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 3rem; align-items: start; }
+  .foot-brand .fine { margin-top: 1.15rem; }
+  .foot-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }
+  .foot-h { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--ink); margin: 0 0 .9rem; }
+  .foot-cols ul { list-style: none; margin: 0; padding: 0; }
+  .foot-cols li { margin-bottom: .55rem; }
+  .foot-cols a { color: var(--muted); font-size: .94rem; }
+  .foot-cols a:hover { color: var(--ink); }
+  .foot-base { display: flex; flex-wrap: wrap; justify-content: space-between;
+    gap: .5rem 1.6rem; margin-top: 3rem; padding-top: 1.4rem;
+    border-top: 1px solid var(--line); }
+  .foot-base p { margin: 0; color: var(--muted); font-size: .86rem; }
+  @media (max-width: 760px) {
+    .foot-top { grid-template-columns: 1fr; gap: 2.4rem; }
+  }
+  /* 62ch rather than 70: the disclaimer sits in a column now, and a measure set
+     against the old full width paragraph overflows it. */
+  .fine { color: var(--muted); font-size: .86rem; max-width: 62ch; margin: 0; }
 
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
@@ -214,18 +245,37 @@
 </div></section>
 </main>
 <footer><div class="wrap">
-  <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="34" height="34">FileClear</a>
-  <nav class="foot-links" aria-label="Footer">
-    <a href="/support">Support</a>
-    <a href="/privacy">Privacy</a>
-    <a href="/terms">Terms</a>
-    <a href="https://antipodetech.com/">Antipode Technologies</a>
-  </nav>
-  <p class="fine">FileClear keeps records and works out dates. It is not an accountant,
-  it gives no tax advice, and it does not file anything with CRA or with the province on
-  your behalf. Every date links to the authority that publishes it, and that authority
-  is the one to check before you rely on a date.</p>
-  <p class="fine">&copy; 2026 Antipode Technologies Inc., made in Ontario, Canada.</p>
+  <div class="foot-top">
+    <div class="foot-brand">
+      <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="34" height="34">FileClear</a>
+      <p class="fine">FileClear keeps records and works out dates. It is not an accountant,
+      it gives no tax advice, and it does not file anything with CRA or with the province
+      on your behalf. Every date links to the authority that publishes it, and that
+      authority is the one to check before you rely on a date.</p>
+    </div>
+    <nav class="foot-cols" aria-label="Footer">
+      <div>
+        <p class="foot-h">Product</p>
+        <ul>
+          <li><a href="/#how">How it works</a></li>
+          <li><a href="/#different">Why yours differs</a></li>
+          <li><a href="/support">Support</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-h">Company</p>
+        <ul>
+          <li><a href="/privacy">Privacy</a></li>
+          <li><a href="/terms">Terms</a></li>
+          <li><a href="https://antipodetech.com/">Antipode Technologies</a></li>
+        </ul>
+      </div>
+    </nav>
+  </div>
+  <div class="foot-base">
+    <p>&copy; 2026 Antipode Technologies Inc., made in Ontario, Canada.</p>
+    <!--email_off--><p><a href="mailto:hello@fileclear.ca">hello@fileclear.ca</a></p><!--/email_off-->
+  </div>
 </div></footer>
 </body>
 </html>

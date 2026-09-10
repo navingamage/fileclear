@@ -71,9 +71,8 @@ FC_PUBLIC_ORIGIN = "https://fileclear.ca"
 # different company's domain has the shape of a phishing mail, and this one
 # tells a director about a deadline with money attached.
 #
-# reminders@ is a send-only name; nobody should write to it. Replies belong at
-# the mailbox. Until the Zoho alias for hello@fileclear.ca exists they are still
-# aimed at Antipode, and the day it does this line moves, along with the address
-# on the support, privacy and terms pages and the DMARC rua record.
+# reminders@ is a send-only name and nobody should write to it, so replies are
+# aimed at the mailbox instead. Both are Zoho aliases on one user rather than
+# separate accounts, which is how peaberry.ca carries hello@ and orders@.
 FC_MAIL_FROM = "FileClear <reminders@fileclear.ca>"
-FC_MAIL_REPLY_TO = "FileClear <hello@antipodetech.com>"
+FC_MAIL_REPLY_TO = "FileClear <hello@fileclear.ca>"

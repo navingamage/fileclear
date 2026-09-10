@@ -203,7 +203,7 @@ NAV = """<a class="skip" href="#main">Skip to content</a>
     <a href="/#different">Why yours differs</a>
     <a href="/support">Support</a>
   </nav>
-  <!--email_off--><a class="btn primary small" href="mailto:hello@antipodetech.com?subject=FileClear%20early%20access">Get early access</a><!--/email_off-->
+  <!--email_off--><a class="btn primary small" href="mailto:hello@fileclear.ca?subject=Early%20access">Get early access</a><!--/email_off-->
 </div></header>"""
 
 FOOT = """<footer><div class="wrap">
@@ -241,7 +241,7 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
     <p class="lead">FileClear reads how your corporation is set up and builds the exact
     calendar that follows from it. Every date, every form, every authority.</p>
     <div class="cta-row">
-      <!--email_off--><a class="btn primary" href="mailto:hello@antipodetech.com?subject=FileClear%20early%20access">Get early access</a><!--/email_off-->
+      <!--email_off--><a class="btn primary" href="mailto:hello@fileclear.ca?subject=Early%20access">Get early access</a><!--/email_off-->
       <a class="btn ghost" href="#how">See how it works</a>
     </div>
     <p class="hero-note">In development. Opening to a first group of Canadian
@@ -349,7 +349,7 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
     next.</p>
   </div>
   <div class="cta-row">
-    <!--email_off--><a class="btn primary" href="mailto:hello@antipodetech.com?subject=FileClear%20early%20access">hello@antipodetech.com</a><!--/email_off-->
+    <!--email_off--><a class="btn primary" href="mailto:hello@fileclear.ca?subject=Early%20access">hello@fileclear.ca</a><!--/email_off-->
   </div>
 </div></section>"""
 
@@ -357,7 +357,7 @@ SUPPORT = """<section><div class="wrap narrow prose">
   <span class="eyebrow">Support</span>
   <h1 style="font-size:clamp(2.2rem,5vw,3.2rem)">Getting help</h1>
   <p class="lead">Email is the whole support system, and it reaches a person.</p>
-  <p><!--email_off--><a href="mailto:hello@antipodetech.com?subject=FileClear%20support">hello@antipodetech.com</a><!--/email_off--><br>
+  <p><!--email_off--><a href="mailto:hello@fileclear.ca?subject=Support">hello@fileclear.ca</a><!--/email_off--><br>
   Antipode Technologies Inc., Ontario, Canada.</p>
 
   <h2>Common questions</h2>
@@ -398,7 +398,7 @@ PRIVACY = """<section><div class="wrap narrow prose">
   requires business records to be kept six years, so deleting your account is not a
   substitute for keeping your own copies.</p>
   <h2>Contact</h2>
-  <p><!--email_off--><a href="mailto:hello@antipodetech.com?subject=FileClear%20privacy">hello@antipodetech.com</a><!--/email_off--></p>
+  <p><!--email_off--><a href="mailto:hello@fileclear.ca?subject=Privacy">hello@fileclear.ca</a><!--/email_off--></p>
 </div></section>"""
 
 TERMS = """<section><div class="wrap narrow prose">
@@ -422,7 +422,7 @@ TERMS = """<section><div class="wrap narrow prose">
   <h2>Governing law</h2>
   <p>Ontario, Canada.</p>
   <h2>Contact</h2>
-  <p><!--email_off--><a href="mailto:hello@antipodetech.com?subject=FileClear%20terms">hello@antipodetech.com</a><!--/email_off--></p>
+  <p><!--email_off--><a href="mailto:hello@fileclear.ca?subject=Terms">hello@fileclear.ca</a><!--/email_off--></p>
 </div></section>"""
 
 NOTFOUND = """<section><div class="wrap narrow center">

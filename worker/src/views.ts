@@ -90,9 +90,13 @@ const CHROME = `<style>
   .btn.primary:hover { filter: brightness(1.15); background: var(--primary); }
   .btn.small { padding: .38rem .85rem; font-size: .85rem; }
 
-  .err { background: var(--danger-tint); border-left: 3px solid var(--danger);
-    padding: .85rem 1.1rem; border-radius: 0 10px 10px 0; margin-bottom: 1.6rem;
-    font-size: .94rem; }
+  .err, .ok { padding: .85rem 1.1rem; border-radius: 0 10px 10px 0;
+    margin-bottom: 1.6rem; font-size: .94rem; }
+  .err { background: var(--danger-tint); border-left: 3px solid var(--danger); }
+  /* Confirmation, not alarm. Same shape as .err so the two read as one family,
+     and the ink stays neutral because nothing here needs a colour to be read. */
+  .ok  { background: var(--sunk); border-left: 3px solid var(--ink); }
+  .ok b { font-weight: 600; }
 
   /* Cards, matching the marketing page: rounded, lifted, quiet borders. */
   .sheet { border: 1px solid var(--line); background: var(--surface);
@@ -263,7 +267,9 @@ const PROVINCES: [string, string][] = [
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
-export function onboardingPage(email: string, p: CompanyProfile, error?: string): string {
+export function onboardingPage(
+  email: string, p: CompanyProfile, error?: string, welcomed = false,
+): string {
   const sel = (v: boolean) => (v ? ' checked' : '');
   return shell('Your corporation', `
 <div class="narrow">
@@ -272,6 +278,9 @@ export function onboardingPage(email: string, p: CompanyProfile, error?: string)
   <p class="hint">Every answer changes which filings exist for you, so none of this
   is a formality. All of it comes off your incorporation documents and your last
   return.</p>
+  ${welcomed ? `<div class="ok"><b>Account created.</b> A confirmation is on its way to
+    ${esc(email)}. If it does not arrive, check the address is right before you rely on
+    reminders, because that is where they will go.</div>` : ''}
   ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
   <form method="post" action="/onboarding">

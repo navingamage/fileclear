@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { torontoNow, SEND_HOUR, sweep, type CronEnv } from '../src/cron';
-import { reminderMail, formatDue, send } from '../src/email';
+import { reminderMail, welcomeMail, formatDue, send } from '../src/email';
 
 /**
  * The sweep is the part of the product that reaches out rather than waiting to
@@ -107,6 +107,60 @@ describe('sending refuses rather than throwing', () => {
     const r = await send({ ZEPTOMAIL_TOKEN: 'x', FC_MAIL_FROM: 'a@b.co' },
       { to: 'not-an-address', subject: 's', text: 't', html: '<p>t</p>' });
     expect(r.sent).toBe(false);
+  });
+});
+
+describe('the welcome mail', () => {
+  const mail = welcomeMail('director@example.ca', 'https://fileclear.ca');
+
+  it('confirms the address it was sent to', () => {
+    // The address is the whole point: it is the one reminders will go to, and
+    // this message is the only chance to notice a typo before a deadline does.
+    expect(mail.text).toContain('director@example.ca');
+    expect(mail.html).toContain('director@example.ca');
+  });
+
+  it('sends the reader to onboarding rather than the dashboard', () => {
+    // A dashboard with no company on it explains nothing.
+    expect(mail.text).toContain('https://fileclear.ca/onboarding');
+    expect(mail.html).toContain('https://fileclear.ca/onboarding');
+  });
+
+  it('carries no verification link, because nothing is gated on one', () => {
+    expect(mail.text).not.toMatch(/verif|confirm your email|activate/i);
+  });
+
+  it('escapes an address that contains markup', () => {
+    const nasty = welcomeMail('a<b>@example.ca', 'https://fileclear.ca');
+    expect(nasty.html).not.toContain('<b>@');
+    expect(nasty.html).toContain('a&lt;b&gt;@example.ca');
+  });
+});
+
+describe('mail styling', () => {
+  const reminder = reminderMail('Co', [{
+    title: 'T2', form: 'T2', due: '2027-06-30', daysAway: 30,
+    authority: 'CRA', penalty: 'interest',
+  }], 'https://fileclear.ca');
+
+  /**
+   * A mail client strips <style> and knows nothing about custom properties, so
+   * the palette is hand copied into email.ts. Copied values drift: these two
+   * arrived in the product's previous green while the product had gone red.
+   */
+  it('uses the current brand rather than the palette before it', () => {
+    for (const html of [reminder.html, welcomeMail('a@b.ca', 'https://fileclear.ca').html]) {
+      expect(html).toContain('#0b0d0f');          // --ink
+      expect(html).not.toContain('#0d1210');      // the old near black
+      expect(html).not.toContain('#f2f6f4');      // the old green ground
+      expect(html).not.toContain('#61706a');      // the old green muted
+    }
+  });
+
+  it('sets both mails on the same typeface as the product', () => {
+    for (const html of [reminder.html, welcomeMail('a@b.ca', 'https://fileclear.ca').html]) {
+      expect(html).toContain('IBM Plex Sans');
+    }
   });
 });
 

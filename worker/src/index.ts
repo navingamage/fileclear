@@ -10,6 +10,7 @@ import {
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
+import { send, welcomeMail } from './email';
 import { ACCOUNT_BY_ID } from './rules/gifi';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, shell, html,
@@ -132,7 +133,7 @@ export default {
     }));
   },
 
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
 
@@ -169,8 +170,19 @@ export default {
         const id = randomId(16);
         await env.DB.prepare('INSERT INTO accounts (id, email, password) VALUES (?, ?, ?)')
           .bind(id, email, await hashPassword(password)).run();
+
+        // Confirms the address works, which is the only proof either side has
+        // that reminders will arrive. Not awaited: a slow mail API must not sit
+        // between somebody pressing the button and their account opening, and
+        // an unsendable welcome is not a reason to fail a signup that already
+        // succeeded. The outcome is logged either way.
+        const origin = env.FC_PUBLIC_ORIGIN ?? url.origin;
+        ctx.waitUntil(
+          send(env, { to: email, ...welcomeMail(email, origin) })
+            .then((r) => { if (!r.sent) console.log(`welcome mail to ${email}: ${r.reason}`); }));
+
         const session = await createSession(env.DB, id);
-        return redirect('/onboarding', { 'Set-Cookie': sessionCookie(session) });
+        return redirect('/onboarding?welcome=1', { 'Set-Cookie': sessionCookie(session) });
       }
 
       const row = await env.DB.prepare(
@@ -201,7 +213,8 @@ export default {
     if (path === '/onboarding' && account) {
       const existing = await firstCompanyFor(env.DB, account.id);
       if (request.method === 'GET') {
-        return html(onboardingPage(account.email, existing?.profile ?? blankProfile()));
+        return html(onboardingPage(account.email, existing?.profile ?? blankProfile(),
+          undefined, url.searchParams.get('welcome') === '1'));
       }
       const { profile, error } = profileFromForm(await request.formData());
       if (error) return html(onboardingPage(account.email, profile, error), 400);

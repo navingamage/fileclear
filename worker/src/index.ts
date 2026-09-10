@@ -16,11 +16,12 @@ import { ACCOUNT_BY_ID } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
-  shell, html, type HstPeriodOption,
+  compensationPage, shell, html, type HstPeriodOption,
 } from './views';
 import { fiscalYears, statementsFor } from './rules/yearend';
 import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
 import { schedule1, computeTax } from './rules/t2';
+import { compareCompensation } from './rules/compensation';
 
 export interface Env extends CronEnv {
   DB: D1Database;
@@ -212,7 +213,8 @@ export default {
 
     // ------------------------------------------------------- authenticated
     const needsAccount = ['/dashboard', '/onboarding', '/filing', '/books',
-      '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete'].includes(path);
+      '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete',
+      '/compensation'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
     if (path === '/onboarding' && account) {
@@ -371,6 +373,32 @@ export default {
         account.email, company.profile.legalName, years, active,
         statements, s8, s1, tax, assets, today(), problem ?? undefined,
       ), problem ? 400 : 200);
+    }
+
+    if (path === '/compensation' && account) {
+      const company = await firstCompanyFor(env.DB, account.id);
+      if (!company) return redirect('/onboarding');
+
+      // Defaults to what the year actually produced, so the first view is about
+      // this corporation rather than a round number.
+      const years = fiscalYears(company.profile, today());
+      const active = years.find((y) => y.ended) ?? years[0];
+      let available = 100_000_00;
+      if (active) {
+        const rows = await transactionsFor(env.DB, company.id, active.from, active.to);
+        const statements = statementsFor(toLedger(rows), active,
+          (id) => ACCOUNT_BY_ID.get(id)?.current !== false);
+        if (statements.income.netBeforeTax > 0) available = statements.income.netBeforeTax;
+      }
+
+      const asked = money(url.searchParams.get('amount'));
+      if (asked !== null && asked > 0) available = asked;
+      available = Math.min(available, 100_000_000_00);
+
+      const kind = url.searchParams.get('kind') === 'eligible' ? 'eligible' : 'nonEligible';
+      const comparison = compareCompensation(company.profile, available, kind);
+      return html(compensationPage(
+        account.email, company.profile.legalName, comparison, available, kind));
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.

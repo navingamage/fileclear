@@ -5,6 +5,7 @@ import type { FiscalYear, GifiStatements, StatementLine } from './rules/yearend'
 import { GIFI } from './rules/yearend';
 import { CCA_CLASSES, type Schedule8, type AssetRecord } from './rules/cca';
 import type { Schedule1, TaxComputation } from './rules/t2';
+import type { Comparison } from './rules/compensation';
 
 /**
  * Server rendered HTML. No client framework, because there is no client state
@@ -214,7 +215,7 @@ export function shell(title: string, body: string, email?: string, active = ''):
   <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="30" height="30">FileClear</a>
   ${email ? `<nav class="app-nav" aria-label="Sections">
     ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
-    ${link('/year-end', 'Year end')}${link('/onboarding', 'Company')}</nav>` : ''}
+    ${link('/year-end', 'Year end')}${link('/compensation', 'Pay')}${link('/onboarding', 'Company')}</nav>` : ''}
   ${email ? `<div class="app-right"><span>${esc(email)}</span>
     <form method="post" action="/signout" style="margin:0">
       <button class="btn small" type="submit">Sign out</button></form></div>` : ''}
@@ -855,4 +856,97 @@ ${tax.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
   above names where it goes, so it can be entered into CRA's own form or into
   software that files. The authority for each number is the schedule it names.</div>
 `, email, '/year-end');
+}
+
+// -------------------------------------------------------------- compensation
+
+/**
+ * Salary against dividends, both columns, no verdict.
+ *
+ * The page is built so the eye lands on the two net figures and then on what
+ * the arithmetic cannot see. Printing a winner would be advice, and the
+ * difference is usually small enough that RRSP room, CPP, and whether a lender
+ * wants to see employment income decide it instead.
+ */
+export function compensationPage(
+  email: string, companyName: string, c: Comparison,
+  available: number, kind: 'eligible' | 'nonEligible',
+): string {
+  const col = (title: string, note: string, r: Comparison['salary'], rows: [string, number, string?][]) => `
+  <div class="sheet">
+    <div class="sheet-head"><span>${title}</span><span>${note}</span></div>
+    ${rows.map(([label, amount, sub]) => `<div class="frow">
+      <span class="t">${label}${sub ? `<span class="sub">${sub}</span>` : ''}</span>
+      <span class="f num">${dollars(amount)}</span></div>`).join('')}
+    <div class="frow total"><span class="t"><b>In your hands</b>
+      <span class="sub">${(r.effectiveRate * 100).toFixed(1)}% of it went in tax.</span></span>
+      <span class="f num"><b>${dollars(r.netToPerson)}</b></span></div>
+  </div>`;
+
+  return shell(`${companyName} compensation`, `
+<span class="label">${esc(companyName)} &middot; taking money out</span>
+<h1>Salary, or dividends.</h1>
+<p class="hint">Both computed on ${c.year} Ontario rates, for one person with no other
+income. FileClear shows the arithmetic for each and stops there: the gap is usually
+small enough that something other than tax decides it.</p>
+
+<form method="get" action="/compensation" class="txn-form">
+  <div class="txn-grid">
+    <div class="field"><label for="amount">To take out of the corporation</label>
+      <input id="amount" name="amount" type="text" inputmode="decimal"
+        value="${(available / 100).toFixed(0)}"></div>
+    <div class="field"><label for="kind">Dividend type</label>
+      <select id="kind" name="kind">
+        <option value="nonEligible"${kind === 'nonEligible' ? ' selected' : ''}>Non-eligible, from small business income</option>
+        <option value="eligible"${kind === 'eligible' ? ' selected' : ''}>Eligible, from generally taxed income</option>
+      </select></div>
+    <div class="field"><button class="btn primary" type="submit">Compare</button></div>
+  </div>
+</form>
+
+<div class="two">
+  ${col('Salary', 'T4', c.salary, [
+    ['Salary paid', c.salary.salary, 'Deductible, so the corporation pays no tax on it.'],
+    ['Employer CPP', c.salary.employerCpp, 'A cost of paying a salary with no dividend equivalent.'],
+    ['Employee CPP withheld', -c.salary.employeeCpp],
+    ['Personal tax', -c.salary.personalTax],
+  ])}
+  ${col('Dividend', 'T5', c.dividend, [
+    ['Corporate tax first', -c.dividend.corporateTax, 'A dividend is not deductible, so this layer comes first.'],
+    ['Dividend declared', c.dividend.dividend],
+    ['Personal tax', -c.dividend.personalTax,
+      `Computed on ${dollars(Math.round(c.dividend.dividend * (kind === 'eligible' ? 1.38 : 1.15)))} after the gross up, less the dividend tax credits.`],
+  ])}
+</div>
+
+<div class="verdict${c.salaryAdvantage > 0 ? ' good' : ''}">
+  ${c.salaryAdvantage === 0
+    ? '<b>The two routes land in the same place.</b>'
+    : `<b>${c.salaryAdvantage > 0 ? 'Salary' : 'Dividends'} put
+       ${dollars(Math.abs(c.salaryAdvantage))} more in your hands.</b>`}
+  ${c.salaryTaxAdvantage > 0
+    ? `On tax alone salary is the cheaper route, by ${dollars(c.salaryTaxAdvantage)}.
+       ${c.salaryAdvantage < 0
+         ? `It still leaves less cash because ${dollars(c.gapFromCpp)} of CPP came out
+            of it, which is more than the whole gap. CPP buys a pension rather than
+            paying for roads, so whether that counts as a cost is your call and not
+            an arithmetic one.`
+         : ''}`
+    : c.salaryTaxAdvantage < 0
+      ? `Dividends are cheaper in tax too, by ${dollars(-c.salaryTaxAdvantage)}${
+          c.gapFromCpp ? `, and the salary route paid ${dollars(c.gapFromCpp)} of CPP on top` : ''}.`
+      : 'The tax is identical either way.'}
+</div>
+
+<h2 class="sec">What the arithmetic cannot see</h2>
+${c.considerations.map((x) => `<div class="advisory info">${esc(x)}</div>`).join('')}
+
+<h2 class="sec">What this does not include</h2>
+${c.caveats.map((x) => `<div class="advisory">${esc(x)}</div>`).join('')}
+
+<div class="advisory info"><b>FileClear does not tell you which to pick.</b>
+  It computes both so the decision is made on numbers rather than on folklore.
+  Whether you want CPP in thirty years, or RRSP room, or employment income a
+  lender will underwrite, are not questions a tax calculation can answer.</div>
+`, email, '/compensation');
 }

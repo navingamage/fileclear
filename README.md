@@ -122,12 +122,34 @@ accelerated investment incentive is in its phase out, and the 2024 Fall Economic
 Statement proposed restoring it; until that is law the smaller deduction is the
 one shown, with a note saying why.
 
+## Taking money out
+
+Salary against dividends is the question every owner of a small corporation
+asks, and the usual answers are folklore: dividends are cheaper, salary builds
+RRSP room. Both are sometimes true. FileClear computes both routes from the same
+starting point, what the corporation has available to distribute, and stops
+there. It does not print a winner, because the gap is usually small enough that
+things tax arithmetic cannot see decide it.
+
+Two numbers are reported rather than one, because they routinely point opposite
+ways. At $120,000 the salary route pays $2,797 less tax and still hands over
+$6,496 less cash, because $9,293 of CPP came out of it. Reporting only the cash
+gap makes dividends look like the obvious answer; reporting only the tax gap
+makes salary look like it. CPP is kept out of the tax figure on purpose: it
+leaves on the same day but buys a pension, and folding it into a tax rate is how
+a comparison misleads.
+
+Every rate is 2026 and was read off CRA and Ontario rather than recalled, with
+the source named beside it. The tests anchor on the maximums CRA publishes, so
+a mistyped rate or ceiling fails immediately rather than quietly.
+
 ## Status
 
 Done: the obligation engine, accounts and sessions, onboarding, the filing
 calendar grouped by month, the ledger with GIFI coded accounts, the HST return
-computed both ways, the daily reminder sweep, and the year end worksheet:
-Schedules 100, 125, 8 and 1, and the tax that falls out of them.
+computed both ways, the daily reminder sweep, the year end worksheet
+(Schedules 100, 125, 8 and 1 and the tax that falls out of them), and the
+compensation comparison.
 
-Ahead: the compensation planner and slips, salary against dividends with the
-arithmetic for each shown rather than a recommendation printed.
+Ahead: T4 and T5 slips generated from the compensation actually paid, and
+payroll source deduction amounts for the months between.

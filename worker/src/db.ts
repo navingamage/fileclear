@@ -318,3 +318,50 @@ export async function setCcaClaim(
        DO UPDATE SET claimed_cents = excluded.claimed_cents`,
   ).bind(companyId, yearEnd, classNumber, claimedCents).run();
 }
+
+// ------------------------------------------------------------ the payroll
+
+import type { Employee, PayFrequency } from './rules/payroll';
+
+interface EmployeeRow {
+  id: string;
+  name: string;
+  annual_salary_cents: number;
+  voting_share_pct: number;
+  pay_frequency: string;
+}
+
+const FREQUENCIES: PayFrequency[] = ['monthly', 'semi-monthly', 'biweekly', 'weekly'];
+
+export async function employeesFor(
+  db: D1Database, companyId: string,
+): Promise<Employee[]> {
+  const rows = await db.prepare(
+    `SELECT id, name, annual_salary_cents, voting_share_pct, pay_frequency
+       FROM employees WHERE company_id = ? ORDER BY created_at`,
+  ).bind(companyId).all<EmployeeRow>();
+  return (rows.results ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    annualSalary: r.annual_salary_cents,
+    votingSharePct: r.voting_share_pct,
+    frequency: oneOf(r.pay_frequency, FREQUENCIES, 'monthly'),
+  }));
+}
+
+export async function addEmployee(
+  db: D1Database, id: string, companyId: string, e: Omit<Employee, 'id'>,
+): Promise<void> {
+  await db.prepare(
+    `INSERT INTO employees
+       (id, company_id, name, annual_salary_cents, voting_share_pct, pay_frequency)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).bind(id, companyId, e.name, e.annualSalary, e.votingSharePct, e.frequency).run();
+}
+
+export async function deleteEmployee(
+  db: D1Database, companyId: string, id: string,
+): Promise<void> {
+  await db.prepare('DELETE FROM employees WHERE company_id = ? AND id = ?')
+    .bind(companyId, id).run();
+}

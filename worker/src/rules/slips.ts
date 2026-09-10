@@ -1,6 +1,6 @@
 import type { LedgerLine } from './hst';
 import { balances } from './postings';
-import { personalTax, cppOnSalary, DIVIDENDS, type DividendKind } from './personal';
+import { personalTax, cppOnSalary, eiOnSalary, DIVIDENDS, type DividendKind } from './personal';
 
 /**
  * T4 and T5, filled in from the ledger.
@@ -37,9 +37,12 @@ export interface SlipBox {
 export interface T4 {
   /** The calendar year reported, never the fiscal year. */
   year: number;
+  /** Whose slip this is. Blank when it came from the ledger total. */
+  name: string;
   boxes: SlipBox[];
-  /** Total remitted across the year, for the T4 Summary. */
+  /** For the T4 Summary. */
   employerCpp: number;
+  employerEi: number;
   notes: string[];
 }
 
@@ -54,29 +57,32 @@ export interface T4 {
  * That recomputation is also a check: if the salary account and the source
  * deductions account disagree with these numbers, something was posted wrong.
  */
-export function t4For(lines: LedgerLine[], year: number): T4 {
-  const from = `${year}-01-01`;
-  const to = `${year}-12-31`;
-  const rows = balances(lines, to, from);
-  const salary = rows.find((r) => r.accountId === 'salaries')?.amount ?? 0;
-
+export function t4ForSalary(
+  salary: number, year: number, insurable = false, name = '',
+): T4 {
   const cpp = cppOnSalary(salary);
-  const tax = personalTax({ salary }).total;
+  const ei = eiOnSalary(salary, insurable);
+  const tax = personalTax({ salary, insurable }).total;
 
-  const pensionable = Math.max(0, Math.min(salary, 74_600_00));
+  const pensionable = Math.max(0, Math.min(salary, CPP_YMPE));
 
   const boxes: SlipBox[] = [
     { box: '14', label: 'Employment income', amount: salary },
     { box: '16', label: 'Employee CPP contributions', amount: cpp.employee - secondCpp(salary) },
     { box: '16A', label: 'Second CPP contributions (CPP2)', amount: secondCpp(salary),
       note: 'Left blank when there are none. Only earnings above the first ceiling create them.' },
-    { box: '18', label: 'EI premiums', amount: 0, keepIfZero: true,
-      note: 'Nil. A shareholder holding more than 40% of the voting shares is not in '
-        + 'insurable employment, so no EI is withheld and none is payable by the corporation.' },
+    { box: '18', label: 'EI premiums', amount: ei.employee, keepIfZero: !insurable,
+      note: insurable
+        ? 'The employer pays 1.4 times this on top, which is the one payroll '
+          + 'contribution that is not matched.'
+        : 'Nil. A shareholder holding more than 40% of the voting shares is not in '
+          + 'insurable employment, so no EI is withheld and none is payable by the corporation.' },
     { box: '22', label: 'Income tax deducted', amount: tax,
       note: 'What should have been withheld across the year. If the remittances differ, the difference settles on the personal return.' },
-    { box: '24', label: 'EI insurable earnings', amount: 0, keepIfZero: true,
-      note: 'Enter 0.00 rather than leaving it blank.' },
+    { box: '24', label: 'EI insurable earnings', amount: ei.insurableEarnings, keepIfZero: true,
+      note: insurable
+        ? 'Capped at the annual maximum insurable earnings.'
+        : 'Enter 0.00 rather than leaving it blank.' },
     { box: '26', label: 'CPP pensionable earnings', amount: pensionable,
       note: 'Required whenever box 16 has an amount.' },
   ];
@@ -90,12 +96,35 @@ export function t4For(lines: LedgerLine[], year: number): T4 {
       + 'slips carry a penalty from the first day, starting at $100 even for a single one.');
   }
 
-  return { year, boxes: boxes.filter((b) => b.amount !== 0 || b.keepIfZero),
-    employerCpp: cpp.employer, notes };
+  return { year, name, boxes: boxes.filter((b) => b.amount !== 0 || b.keepIfZero),
+    employerCpp: cpp.employer, employerEi: ei.employer, notes };
 }
 
+/**
+ * The T4 from the ledger's salary account, for a corporation with nobody on the
+ * employee register.
+ *
+ * A one person corporation has one salary and no reason to keep a register, so
+ * the ledger total is the slip. Once there is more than one person the register
+ * has to exist, because a single aggregate cannot be split back into slips.
+ */
+export function t4For(lines: LedgerLine[], year: number): T4 {
+  const rows = balances(lines, `${year}-12-31`, `${year}-01-01`);
+  const salary = rows.find((r) => r.accountId === 'salaries')?.amount ?? 0;
+  return t4ForSalary(salary, year);
+}
+
+/** The salary the ledger says was paid, for reconciling against the register. */
+export function salaryInLedger(lines: LedgerLine[], year: number): number {
+  const rows = balances(lines, `${year}-12-31`, `${year}-01-01`);
+  return rows.find((r) => r.accountId === 'salaries')?.amount ?? 0;
+}
+
+/** The first CPP ceiling, named so the box 26 cap is not a bare number. */
+const CPP_YMPE = 74_600_00;
+
 function secondCpp(salary: number): number {
-  const first = cppOnSalary(Math.min(salary, 74_600_00)).employee;
+  const first = cppOnSalary(Math.min(salary, CPP_YMPE)).employee;
   return Math.max(0, cppOnSalary(salary).employee - first);
 }
 

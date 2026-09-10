@@ -92,8 +92,35 @@ export const CPP = {
   baseRate: 0.0495,
 };
 
-/** EI premiums, for completeness. A controlling shareholder does not pay them. */
-export const EI = { rate: 0.0163, maxInsurable: 68_900_00, maxPremium: 1_123_07 };
+/**
+ * EI premiums.
+ *
+ * The employer pays 1.4 times what the employee does, which makes EI the most
+ * lopsided of the payroll taxes and a real cost of hiring somebody at arm's
+ * length. An owner manager pays none of it, which is why it was absent from
+ * this product until there were employees to pay it for.
+ */
+export const EI = {
+  rate: 0.0163,
+  maxInsurable: 68_900_00,
+  maxPremium: 1_123_07,
+  /** The employer's share is a multiple of the employee's, not a rate of its own. */
+  employerMultiple: 1.4,
+};
+
+/** Employee EI on a year's insurable earnings. */
+export function eiOnSalary(salary: number, insurable: boolean): {
+  employee: number; employer: number; insurableEarnings: number;
+} {
+  if (!insurable) return { employee: 0, employer: 0, insurableEarnings: 0 };
+  const insurableEarnings = Math.min(salary, EI.maxInsurable);
+  const employee = Math.min(Math.round(insurableEarnings * EI.rate), EI.maxPremium);
+  return {
+    employee,
+    employer: Math.round(employee * EI.employerMultiple),
+    insurableEarnings,
+  };
+}
 
 /**
  * Someone who controls more than 40% of the voting shares is not in insurable
@@ -203,6 +230,14 @@ export interface PersonalInput {
   /** Cash dividends actually received, before the gross up. */
   dividends?: number;
   dividendKind?: DividendKind;
+  /**
+   * Whether the employment is insurable, which decides EI.
+   *
+   * Defaults to false, because FileClear was built for owner managers and
+   * somebody holding more than 40% of the voting shares is not in insurable
+   * employment. An arm's length employee has to say so.
+   */
+  insurable?: boolean;
 }
 
 /**
@@ -222,14 +257,17 @@ export function personalTax(input: PersonalInput): PersonalTax {
   const d = DIVIDENDS[kind];
 
   const cpp = cppOnSalary(salary);
+  const ei = eiOnSalary(salary, input.insurable ?? false);
   const grossedUp = Math.round(cash * (1 + d.grossUp));
 
   // The enhanced part of CPP comes off income; the base part is a credit below.
   const taxableIncome = Math.max(0, salary + grossedUp - cpp.deductible);
 
+  // EI premiums earn a credit in full, unlike CPP where only the base part does.
   const fedCredits = Math.round(
-    (federalBpa(taxableIncome) + cpp.creditable) * FEDERAL_CREDIT_RATE);
-  const onCredits = Math.round((ONTARIO_BPA + cpp.creditable) * ONTARIO_CREDIT_RATE);
+    (federalBpa(taxableIncome) + cpp.creditable + ei.employee) * FEDERAL_CREDIT_RATE);
+  const onCredits = Math.round(
+    (ONTARIO_BPA + cpp.creditable + ei.employee) * ONTARIO_CREDIT_RATE);
 
   const fedDtc = Math.round(grossedUp * d.federalCredit);
   const onDtc = Math.round(grossedUp * d.ontarioCredit);

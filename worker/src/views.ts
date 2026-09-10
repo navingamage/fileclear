@@ -8,7 +8,9 @@ import type { Schedule1, TaxComputation } from './rules/t2';
 import type { Comparison } from './rules/compensation';
 import type { Staleness } from './rules/sources';
 import type { T4, T5, SlipBox } from './rules/slips';
-import type { PayPeriodDeductions, RemitterAdvice } from './rules/payroll';
+import type {
+  PayPeriodDeductions, RemitterAdvice, PayrollRun, Employee, Eht,
+} from './rules/payroll';
 
 /**
  * Server rendered HTML. No client framework, because there is no client state
@@ -971,8 +973,9 @@ ${c.caveats.map((x) => `<div class="advisory">${esc(x)}</div>`).join('')}
  */
 export function slipsPage(
   email: string, companyName: string,
-  years: number[], year: number, t4: T4, t5: T5, deadline: string,
-  pay: PayPeriodDeductions | null, advice: RemitterAdvice | null,
+  years: number[], year: number, t4s: T4[], t5: T5, deadline: string,
+  run: PayrollRun | null, advice: RemitterAdvice | null, eht: Eht | null,
+  employees: Employee[], ledgerSalary: number, error?: string,
   rates?: Staleness,
 ): string {
   const boxes = (rows: SlipBox[]) => rows.map((b) => `<div class="frow">
@@ -980,7 +983,10 @@ export function slipsPage(
     <span class="t">${esc(b.label)}${b.note ? `<span class="sub">${esc(b.note)}</span>` : ''}</span>
     <span class="f num">${dollars(b.amount)}</span></div>`).join('');
 
-  const nothing = t4.boxes.every((b) => b.amount === 0) && t5.boxes.every((b) => b.amount === 0);
+  const registered = employees.reduce((t, e) => t + e.annualSalary, 0);
+  const anySalary = t4s.some((t) => t.boxes.some((b) => b.box === '14' && b.amount !== 0));
+  const nothing = !anySalary && t5.boxes.every((b) => b.amount === 0);
+  const drift = employees.length && ledgerSalary ? registered - ledgerSalary : 0;
 
   return shell(`${companyName} slips`, `
 <span class="label">${esc(companyName)} &middot; slips and remittances</span>
@@ -1002,43 +1008,113 @@ ${nothing ? `<div class="advisory info">Nothing was paid as salary or dividends 
   entries: a salary belongs on the salaries account and a dividend on dividends
   declared.</div>` : ''}
 
-${t4.boxes.some((b) => b.amount !== 0) ? `
-<h2 class="sec">T4, statement of remuneration paid</h2>
+<h2 class="sec">Who is on the payroll</h2>
+<p class="hint">Needed once more than one person is paid, because a single salary
+total cannot be split back into separate slips. Voting shares decide EI: over 40%
+and the employment is not insurable, whatever anybody would prefer.</p>
+
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+<form method="post" action="/employees" class="txn-form">
+  <div class="txn-grid">
+    <div class="field"><label for="e-name">Name</label>
+      <input id="e-name" name="name" type="text" required placeholder="A. Director"></div>
+    <div class="field"><label for="e-salary">Annual salary</label>
+      <input id="e-salary" name="salary" type="text" inputmode="decimal" required placeholder="60000"></div>
+    <div class="field"><label for="e-shares">Voting shares held</label>
+      <input id="e-shares" name="shares" type="text" inputmode="decimal" value="0" placeholder="%"></div>
+    <div class="field"><label for="e-freq">Paid</label>
+      <select id="e-freq" name="frequency">
+        <option value="monthly">Monthly</option>
+        <option value="semi-monthly">Twice a month</option>
+        <option value="biweekly">Every two weeks</option>
+        <option value="weekly">Weekly</option>
+      </select></div>
+    <div class="field"><button class="btn primary" type="submit">Add</button></div>
+  </div>
+</form>
+
+${employees.length ? `<div class="sheet">
+  <div class="sheet-head"><span>Register</span><span>${employees.length} on payroll</span></div>
+  ${run!.lines.map((l) => `<div class="frow">
+    <span class="d">${l.employee.votingSharePct}%</span>
+    <span class="t">${esc(l.employee.name)}
+      <span class="sub">${dollars(l.annualSalary)} a year &middot; ${esc(l.deductions.frequency)}
+      &middot; ${l.insurable ? 'insurable, EI applies' : 'not insurable, no EI'}</span></span>
+    <span class="f num">${dollars(l.deductions.netPay)}<span class="sub">net per period</span></span>
+    <form method="post" action="/employees/delete">
+      <input type="hidden" name="id" value="${esc(l.employee.id)}">
+      <button class="btn small" type="submit">Remove</button></form>
+  </div>`).join('')}
+</div>` : ''}
+
+${drift !== 0 ? `<div class="advisory"><b>The register and the ledger disagree by
+  ${dollars(Math.abs(drift))}.</b> The register says ${dollars(registered)} of salary
+  for the year and the salaries account says ${dollars(ledgerSalary)}. One of them is
+  wrong, and the slips are built on the register.</div>` : ''}
+
+${run?.questions.map((q) => `<div class="advisory info">${esc(q)}</div>`).join('') ?? ''}
+
+${t4s.filter((t) => t.boxes.some((b) => b.box === '14' && b.amount !== 0)).map((t) => `
+<h2 class="sec">T4${t.name ? `, ${esc(t.name)}` : ', statement of remuneration paid'}</h2>
 <div class="sheet">
   <div class="sheet-head"><span>${year}</span><span>T4</span></div>
-  ${boxes(t4.boxes)}
+  ${boxes(t.boxes)}
 </div>
 <div class="sheet">
   <div class="sheet-head"><span>For the T4 Summary</span><span>Employer share</span></div>
   <div class="frow"><span class="d">27</span>
     <span class="t">Employer CPP contributions
-      <span class="sub">Matches box 16 and 16A together. A cost to the corporation, not a withholding.</span></span>
-    <span class="f num">${dollars(t4.employerCpp)}</span></div>
-</div>
-${t4.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}` : ''}
+      <span class="sub">Matches box 16 and 16A together.</span></span>
+    <span class="f num">${dollars(t.employerCpp)}</span></div>
+  ${t.employerEi ? `<div class="frow"><span class="d">19</span>
+    <span class="t">Employer EI premiums
+      <span class="sub">1.4 times box 18. The one payroll contribution that is not matched.</span></span>
+    <span class="f num">${dollars(t.employerEi)}</span></div>` : ''}
+</div>`).join('')}
+${(t4s[0]?.notes ?? []).map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
 
-${pay ? `
-<h2 class="sec">Each pay period</h2>
-<p class="hint">Monthly, annualised the way CRA's own formula does it, so twelve
-withholdings add up to the year's tax instead of leaving a balance in April.</p>
+${run && run.periodRemittance ? `
+<h2 class="sec">What to remit</h2>
+<p class="hint">One PD7A covers the whole payroll, not one per person. Income tax is
+annualised the way CRA's own formula does it, so the withholdings add up to the
+year's tax instead of leaving a balance in April.</p>
 <div class="sheet">
-  <div class="sheet-head"><span>One month</span><span>PD7A</span></div>
-  <div class="frow"><span class="t">Gross pay</span><span class="f num">${dollars(pay.gross)}</span></div>
-  <div class="frow"><span class="t">Income tax withheld</span><span class="f num">-${dollars(pay.incomeTax)}</span></div>
-  <div class="frow"><span class="t">CPP withheld</span><span class="f num">-${dollars(pay.cpp + pay.cpp2)}</span></div>
-  <div class="frow total"><span class="t"><b>Net pay</b></span><span class="f num"><b>${dollars(pay.netPay)}</b></span></div>
-  <div class="frow"><span class="t">Employer CPP
-    <span class="sub">Paid by the corporation on top, not deducted from the cheque.</span></span>
-    <span class="f num">${dollars(pay.employerCpp)}</span></div>
+  <div class="sheet-head"><span>Per pay period, everybody</span><span>PD7A</span></div>
+  ${run.lines.map((l) => `<div class="frow">
+    <span class="t">${esc(l.employee.name)}
+      <span class="sub">tax ${dollars(l.deductions.incomeTax)} &middot;
+      CPP ${dollars(l.deductions.cpp + l.deductions.cpp2)} both halves ${dollars((l.deductions.cpp + l.deductions.cpp2) * 2)}${
+        l.deductions.ei ? ` &middot; EI ${dollars(l.deductions.ei)} plus employer ${dollars(l.deductions.employerEi)}` : ''}</span></span>
+    <span class="f num">${dollars(l.deductions.remittance)}</span></div>`).join('')}
   <div class="frow total"><span class="t"><b>Remit to CRA</b>
-    <span class="sub">Income tax plus both halves of CPP, on one PD7A.</span></span>
-    <span class="f num"><b>${dollars(pay.remittance)}</b></span></div>
+    <span class="sub">Income tax, both halves of CPP, both halves of EI.</span></span>
+    <span class="f num"><b>${dollars(run.periodRemittance)}</b></span></div>
 </div>
 <div class="advisory"><b>Late is expensive out of proportion.</b>
   The penalty is a percentage of the whole remittance rather than of any shortfall,
   starting at 3% from the first day late and reaching 10%. On this remittance one
-  day late costs ${dollars(Math.round(pay.remittance * 0.03))}.</div>
+  day late costs ${dollars(Math.round(run.periodRemittance * 0.03))}.</div>
 ${advice?.warning ? `<div class="advisory">${esc(advice.warning)}</div>` : ''}` : ''}
+
+${eht ? `
+<h2 class="sec">Employer health tax</h2>
+<p class="hint">Ontario's, not CRA's, which is why it arrives from a direction nobody
+is watching. Most small corporations owe nothing and still have to file.</p>
+<div class="sheet">
+  <div class="sheet-head"><span>Ontario remuneration ${year}</span><span>EHT</span></div>
+  <div class="frow"><span class="t">Total remuneration</span>
+    <span class="f num">${dollars(eht.remuneration)}</span></div>
+  <div class="frow"><span class="t">Less the exemption</span>
+    <span class="f num">-${dollars(eht.exemptionClaimed)}</span></div>
+  <div class="frow"><span class="t">Taxable at ${(eht.rate * 100).toFixed(3)}%
+    <span class="sub">The rate band is set by total remuneration before the exemption, then applied to what is left after it.</span></span>
+    <span class="f num">${dollars(eht.taxable)}</span></div>
+  <div class="frow total"><span class="t"><b>Employer health tax</b></span>
+    <span class="f num"><b>${dollars(eht.tax)}</b></span></div>
+</div>
+<div class="advisory info">${esc(eht.note)}</div>
+${eht.instalmentsRequired ? '<div class="advisory">Payroll is over $1.2 million, so this is paid in monthly instalments rather than once a year.</div>' : ''}` : ''}
 
 ${t5.boxes.some((b) => b.amount !== 0) ? `
 <h2 class="sec">T5, statement of investment income</h2>

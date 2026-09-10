@@ -8,6 +8,7 @@ import {
   saveCompany, firstCompanyFor, loadCompany, filingStates, setFilingState,
   addTransaction, deleteTransaction, transactionsFor, toLedger,
   assetsFor, addAsset, deleteAsset, ccaClaims,
+  employeesFor, addEmployee, deleteEmployee,
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
@@ -24,8 +25,10 @@ import { fiscalYears, statementsFor } from './rules/yearend';
 import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
 import { schedule1, computeTax } from './rules/t2';
 import { compareCompensation } from './rules/compensation';
-import { t4For, t5For, slipDeadline } from './rules/slips';
-import { deductionsFor, remitterAdvice } from './rules/payroll';
+import { t4For, t4ForSalary, t5For, slipDeadline, salaryInLedger } from './rules/slips';
+import {
+  deductionsFor, remitterAdvice, payrollRun, ontarioEht, type PayFrequency,
+} from './rules/payroll';
 
 export interface Env extends CronEnv {
   DB: D1Database;
@@ -106,7 +109,15 @@ function profileFromForm(form: FormData): { profile: CompanyProfile; error?: str
   };
   p.paysDividends = on(form.get('paysDividends'));
   p.isConstruction = on(form.get('isConstruction'));
-  p.permanentEstablishments = form.getAll('pe').map((v) => String(v) as Jurisdiction);
+  // At least one, always. A corporation with no permanent establishment anywhere
+  // is not a thing, and an empty list silently switches off provincial tax and
+  // the employer health tax rather than raising an error. Falling back to where
+  // it was incorporated is the answer that is right almost every time, and for a
+  // federal corporation Ontario is the assumption the rest of this product makes.
+  const chosen = form.getAll('pe').map((v) => String(v) as Jurisdiction);
+  p.permanentEstablishments = chosen.length
+    ? chosen
+    : [p.jurisdiction === 'CBCA' ? 'ON' : p.jurisdiction];
   p.reminders = {
     email: on(form.get('remindEmail')),
     leadDays: Math.max(1, Math.min(90, num(form.get('remindLeadDays'), 14))),
@@ -230,7 +241,7 @@ export default {
     // ------------------------------------------------------- authenticated
     const needsAccount = ['/dashboard', '/onboarding', '/filing', '/books',
       '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete',
-      '/compensation', '/slips'].includes(path);
+      '/compensation', '/slips', '/employees', '/employees/delete'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
     if (path === '/onboarding' && account) {
@@ -420,9 +431,41 @@ export default {
         staleness(today())));
     }
 
-    if (path === '/slips' && account) {
+    if ((path === '/slips' || path === '/employees' || path === '/employees/delete')
+        && account) {
       const company = await firstCompanyFor(env.DB, account.id);
       if (!company) return redirect('/onboarding');
+
+      if (path === '/employees/delete' && request.method === 'POST') {
+        const form = await request.formData();
+        await deleteEmployee(env.DB, company.id, String(form.get('id') ?? ''));
+        return redirect('/slips');
+      }
+
+      let problem: string | null = null;
+      if (path === '/employees' && request.method === 'POST') {
+        const form = await request.formData();
+        const name = String(form.get('name') ?? '').trim().slice(0, 80);
+        const salary = money(form.get('salary'));
+        const shares = Number(String(form.get('shares') ?? '0').replace(/[^0-9.]/g, ''));
+        const frequency = String(form.get('frequency') ?? 'monthly');
+
+        if (!name) problem = 'Enter a name.';
+        else if (salary === null || salary <= 0) problem = 'Enter an annual salary.';
+        else if (!Number.isFinite(shares) || shares < 0 || shares > 100) {
+          problem = 'Voting shares have to be between 0 and 100 per cent.';
+        } else if (!['monthly', 'semi-monthly', 'biweekly', 'weekly'].includes(frequency)) {
+          problem = 'Choose how often they are paid.';
+        }
+
+        if (!problem) {
+          await addEmployee(env.DB, randomId(16), company.id, {
+            name, annualSalary: salary!, votingSharePct: shares,
+            frequency: frequency as PayFrequency,
+          });
+          return redirect('/slips');
+        }
+      }
 
       // Calendar years, not fiscal ones. The slips do not follow the year end
       // and offering fiscal years here would invite exactly the mistake the
@@ -437,19 +480,39 @@ export default {
       // has finished, not the one in progress.
       const year = years.includes(asked) ? asked : (years[1] ?? years[0]!);
 
-      const rows = await transactionsFor(env.DB, company.id, `${year}-01-01`, `${year}-12-31`);
+      const [rows, employees] = await Promise.all([
+        transactionsFor(env.DB, company.id, `${year}-01-01`, `${year}-12-31`),
+        employeesFor(env.DB, company.id),
+      ]);
       const ledger = toLedger(rows);
-      const t4 = t4For(ledger, year);
       const t5 = t5For(ledger, year);
+      const ledgerSalary = salaryInLedger(ledger, year);
 
-      const salary = t4.boxes.find((b) => b.box === '14')?.amount ?? 0;
-      const pay = salary > 0 ? deductionsFor(salary, 'monthly') : null;
-      const advice = pay
-        ? remitterAdvice(company.profile.payroll.remitter, pay.remittance * 12)
+      // With a register, one slip per person. Without one, the ledger's salary
+      // account is the whole payroll, which is what a one person corporation
+      // has and all it needs.
+      const run = employees.length ? payrollRun(employees) : null;
+      const t4s = run
+        ? run.lines.map((l) =>
+          t4ForSalary(l.annualSalary, year, l.insurable, l.employee.name))
+        : [t4For(ledger, year)];
+
+      const annualRemittance = run
+        ? run.annualRemittance
+        : (ledgerSalary > 0 ? deductionsFor(ledgerSalary).remittance * 12 : 0);
+      const advice = annualRemittance > 0
+        ? remitterAdvice(company.profile.payroll.remitter, annualRemittance)
         : null;
 
+      const remuneration = run ? run.totalSalary : ledgerSalary;
+      const eht = remuneration > 0
+        && company.profile.permanentEstablishments.includes('ON')
+        ? ontarioEht(remuneration) : null;
+
       return html(slipsPage(account.email, company.profile.legalName,
-        years, year, t4, t5, slipDeadline(year), pay, advice, staleness(today())));
+        years, year, t4s, t5, slipDeadline(year),
+        run, advice, eht, employees, ledgerSalary, problem ?? undefined,
+        staleness(today())), problem ? 400 : 200);
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.

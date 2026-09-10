@@ -230,3 +230,25 @@ CREATE TABLE IF NOT EXISTS source_watch (
   digest     TEXT NOT NULL,
   checked_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ------------------------------------------------------------ the payroll
+
+-- Who is on the payroll.
+--
+-- A one person corporation does not need this: the ledger's salary account is
+-- the whole story and the T4 falls out of it. The moment there is a second
+-- person it does, because one aggregate cannot be split back into two slips.
+--
+-- voting_share_pct is here rather than on the profile because it is a fact
+-- about each person, and it decides insurability: over 40% of the voting shares
+-- and the employment is excluded from EI whatever anybody would prefer.
+CREATE TABLE IF NOT EXISTS employees (
+  id             TEXT PRIMARY KEY,
+  company_id     TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL,
+  annual_salary_cents INTEGER NOT NULL,
+  voting_share_pct    REAL NOT NULL DEFAULT 0,
+  pay_frequency  TEXT NOT NULL DEFAULT 'monthly',
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS employees_company ON employees (company_id);

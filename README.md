@@ -200,5 +200,27 @@ never what the new rate is, because it does not know. A page that returns no
 figures at all is reported as needing attention rather than hashed to the empty
 digest, since an error page has no figures in it either.
 
-Ahead: multiple shareholders and employees, which needs an arm's length payroll
-calculation with EI in it, and provinces other than Ontario.
+## More than one person on the payroll
+
+A one person corporation needs no employee register: the ledger's salary account
+is the whole payroll and the T4 falls out of it. A second person changes that,
+because one aggregate cannot be split back into two slips. So the register
+exists once it is needed and not before, and when both exist and disagree the
+difference is shown rather than reconciled away.
+
+EI is the reason this is more than bookkeeping. Someone holding more than 40% of
+the voting shares is not in insurable employment and pays none; an arm's length
+employee is, and the employer pays 1.4 times what they do on top, which makes EI
+the one payroll contribution that is not matched. There is a second exclusion
+for people who do not deal at arm's length with the employer, and it turns on
+whether the terms are what they would be between strangers. CRA decides that on
+a ruling request, so FileClear raises it as a question rather than answering it
+from a percentage.
+
+Ontario's employer health tax comes in here too, because it arrives from a
+direction nobody is watching: it is provincial, has nothing to do with CRA, and
+most small corporations owe nothing and still have to file. The rate band is set
+by total remuneration before the exemption and applied to what is left after it,
+which is the easy thing to get backwards.
+
+Ahead: provinces other than Ontario.

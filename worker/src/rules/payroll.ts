@@ -1,4 +1,4 @@
-import { personalTax, cppOnSalary, CPP, EI } from './personal';
+import { personalTax, cppOnSalary, eiOnSalary, CPP, EI, EI_CONTROL_THRESHOLD } from './personal';
 import type { RemitterType } from './profile';
 
 /**
@@ -37,9 +37,13 @@ export interface PayPeriodDeductions {
   cpp2: number;
   /** Employer's matching contribution, which is a cost rather than a withholding. */
   employerCpp: number;
+  /** Employee EI, zero unless the employment is insurable. */
+  ei: number;
+  /** The employer's EI, which is 1.4 times the employee's rather than equal to it. */
+  employerEi: number;
   /** What the employee actually receives. */
   netPay: number;
-  /** What goes to CRA for this period: tax plus both halves of CPP. */
+  /** What goes to CRA for this period: tax, both halves of CPP, both halves of EI. */
   remittance: number;
 }
 
@@ -54,18 +58,18 @@ export interface PayPeriodDeductions {
  * The CPP exemption is prorated across periods, which is what makes a monthly
  * contribution slightly different from a twelfth of the annual one.
  *
- * EI is absent on purpose. Someone holding more than 40% of the voting shares
- * is not in insurable employment, and FileClear is built for owner managed
- * corporations. An arm's length employee is a different calculation and this
- * function would be wrong for one.
+ * EI depends on whether the employment is insurable, which is why it has to be
+ * asked rather than assumed. An owner manager holding more than 40% of the
+ * voting shares is not insurable and pays none; an arm's length employee is,
+ * and the employer pays 1.4 times what they do on top.
  */
 export function deductionsFor(
-  annualSalary: number, frequency: PayFrequency = 'monthly',
+  annualSalary: number, frequency: PayFrequency = 'monthly', insurable = false,
 ): PayPeriodDeductions {
   const periods = PERIODS_PER_YEAR[frequency];
   const gross = Math.round(annualSalary / periods);
 
-  const annualTax = personalTax({ salary: annualSalary }).total;
+  const annualTax = personalTax({ salary: annualSalary, insurable }).total;
   const incomeTax = Math.round(annualTax / periods);
 
   // Prorated exemption, capped at the annual maximum, exactly as payroll runs.
@@ -82,10 +86,175 @@ export function deductionsFor(
 
   const employerCpp = cpp + cpp2;
 
+  // EI has no exemption and no proration: it is a flat rate on every insurable
+  // dollar until the annual ceiling, which makes the period calculation the
+  // simpler of the two.
+  const annualEi = eiOnSalary(annualSalary, insurable);
+  const ei = Math.round(annualEi.employee / periods);
+  const employerEi = Math.round(annualEi.employer / periods);
+
   return {
-    frequency, periods, gross, incomeTax, cpp, cpp2, employerCpp,
-    netPay: gross - incomeTax - cpp - cpp2,
-    remittance: incomeTax + cpp + cpp2 + employerCpp,
+    frequency, periods, gross, incomeTax, cpp, cpp2, employerCpp, ei, employerEi,
+    netPay: gross - incomeTax - cpp - cpp2 - ei,
+    remittance: incomeTax + cpp + cpp2 + employerCpp + ei + employerEi,
+  };
+}
+
+// --------------------------------------------------------------- employees
+
+export interface Employee {
+  id: string;
+  name: string;
+  annualSalary: number;
+  /**
+   * Voting shares held, as a percentage.
+   *
+   * This is what decides insurability, and it is a fact about the share
+   * register rather than a preference. Over 40% and the employment is excluded
+   * from EI whatever anybody would prefer.
+   */
+  votingSharePct: number;
+  frequency: PayFrequency;
+}
+
+/**
+ * Whether a person's employment is insurable.
+ *
+ * The share test is the bright line and the only one FileClear applies. There
+ * is a second exclusion for people who do not deal at arm's length with the
+ * employer, a spouse or a child on the payroll, and it turns on whether the
+ * terms of employment are substantially what they would be between strangers.
+ * That is a judgement CRA makes on a ruling request, not something to infer
+ * from a percentage, so it is raised as a question rather than answered.
+ */
+export function isInsurable(e: Employee): boolean {
+  return e.votingSharePct <= EI_CONTROL_THRESHOLD * 100;
+}
+
+export interface PayrollLine {
+  employee: Employee;
+  insurable: boolean;
+  deductions: PayPeriodDeductions;
+  /** Annual figures, for the slips and the reconciliation. */
+  annualSalary: number;
+}
+
+export interface PayrollRun {
+  lines: PayrollLine[];
+  /** Total salary cost before the employer's own contributions. */
+  totalSalary: number;
+  /** One period's remittance across everybody, which is what goes on the PD7A. */
+  periodRemittance: number;
+  /** The same across a year, which decides the remitter category. */
+  annualRemittance: number;
+  employerCost: number;
+  questions: string[];
+}
+
+/**
+ * A payroll run across everybody on the register.
+ *
+ * The remittance is pooled: CRA wants one PD7A per payroll account, not one per
+ * person, so the numbers that matter for a due date are the totals.
+ */
+export function payrollRun(employees: Employee[]): PayrollRun {
+  const lines: PayrollLine[] = employees.map((employee) => {
+    const insurable = isInsurable(employee);
+    return {
+      employee,
+      insurable,
+      deductions: deductionsFor(employee.annualSalary, employee.frequency, insurable),
+      annualSalary: employee.annualSalary,
+    };
+  });
+
+  const totalSalary = lines.reduce((t, l) => t + l.annualSalary, 0);
+  const periodRemittance = lines.reduce((t, l) => t + l.deductions.remittance, 0);
+  const annualRemittance = lines.reduce(
+    (t, l) => t + l.deductions.remittance * l.deductions.periods, 0);
+  const employerCost = lines.reduce(
+    (t, l) => t + (l.deductions.employerCpp + l.deductions.employerEi) * l.deductions.periods, 0);
+
+  const questions: string[] = [];
+  const related = lines.filter((l) => l.insurable && l.employee.votingSharePct > 0);
+  if (related.length) {
+    questions.push('Somebody on this payroll holds shares and is still being treated as '
+      + 'insurable. That is right below 40% of the voting shares, but employment between '
+      + 'people who do not deal at arm\'s length can be excluded from EI anyway, on '
+      + 'whether the terms are what they would be between strangers. CRA decides that on '
+      + 'a ruling request rather than from a percentage.');
+  }
+  if (lines.some((l) => !l.insurable)) {
+    questions.push('Anyone shown as not insurable pays no EI and cannot claim maternity, '
+      + 'parental or sickness benefits. That is the trade, and it is not optional.');
+  }
+
+  return { lines, totalSalary, periodRemittance, annualRemittance, employerCost, questions };
+}
+
+// ------------------------------------------------------- employer health tax
+
+/**
+ * Ontario's employer health tax.
+ *
+ * A payroll tax nobody expects, because it is provincial and has nothing to do
+ * with CRA. Most small corporations owe nothing: the first million of
+ * remuneration is exempt. The exemption disappears entirely for a group over
+ * five million, which is a cliff rather than a taper, and the rate itself
+ * climbs in steps up to 1.95%.
+ */
+export const EHT_EXEMPTION = 1_000_000_00;
+export const EHT_EXEMPTION_CUTOFF = 5_000_000_00;
+export const EHT_INSTALMENT_THRESHOLD = 1_200_000_00;
+
+const EHT_RATES: { upTo: number; rate: number }[] = [
+  { upTo: 200_000_00, rate: 0.0098 },
+  { upTo: 230_000_00, rate: 0.01101 },
+  { upTo: 260_000_00, rate: 0.01223 },
+  { upTo: 290_000_00, rate: 0.01344 },
+  { upTo: 320_000_00, rate: 0.01465 },
+  { upTo: 350_000_00, rate: 0.01586 },
+  { upTo: 380_000_00, rate: 0.01708 },
+  { upTo: 400_000_00, rate: 0.01829 },
+  { upTo: Infinity, rate: 0.0195 },
+];
+
+export interface Eht {
+  remuneration: number;
+  exemptionClaimed: number;
+  taxable: number;
+  rate: number;
+  tax: number;
+  instalmentsRequired: boolean;
+  note: string;
+}
+
+/**
+ * The rate is chosen on total remuneration before the exemption is taken off,
+ * and then applied to what is left after it. Applying the rate band to the
+ * post exemption figure is the obvious mistake and it understates the tax.
+ */
+export function ontarioEht(remuneration: number): Eht {
+  const eligible = remuneration <= EHT_EXEMPTION_CUTOFF;
+  const exemptionClaimed = eligible ? Math.min(EHT_EXEMPTION, remuneration) : 0;
+  const taxable = Math.max(0, remuneration - exemptionClaimed);
+  const rate = EHT_RATES.find((b) => remuneration <= b.upTo)!.rate;
+  const tax = Math.round(taxable * rate);
+
+  const note = eligible
+    ? (taxable === 0
+      ? `The first ${money(EHT_EXEMPTION)} of Ontario remuneration is exempt, so nothing `
+        + 'is owed. The return is still filed, showing nil.'
+      : `Remuneration of ${money(remuneration)} sets the rate at ${(rate * 100).toFixed(3)}%, `
+        + `applied to what is left after the ${money(EHT_EXEMPTION)} exemption.`)
+    : `Over ${money(EHT_EXEMPTION_CUTOFF)} of payroll across the associated group, so no `
+      + 'exemption at all. It is a cliff rather than a taper: one dollar over and the whole '
+      + 'million goes.';
+
+  return {
+    remuneration, exemptionClaimed, taxable, rate, tax,
+    instalmentsRequired: remuneration > EHT_INSTALMENT_THRESHOLD,
+    note,
   };
 }
 

@@ -2,8 +2,8 @@
  * The chart of accounts, mapped to GIFI codes from the first transaction.
  *
  * Schedules 100 and 125 of the T2 are GIFI coded financial statements: a
- * balance sheet and an income statement expressed as Apple's, sorry, as CRA's
- * own numbered account codes. If the ledger carries those codes from the start,
+ * balance sheet and an income statement expressed in CRA's own numbered
+ * account codes. If the ledger carries those codes from the start,
  * the year end financials fall out of it. Retrofit the mapping later and you
  * rebuild the ledger.
  *
@@ -23,22 +23,30 @@ export interface Account {
   gifi: number;
   /** Whether HST is normally charged or claimable on this account. */
   hst: 'standard' | 'zero-rated' | 'exempt' | 'none';
+  /**
+   * Current, for the balance sheet. Schedule 100 splits assets and liabilities
+   * into current and everything else, so the classification has to live with
+   * the account rather than being guessed at year end.
+   *
+   * Only meaningful on assets and liabilities.
+   */
+  current?: boolean;
   hint?: string;
 }
 
 export const ACCOUNTS: Account[] = [
   // Balance sheet, GIFI 1000 to 3999. Schedule 100.
-  { id: 'bank',            name: 'Bank',                       kind: 'asset',     gifi: 1001, hst: 'none' },
-  { id: 'receivable',      name: 'Accounts receivable',        kind: 'asset',     gifi: 1060, hst: 'none' },
-  { id: 'gst-receivable',  name: 'HST recoverable',            kind: 'asset',     gifi: 1067, hst: 'none',
+  { id: 'bank',            name: 'Bank',                       kind: 'asset',     gifi: 1001, hst: 'none', current: true },
+  { id: 'receivable',      name: 'Accounts receivable',        kind: 'asset',     gifi: 1060, hst: 'none', current: true },
+  { id: 'gst-receivable',  name: 'HST recoverable',            kind: 'asset',     gifi: 1067, hst: 'none', current: true,
     hint: 'Input tax credits accumulated but not yet claimed.' },
-  { id: 'equipment',       name: 'Computer equipment',         kind: 'asset',     gifi: 1774, hst: 'standard',
+  { id: 'equipment',       name: 'Computer equipment',         kind: 'asset',     gifi: 1774, hst: 'standard', current: false,
     hint: 'Capital. Class 50 for computers, which matters at year end.' },
-  { id: 'payable',         name: 'Accounts payable',           kind: 'liability', gifi: 2620, hst: 'none' },
-  { id: 'gst-payable',     name: 'HST payable',                kind: 'liability', gifi: 2680, hst: 'none' },
-  { id: 'payroll-payable', name: 'Source deductions payable',  kind: 'liability', gifi: 2650, hst: 'none' },
-  { id: 'tax-payable',     name: 'Income tax payable',         kind: 'liability', gifi: 2680, hst: 'none' },
-  { id: 'due-shareholder', name: 'Due to shareholder',         kind: 'liability', gifi: 2781, hst: 'none',
+  { id: 'payable',         name: 'Accounts payable',           kind: 'liability', gifi: 2620, hst: 'none', current: true },
+  { id: 'gst-payable',     name: 'HST payable',                kind: 'liability', gifi: 2680, hst: 'none', current: true },
+  { id: 'payroll-payable', name: 'Source deductions payable',  kind: 'liability', gifi: 2650, hst: 'none', current: true },
+  { id: 'tax-payable',     name: 'Income tax payable',         kind: 'liability', gifi: 2680, hst: 'none', current: true },
+  { id: 'due-shareholder', name: 'Due to shareholder',         kind: 'liability', gifi: 2781, hst: 'none', current: true,
     hint: 'Money you put in, or took out, that is not salary or a dividend.' },
   { id: 'share-capital',   name: 'Share capital',              kind: 'equity',    gifi: 3500, hst: 'none' },
   { id: 'retained',        name: 'Retained earnings',          kind: 'equity',    gifi: 3600, hst: 'none' },

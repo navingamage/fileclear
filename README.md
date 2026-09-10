@@ -68,7 +68,7 @@ stop there. Presenting numbers is a tool. Printing a recommendation is advice.
 
 ## Where it runs
 
-`fileclear.ca`, as a Worker with D1 and R2, with `fileclear.antipodetech.com`
+`fileclear.ca`, as a Worker with D1, with `fileclear.antipodetech.com`
 redirecting to it. The same shape as TradeClear: the application owns the domain
 because a director typing the name wants the dashboard, not a page about it.
 
@@ -95,10 +95,39 @@ still runs, works out what is due, and reports that it could not send: a
 scheduled job that throws on a missing secret takes every other company's
 reminder down with it.
 
+## Year end
+
+The books are single entry on the surface, because a two person corporation will
+not think in debits and credits. A row is a date, an account, an amount and the
+HST that was on the document. Underneath they have to balance, because Schedule
+100 is a balance sheet and one sided records cannot produce one.
+
+One field bridges that: every row says where the money came from or went to,
+defaulting to the bank. The HST leg is already recorded and the sign of every
+leg follows from the kind of account, so `src/rules/postings.ts` derives a
+balanced entry from the equation rather than guessing at the direction. The
+worksheet shows the difference when it is not zero, because a balance sheet that
+does not balance is the most useful signal a set of books can give, and quietly
+plugging it is how a wrong return gets filed with confidence.
+
+Capital cost allowance is the one thing that carries across years. Everything
+else recomputes from the ledger on every read, but this year's opening pool is
+last year's closing pool, so Schedule 8 is computed forward from the first
+purchase and the year asked for is read off the end of that chain. Nothing is
+stored except a claim smaller than the maximum, which is a decision rather than
+a calculation.
+
+Rules that are in flux are computed as enacted and flagged, not guessed. The
+accelerated investment incentive is in its phase out, and the 2024 Fall Economic
+Statement proposed restoring it; until that is law the smaller deduction is the
+one shown, with a note saying why.
+
 ## Status
 
 Done: the obligation engine, accounts and sessions, onboarding, the filing
 calendar grouped by month, the ledger with GIFI coded accounts, the HST return
-computed both ways, and the daily reminder sweep.
+computed both ways, the daily reminder sweep, and the year end worksheet:
+Schedules 100, 125, 8 and 1, and the tax that falls out of them.
 
-Ahead: year end and the T2 worksheet, then the compensation planner and slips.
+Ahead: the compensation planner and slips, salary against dividends with the
+arithmetic for each shown rather than a recommendation printed.

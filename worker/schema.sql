@@ -157,3 +157,58 @@ CREATE TABLE IF NOT EXISTS reminders_sent (
   sent_at    TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (company_id, filing_id)
 );
+
+-- ------------------------------------------------------- double entry, phase 3
+
+-- Where the money came from or went to.
+--
+-- The books stay single entry on the surface: one row is one account and one
+-- amount, because a two person corporation will not think in debits and
+-- credits. But a balance sheet cannot be derived from one sided records, and
+-- Schedule 100 of the T2 is a balance sheet, so the ledger has to balance
+-- underneath.
+--
+-- This one column is enough. The HST leg is already recorded, and the sign of
+-- every leg follows from what kind of account it is, so src/rules/postings.ts
+-- expands each row into a balanced entry without asking for anything else.
+--
+-- Defaulted to the bank, which is what a row without one always meant.
+ALTER TABLE transactions ADD COLUMN counter_account_id TEXT NOT NULL DEFAULT 'bank';
+
+-- ------------------------------------------------------------ phase 3, year end
+
+-- The capital asset register.
+--
+-- A laptop is not an expense. It joins a class, and a percentage of that class
+-- is deducted each year until the pool runs out, which is Schedule 8. So a
+-- capital purchase is recorded twice on purpose: once in the ledger, where the
+-- money left the bank, and once here, where the tax treatment lives.
+--
+-- available_for_use is the date the thing could actually be used, which is not
+-- always the invoice date, and it is the date CRA cares about.
+CREATE TABLE IF NOT EXISTS assets (
+  id                TEXT PRIMARY KEY,
+  company_id        TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  class_number      REAL NOT NULL,
+  description       TEXT NOT NULL DEFAULT '',
+  available_for_use TEXT NOT NULL,              -- yyyy-mm-dd
+  cost_cents        INTEGER NOT NULL,
+  disposed_on       TEXT,                       -- yyyy-mm-dd, when sold or scrapped
+  proceeds_cents    INTEGER,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS assets_company ON assets (company_id, available_for_use);
+
+-- A capital cost allowance claim smaller than the maximum.
+--
+-- CCA is permissive: any amount from zero up to the maximum may be claimed, and
+-- claiming less in a loss year keeps the pool for a year when the deduction is
+-- worth more. Only a reduction is stored, because the maximum is computed. An
+-- empty table means every class is claimed in full, which is the common case.
+CREATE TABLE IF NOT EXISTS cca_claims (
+  company_id    TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  year_end      TEXT NOT NULL,                  -- yyyy-mm-dd, identifies the fiscal year
+  class_number  REAL NOT NULL,
+  claimed_cents INTEGER NOT NULL,
+  PRIMARY KEY (company_id, year_end, class_number)
+);

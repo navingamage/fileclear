@@ -177,6 +177,7 @@ export async function setFilingState(
 // ------------------------------------------------------------- transactions
 
 import type { LedgerLine } from './rules/hst';
+import { DEFAULT_COUNTER } from './rules/postings';
 
 export interface TxnRow {
   id: string;
@@ -184,6 +185,8 @@ export interface TxnRow {
   account_id: string;
   amount_cents: number;
   hst_cents: number;
+  /** Where the money came from or went to. See src/rules/postings.ts. */
+  counter_account_id: string;
   description: string;
 }
 
@@ -192,9 +195,11 @@ export async function addTransaction(
 ): Promise<void> {
   await db.prepare(
     `INSERT INTO transactions
-       (id, company_id, txn_date, account_id, amount_cents, hst_cents, description)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(id, companyId, t.txn_date, t.account_id, t.amount_cents, t.hst_cents, t.description).run();
+       (id, company_id, txn_date, account_id, amount_cents, hst_cents,
+        counter_account_id, description)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, companyId, t.txn_date, t.account_id, t.amount_cents, t.hst_cents,
+         t.counter_account_id, t.description).run();
 }
 
 export async function deleteTransaction(
@@ -208,10 +213,12 @@ export async function transactionsFor(
   db: D1Database, companyId: string, from?: string, to?: string,
 ): Promise<TxnRow[]> {
   const sql = from && to
-    ? `SELECT id, txn_date, account_id, amount_cents, hst_cents, description
+    ? `SELECT id, txn_date, account_id, amount_cents, hst_cents,
+              counter_account_id, description
          FROM transactions WHERE company_id = ? AND txn_date BETWEEN ? AND ?
         ORDER BY txn_date DESC, created_at DESC`
-    : `SELECT id, txn_date, account_id, amount_cents, hst_cents, description
+    : `SELECT id, txn_date, account_id, amount_cents, hst_cents,
+              counter_account_id, description
          FROM transactions WHERE company_id = ? ORDER BY txn_date DESC, created_at DESC`;
   const stmt = from && to
     ? db.prepare(sql).bind(companyId, from, to)
@@ -227,6 +234,87 @@ export function toLedger(rows: TxnRow[]): LedgerLine[] {
     accountId: r.account_id,
     amount: r.amount_cents,
     hst: r.hst_cents,
+    counterAccountId: r.counter_account_id || DEFAULT_COUNTER,
     description: r.description,
   }));
+}
+
+// -------------------------------------------------------------- phase 3
+
+import type { AssetRecord } from './rules/cca';
+
+interface AssetRow {
+  id: string;
+  class_number: number;
+  description: string;
+  available_for_use: string;
+  cost_cents: number;
+  disposed_on: string | null;
+  proceeds_cents: number | null;
+}
+
+export async function assetsFor(db: D1Database, companyId: string): Promise<AssetRecord[]> {
+  const rows = await db.prepare(
+    `SELECT id, class_number, description, available_for_use, cost_cents,
+            disposed_on, proceeds_cents
+       FROM assets WHERE company_id = ? ORDER BY available_for_use, created_at`,
+  ).bind(companyId).all<AssetRow>();
+  return (rows.results ?? []).map((r) => ({
+    id: r.id,
+    classNumber: r.class_number,
+    description: r.description,
+    availableForUse: r.available_for_use,
+    costCents: r.cost_cents,
+    ...(r.disposed_on ? { disposedOn: r.disposed_on } : {}),
+    ...(r.proceeds_cents !== null ? { proceedsCents: r.proceeds_cents } : {}),
+  }));
+}
+
+export async function addAsset(
+  db: D1Database, id: string, companyId: string, a: Omit<AssetRecord, 'id'>,
+): Promise<void> {
+  await db.prepare(
+    `INSERT INTO assets
+       (id, company_id, class_number, description, available_for_use, cost_cents,
+        disposed_on, proceeds_cents)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, companyId, a.classNumber, a.description, a.availableForUse, a.costCents,
+         a.disposedOn ?? null, a.proceedsCents ?? null).run();
+}
+
+export async function deleteAsset(
+  db: D1Database, companyId: string, id: string,
+): Promise<void> {
+  await db.prepare('DELETE FROM assets WHERE company_id = ? AND id = ?')
+    .bind(companyId, id).run();
+}
+
+/** Only reductions are stored. An absent class is claimed in full. */
+export async function ccaClaims(
+  db: D1Database, companyId: string, yearEnd: string,
+): Promise<Record<number, number>> {
+  const rows = await db.prepare(
+    'SELECT class_number, claimed_cents FROM cca_claims WHERE company_id = ? AND year_end = ?',
+  ).bind(companyId, yearEnd).all<{ class_number: number; claimed_cents: number }>();
+  const out: Record<number, number> = {};
+  for (const r of rows.results ?? []) out[r.class_number] = r.claimed_cents;
+  return out;
+}
+
+export async function setCcaClaim(
+  db: D1Database, companyId: string, yearEnd: string,
+  classNumber: number, claimedCents: number | null,
+): Promise<void> {
+  if (claimedCents === null) {
+    await db.prepare(
+      'DELETE FROM cca_claims WHERE company_id = ? AND year_end = ? AND class_number = ?',
+    ).bind(companyId, yearEnd, classNumber).run();
+    return;
+  }
+  await db.prepare(
+    `INSERT INTO cca_claims (company_id, year_end, class_number, claimed_cents)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT (company_id, year_end, class_number)
+       DO UPDATE SET claimed_cents = excluded.claimed_cents`,
+  ).bind(companyId, yearEnd, classNumber, claimedCents).run();
 }

@@ -28,6 +28,15 @@ export interface LedgerLine {
    *  because a supplier's rounding is the supplier's, and an invoice with no
    *  HST on it must not have any imputed. */
   hst: number;
+  /**
+   * Where the money came from or went to. Defaults to the bank when absent,
+   * which is what an older row without one meant.
+   *
+   * This is the whole of what makes the books double entry. See postings.ts:
+   * without it a balance sheet cannot be derived, because "sales 1,000" does
+   * not say where the money landed.
+   */
+  counterAccountId?: string;
   description?: string;
 }
 

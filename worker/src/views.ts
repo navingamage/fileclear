@@ -1,5 +1,10 @@
 import type { CompanyProfile } from './rules/profile';
 import type { Filing, Advisory } from './rules/engine';
+import { DEFAULT_COUNTER } from './rules/postings';
+import type { FiscalYear, GifiStatements, StatementLine } from './rules/yearend';
+import { GIFI } from './rules/yearend';
+import { CCA_CLASSES, type Schedule8, type AssetRecord } from './rules/cca';
+import type { Schedule1, TaxComputation } from './rules/t2';
 
 /**
  * Server rendered HTML. No client framework, because there is no client state
@@ -148,6 +153,12 @@ const CHROME = `<style>
   .frow .num { font-variant-numeric: tabular-nums; font-size: .88rem; color: var(--ink); }
   .frow.total { background: var(--band); }
   .periods { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  /* Separates the stages of a long worksheet, so the page reads as steps
+     rather than as one wall of figures. */
+  h2.sec { margin: 2.6rem 0 .5rem; padding-top: 1.6rem;
+    border-top: 1px solid var(--line); }
+  h2.sec + .hint { margin-top: .6rem; }
+  .frow .t.muted { color: var(--muted); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
   @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
   .two .sheet { margin-bottom: 0; }
@@ -203,7 +214,7 @@ export function shell(title: string, body: string, email?: string, active = ''):
   <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="30" height="30">FileClear</a>
   ${email ? `<nav class="app-nav" aria-label="Sections">
     ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
-    ${link('/onboarding', 'Company')}</nav>` : ''}
+    ${link('/year-end', 'Year end')}${link('/onboarding', 'Company')}</nav>` : ''}
   ${email ? `<div class="app-right"><span>${esc(email)}</span>
     <form method="post" action="/signout" style="margin:0">
       <button class="btn small" type="submit">Sign out</button></form></div>` : ''}
@@ -549,12 +560,23 @@ export function booksPage(
       .map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')
   }</optgroup>`).join('');
 
+  // Where the money moved. Almost always the bank, so it is preselected and
+  // most entries never touch it, but it is what makes the books balance and a
+  // balance sheet possible. Only accounts money can sit in are offered:
+  // "paid from Rent" is not a thing.
+  const counterOptions = ACCOUNTS
+    .filter((a) => a.kind === 'asset' || a.kind === 'liability' || a.kind === 'equity')
+    .map((a) => `<option value="${a.id}"${a.id === DEFAULT_COUNTER ? ' selected' : ''}>${esc(a.name)}</option>`)
+    .join('');
+
   const rows = txns.map((t) => {
     const a = ACCOUNT_BY_ID.get(t.account_id);
     return `<div class="frow">
       <span class="d">${esc(t.txn_date)}</span>
       <span class="t">${esc(a?.name ?? t.account_id)}
-        ${t.description ? `<span class="sub">${esc(t.description)}</span>` : ''}</span>
+        <span class="sub">${
+          ACCOUNT_BY_ID.get(t.counter_account_id)?.name ?? t.counter_account_id
+        }${t.description ? ` &middot; ${esc(t.description)}` : ''}</span></span>
       <span class="f">${dollars(t.amount_cents)}</span>
       <span class="f">${t.hst_cents ? dollars(t.hst_cents) : '&mdash;'}</span>
       <form method="post" action="/books/delete">
@@ -585,6 +607,8 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
       <input id="amount" name="amount" type="text" inputmode="decimal" required placeholder="1000.00"></div>
     <div class="field"><label for="hst">HST on the document</label>
       <input id="hst" name="hst" type="text" inputmode="decimal" placeholder="130.00"></div>
+    <div class="field"><label for="counter">Money from or to</label>
+      <select id="counter" name="counter" required>${counterOptions}</select></div>
     <div class="field"><label for="description">Description</label>
       <input id="description" name="description" type="text" placeholder="Invoice 014"></div>
     <div class="field"><label>&nbsp;</label>
@@ -649,4 +673,186 @@ ${esc(r.from)} to ${esc(r.to)}.</p>
 </div>
 
 ${r.caveats.map((c) => `<div class="advisory info">${esc(c)}</div>`).join('')}`, email, '/hst');
+}
+
+// ------------------------------------------------------------------ year end
+
+/**
+ * The year end worksheet.
+ *
+ * FileClear does not file, so the deliverable is a set of figures with the
+ * schedule and line number beside each one. A number with no address is a
+ * calculator result; a number that says "Schedule 1, line 403" can be typed
+ * into CRA's form by somebody who has never seen one before.
+ *
+ * The order follows how the return is actually built rather than how it is
+ * printed: statements first, then capital cost allowance, then the
+ * reconciliation that uses it, then the tax that falls out.
+ */
+export function yearEndPage(
+  email: string, companyName: string,
+  years: FiscalYear[], active: FiscalYear,
+  s: GifiStatements, s8: Schedule8, s1: Schedule1, tax: TaxComputation,
+  assets: AssetRecord[], today: string, error?: string,
+): string {
+  const rows = (lines: StatementLine[]) => lines.map((l) =>
+    `<div class="frow"><span class="d">${l.gifi}</span><span class="t">${esc(l.name)}</span>
+     <span class="f num">${dollars(l.amount)}</span></div>`).join('');
+
+  const total = (gifi: number, label: string, amount: number) =>
+    `<div class="frow total"><span class="d">${gifi}</span><span class="t"><b>${label}</b></span>
+     <span class="f num"><b>${dollars(amount)}</b></span></div>`;
+
+  const classOptions = CCA_CLASSES.map((c) =>
+    `<option value="${c.number}">Class ${c.number} &middot; ${esc(c.name)} (${(c.rate * 100).toFixed(0)}%)</option>`).join('');
+
+  return shell(`${companyName} year end`, `
+<span class="label">${esc(companyName)} &middot; year end</span>
+<h1>${esc(active.label)}, and what it owes.</h1>
+<p class="hint">${esc(active.from)} to ${esc(active.to)}${active.ended ? '' : ', still open'}.
+Every figure below names the schedule and line it belongs on. FileClear works
+the numbers out; it does not file them.</p>
+
+<div class="periods">${years.map((y) =>
+  `<a class="btn small${y.id === active.id ? ' primary' : ''}" href="/year-end?year=${y.id}">${esc(y.label)}${y.ended ? '' : ' (open)'}</a>`).join('')}</div>
+
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+${active.ended ? '' : `<div class="advisory"><b>This year has not finished.</b>
+  The figures are correct as far as the ledger goes, but there is no return to
+  file until ${esc(active.to)}.</div>`}
+
+<div class="two">
+  <div class="sheet">
+    <div class="sheet-head"><span>Income statement</span><span>Schedule 125</span></div>
+    ${rows(s.income.revenue)}
+    ${total(GIFI.totalRevenue, 'Total revenue', s.income.totalRevenue)}
+    ${rows(s.income.expenses)}
+    ${total(GIFI.totalExpenses, 'Total expenses', s.income.totalExpenses)}
+    ${total(GIFI.netBeforeTax, 'Net income before tax', s.income.netBeforeTax)}
+  </div>
+
+  <div class="sheet">
+    <div class="sheet-head"><span>Balance sheet at ${esc(active.to)}</span><span>Schedule 100</span></div>
+    ${rows(s.balance.currentAssets)}
+    ${total(GIFI.totalCurrentAssets, 'Total current assets', s.balance.totalCurrentAssets)}
+    ${rows(s.balance.capitalAssets)}
+    ${total(GIFI.totalAssets, 'Total assets', s.balance.totalAssets)}
+    ${rows(s.balance.currentLiabilities)}
+    ${rows(s.balance.longTermLiabilities)}
+    ${total(GIFI.totalLiabilities, 'Total liabilities', s.balance.totalLiabilities)}
+    ${rows(s.balance.equity)}
+    ${total(GIFI.totalEquity, 'Total equity', s.balance.totalEquity)}
+    ${total(GIFI.totalLiabilitiesAndEquity, 'Liabilities and equity', s.balance.totalLiabilitiesAndEquity)}
+  </div>
+</div>
+
+${s.balance.difference !== 0 ? `<div class="advisory"><b>The balance sheet is out by
+  ${dollars(s.balance.difference)}.</b> Assets should equal liabilities plus equity.
+  A difference means a transaction is recorded against the wrong account, and the
+  return built on it will be wrong too. This is shown rather than hidden because
+  quietly plugging the gap is how a wrong return gets filed with confidence.</div>` : ''}
+
+<h2 class="sec">Capital assets</h2>
+<p class="hint">A laptop is not an expense. It joins a class, and a share of that
+class is deducted each year. Record it in the ledger so the money leaves the bank,
+and here so the deduction is right.</p>
+
+<form method="post" action="/assets" class="txn-form">
+  <div class="txn-grid">
+    <div class="field"><label for="a-date">Available for use</label>
+      <input id="a-date" name="date" type="date" required value="${esc(today)}"></div>
+    <div class="field"><label for="a-class">Class</label>
+      <select id="a-class" name="class">${classOptions}</select></div>
+    <div class="field"><label for="a-cost">Cost</label>
+      <input id="a-cost" name="cost" type="text" inputmode="decimal" placeholder="3000.00" required></div>
+    <div class="field"><label for="a-desc">What it is</label>
+      <input id="a-desc" name="description" type="text" placeholder="MacBook Pro"></div>
+    <div class="field"><button class="btn primary" type="submit">Add</button></div>
+  </div>
+</form>
+
+<div class="sheet">
+  <div class="sheet-head"><span>Register</span><span>${assets.length} item${assets.length === 1 ? '' : 's'}</span></div>
+  ${assets.length === 0
+    ? '<div class="frow"><span class="t muted">Nothing yet.</span></div>'
+    : assets.map((a) => `<div class="frow">
+        <span class="d">${esc(a.availableForUse)}</span>
+        <span class="t">${esc(a.description || 'Asset')}
+          <span class="sub">Class ${a.classNumber}${a.disposedOn ? ` &middot; disposed ${esc(a.disposedOn)}` : ''}</span></span>
+        <span class="f num">${dollars(a.costCents)}</span>
+        <form method="post" action="/assets/delete">
+          <input type="hidden" name="id" value="${esc(a.id)}">
+          <button class="btn small" type="submit">Remove</button></form>
+      </div>`).join('')}
+</div>
+
+<div class="sheet">
+  <div class="sheet-head"><span>Capital cost allowance</span><span>Schedule 8</span></div>
+  ${s8.rows.length === 0
+    ? '<div class="frow"><span class="t muted">No classes open.</span></div>'
+    : s8.rows.map((r) => `<div class="frow">
+        <span class="d">Cl ${r.classNumber}</span>
+        <span class="t">${esc(r.name)}
+          <span class="sub">Opening ${dollars(r.openingUcc)} &middot; additions ${dollars(r.additions)}${
+            r.dispositions ? ` &middot; disposals ${dollars(r.dispositions)}` : ''} &middot; ${(r.rate * 100).toFixed(0)}% of ${dollars(r.base)}
+            &middot; closing ${dollars(r.closingUcc)}</span></span>
+        <span class="f num">${dollars(r.claimed)}</span>
+      </div>`).join('')}
+  ${s8.rows.length ? `<div class="frow total"><span class="d"></span>
+    <span class="t"><b>Total capital cost allowance</b></span>
+    <span class="f num"><b>${dollars(s8.totalCca)}</b></span></div>` : ''}
+</div>
+${s8.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
+
+<h2 class="sec">From the books to taxable income</h2>
+<div class="sheet">
+  <div class="sheet-head"><span>Reconciliation</span><span>Schedule 1</span></div>
+  <div class="frow"><span class="d">9970</span><span class="t">Net income per the books</span>
+    <span class="f num">${dollars(s1.netIncomePerBooks)}</span></div>
+  ${s1.additions.map((a) => `<div class="frow"><span class="d">${esc(a.ref.replace('S1 line ', ''))}</span>
+    <span class="t">${esc(a.label)}<span class="sub">${esc(a.why)}</span></span>
+    <span class="f num">+${dollars(a.amount)}</span></div>`).join('')}
+  ${s1.deductions.map((d) => `<div class="frow"><span class="d">${esc(d.ref.replace('S1 line ', ''))}</span>
+    <span class="t">${esc(d.label)}<span class="sub">${esc(d.why)}</span></span>
+    <span class="f num">-${dollars(d.amount)}</span></div>`).join('')}
+  <div class="frow total"><span class="d">300</span>
+    <span class="t"><b>Net income for tax purposes</b></span>
+    <span class="f num"><b>${dollars(s1.netIncomeForTax)}</b></span></div>
+</div>
+
+<h2 class="sec">The tax</h2>
+<div class="sheet">
+  <div class="sheet-head"><span>Part I and Ontario</span><span>T2 page 8</span></div>
+  <div class="frow"><span class="d">360</span><span class="t">Taxable income</span>
+    <span class="f num">${dollars(tax.taxableIncome)}</span></div>
+  <div class="frow"><span class="d">400</span>
+    <span class="t">At the small business rate
+      <span class="sub">9% federal and 3.2% Ontario, up to the business limit of ${dollars(tax.proratedLimit)}.</span></span>
+    <span class="f num">${dollars(tax.sbdIncome)}</span></div>
+  ${tax.generalIncome ? `<div class="frow"><span class="d">405</span>
+    <span class="t">At the general rate<span class="sub">15% federal and 11.5% Ontario.</span></span>
+    <span class="f num">${dollars(tax.generalIncome)}</span></div>` : ''}
+  <div class="frow"><span class="d">700</span><span class="t">Federal tax</span>
+    <span class="f num">${dollars(tax.federalTax)}</span></div>
+  <div class="frow"><span class="d">760</span><span class="t">Ontario tax</span>
+    <span class="f num">${dollars(tax.ontarioTax)}</span></div>
+  <div class="frow total"><span class="d">770</span>
+    <span class="t"><b>Total tax payable</b>
+      <span class="sub">${(tax.effectiveRate * 100).toFixed(1)}% of taxable income.</span></span>
+    <span class="f num"><b>${dollars(tax.totalTax)}</b></span></div>
+</div>
+
+${tax.instalmentsRequired ? `<div class="advisory"><b>Instalments are required next year.</b>
+  Tax payable is over $3,000, so next year is paid in advance rather than in one
+  go. The base is ${dollars(tax.instalmentBase)}, and the instalments show up on
+  your filing calendar.</div>` : ''}
+
+${tax.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
+
+<div class="advisory info"><b>This is a worksheet, not a return.</b>
+  FileClear is not certified by CRA and does not transmit anything. Every figure
+  above names where it goes, so it can be entered into CRA's own form or into
+  software that files. The authority for each number is the schedule it names.</div>
+`, email, '/year-end');
 }

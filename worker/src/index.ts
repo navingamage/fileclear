@@ -7,15 +7,20 @@ import {
 import {
   saveCompany, firstCompanyFor, loadCompany, filingStates, setFilingState,
   addTransaction, deleteTransaction, transactionsFor, toLedger,
+  assetsFor, addAsset, deleteAsset, ccaClaims,
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
 import { send, welcomeMail } from './email';
 import { ACCOUNT_BY_ID } from './rules/gifi';
+import { DEFAULT_COUNTER } from './rules/postings';
 import {
-  authPage, onboardingPage, dashboardPage, booksPage, hstPage, shell, html,
-  type HstPeriodOption,
+  authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
+  shell, html, type HstPeriodOption,
 } from './views';
+import { fiscalYears, statementsFor } from './rules/yearend';
+import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
+import { schedule1, computeTax } from './rules/t2';
 
 export interface Env extends CronEnv {
   DB: D1Database;
@@ -207,7 +212,7 @@ export default {
 
     // ------------------------------------------------------- authenticated
     const needsAccount = ['/dashboard', '/onboarding', '/filing', '/books',
-      '/books/delete', '/hst'].includes(path);
+      '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
     if (path === '/onboarding' && account) {
@@ -263,12 +268,15 @@ export default {
         const form = await request.formData();
         const date = String(form.get('date') ?? '').trim();
         const accountId = String(form.get('account') ?? '');
+        const counterId = String(form.get('counter') ?? DEFAULT_COUNTER) || DEFAULT_COUNTER;
         const amount = money(form.get('amount'));
         const hst = money(form.get('hst'));
 
         let problem: string | null = null;
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) problem = 'Enter a date.';
         else if (!ACCOUNT_BY_ID.has(accountId)) problem = 'Choose an account.';
+        else if (!ACCOUNT_BY_ID.has(counterId)) problem = 'Choose where the money moved.';
+        else if (accountId === counterId) problem = 'The two sides have to be different accounts.';
         else if (amount === null || amount === 0) problem = 'Enter an amount.';
         else if (hst === null) problem = 'The HST amount is not a number.';
 
@@ -280,6 +288,7 @@ export default {
         await addTransaction(env.DB, randomId(16), company.id, {
           txn_date: date, account_id: accountId,
           amount_cents: amount!, hst_cents: hst ?? 0,
+          counter_account_id: counterId,
           description: String(form.get('description') ?? '').slice(0, 200),
         });
         return redirect('/books');
@@ -300,6 +309,68 @@ export default {
       const rows = await transactionsFor(env.DB, company.id, chosen.from, chosen.to);
       const ret = computeHst(toLedger(rows), chosen.from, chosen.to);
       return html(hstPage(account.email, company.profile.legalName, ret, options, chosen.id));
+    }
+
+    if ((path === '/year-end' || path === '/assets' || path === '/assets/delete') && account) {
+      const company = await firstCompanyFor(env.DB, account.id);
+      if (!company) return redirect('/onboarding');
+
+      if (path === '/assets/delete' && request.method === 'POST') {
+        const form = await request.formData();
+        await deleteAsset(env.DB, company.id, String(form.get('id') ?? ''));
+        return redirect('/year-end');
+      }
+
+      let problem: string | null = null;
+      if (path === '/assets' && request.method === 'POST') {
+        const form = await request.formData();
+        const date = String(form.get('date') ?? '').trim();
+        const classNumber = Number(form.get('class'));
+        const cost = money(form.get('cost'));
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) problem = 'Enter the date it became available for use.';
+        else if (!CLASS_BY_NUMBER.has(classNumber)) problem = 'Choose a class.';
+        else if (cost === null || cost <= 0) problem = 'Enter what it cost.';
+
+        if (!problem) {
+          await addAsset(env.DB, randomId(16), company.id, {
+            classNumber, availableForUse: date, costCents: cost!,
+            description: String(form.get('description') ?? '').slice(0, 120),
+          });
+          return redirect('/year-end');
+        }
+      }
+
+      const years = fiscalYears(company.profile, today());
+      if (!years.length) return redirect('/onboarding');
+      const wanted = url.searchParams.get('year');
+      // The year that just closed is the one somebody wants, so an open year is
+      // only the default when it is the only one there is.
+      const active = years.find((y) => y.id === wanted)
+        ?? years.find((y) => y.ended) ?? years[0]!;
+
+      // Everything up to and including the year being reported, oldest first.
+      // Schedule 8 needs the whole chain, because this year's opening pool is
+      // last year's closing pool all the way back to the first purchase.
+      const chain = [...years].reverse().filter((y) => y.to <= active.to);
+
+      const [rows, assets, claims] = await Promise.all([
+        transactionsFor(env.DB, company.id),
+        assetsFor(env.DB, company.id),
+        ccaClaims(env.DB, company.id, active.to),
+      ]);
+      const ledger = toLedger(rows);
+
+      const isCurrent = (id: string) => ACCOUNT_BY_ID.get(id)?.current !== false;
+      const statements = statementsFor(ledger, active, isCurrent);
+      const s8 = schedule8(assets, chain, claims);
+      const s1 = schedule1(statements, ledger, active, s8);
+      const tax = computeTax(company.profile, active, s1, ledger);
+
+      return html(yearEndPage(
+        account.email, company.profile.legalName, years, active,
+        statements, s8, s1, tax, assets, today(), problem ?? undefined,
+      ), problem ? 400 : 200);
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.

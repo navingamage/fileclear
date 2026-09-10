@@ -62,8 +62,18 @@ FC_PUBLIC_ORIGIN = "https://fileclear.ca"
 
 # Addresses, not secrets, so they are versioned here.
 #
-# fileclear.ca sends and does not receive: it has SPF, DKIM and a ZeptoMail
-# bounce record, and no MX at all. So the envelope is addressed from a name
-# nobody should write to, and replies are aimed at the mailbox that exists.
+# fileclear.ca is a mail domain in its own right, the way peaberry.ca is:
+# ZeptoMail sends from it, Zoho Mail receives at it, and SPF covers both.
+#
+# The other pattern in the group, which TradeClear uses, is to send from the
+# product domain and point every human at hello@antipodetech.com. It was
+# rejected here. A message whose From is fileclear.ca and whose Reply-To is a
+# different company's domain has the shape of a phishing mail, and this one
+# tells a director about a deadline with money attached.
+#
+# reminders@ is a send-only name; nobody should write to it. Replies belong at
+# the mailbox. Until the Zoho alias for hello@fileclear.ca exists they are still
+# aimed at Antipode, and the day it does this line moves, along with the address
+# on the support, privacy and terms pages and the DMARC rua record.
 FC_MAIL_FROM = "FileClear <reminders@fileclear.ca>"
 FC_MAIL_REPLY_TO = "FileClear <hello@antipodetech.com>"

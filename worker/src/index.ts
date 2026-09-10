@@ -5,7 +5,8 @@ import {
   randomId, sessionCookie, clearedCookie, looksLikeEmail, passwordProblem,
 } from './auth';
 import {
-  saveCompany, firstCompanyFor, loadCompany, filingStates, setFilingState,
+  saveCompany, activeCompanyFor, companiesFor, setActiveCompany,
+  loadCompany, filingStates, setFilingState,
   addTransaction, deleteTransaction, transactionsFor, toLedger,
   assetsFor, addAsset, deleteAsset, ccaClaims,
   employeesFor, addEmployee, deleteEmployee,
@@ -19,7 +20,8 @@ import { ACCOUNT_BY_ID } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
-  compensationPage, slipsPage, shell, html, type HstPeriodOption,
+  compensationPage, slipsPage, shell, html,
+  type HstPeriodOption, type Chrome,
 } from './views';
 import { fiscalYears, statementsFor } from './rules/yearend';
 import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
@@ -241,23 +243,56 @@ export default {
     // ------------------------------------------------------- authenticated
     const needsAccount = ['/dashboard', '/onboarding', '/filing', '/books',
       '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete',
-      '/compensation', '/slips', '/employees', '/employees/delete'].includes(path);
+      '/compensation', '/slips', '/employees', '/employees/delete',
+      '/companies'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
+    // Resolved once per request rather than per screen: which corporation is
+    // being worked on, and what every page needs in its header. Seven routes
+    // used to look this up independently.
+    const company = account ? await activeCompanyFor(env.DB, account.id) : null;
+    const chrome: Chrome = account
+      ? {
+        rates: staleness(today()),
+        companies: await companiesFor(env.DB, account.id),
+        activeCompanyId: company?.id,
+      }
+      : {};
+
     if (path === '/onboarding' && account) {
-      const existing = await firstCompanyFor(env.DB, account.id);
+      // ?new=1 adds a corporation rather than editing the current one. A second
+      // company is a thing that happens to people, and it should not mean a
+      // second account.
+      const adding = url.searchParams.get('new') === '1';
+      const existing = adding ? null : company;
+
       if (request.method === 'GET') {
         return html(onboardingPage(account.email, existing?.profile ?? blankProfile(),
-          undefined, url.searchParams.get('welcome') === '1'));
+          undefined, url.searchParams.get('welcome') === '1', adding, chrome));
       }
       const { profile, error } = profileFromForm(await request.formData());
-      if (error) return html(onboardingPage(account.email, profile, error), 400);
-      await saveCompany(env.DB, existing?.id ?? randomId(16), account.id, profile);
+      if (error) {
+        return html(onboardingPage(account.email, profile, error, false, adding, chrome), 400);
+      }
+
+      const id = existing?.id ?? randomId(16);
+      await saveCompany(env.DB, id, account.id, profile);
+      // A newly added corporation becomes the one being looked at, since that
+      // is why it was just typed in.
+      if (!existing) await setActiveCompany(env.DB, account.id, id);
+      return redirect('/dashboard');
+    }
+
+    if (path === '/companies' && account) {
+      if (request.method === 'POST') {
+        const form = await request.formData();
+        await setActiveCompany(env.DB, account.id, String(form.get('id') ?? ''));
+        return redirect(String(form.get('back') ?? '/dashboard'));
+      }
       return redirect('/dashboard');
     }
 
     if (path === '/dashboard' && account) {
-      const company = await firstCompanyFor(env.DB, account.id);
       if (!company) return redirect('/onboarding');
 
       const from = today();
@@ -265,7 +300,7 @@ export default {
       const states = await filingStates(env.DB, company.id);
       return html(dashboardPage(
         account.email, company.id, company.profile, filings, states,
-        advisoriesFor(company.profile), from,
+        advisoriesFor(company.profile), from, chrome,
       ));
     }
 
@@ -284,7 +319,6 @@ export default {
     }
 
     if ((path === '/books' || path === '/books/delete') && account) {
-      const company = await firstCompanyFor(env.DB, account.id);
       if (!company) return redirect('/onboarding');
 
       if (path === '/books/delete' && request.method === 'POST') {
@@ -312,7 +346,7 @@ export default {
         if (problem) {
           const txns = await transactionsFor(env.DB, company.id);
           return html(booksPage(account.email, company.id, company.profile.legalName,
-            txns, today(), problem), 400);
+            txns, today(), problem, chrome), 400);
         }
         await addTransaction(env.DB, randomId(16), company.id, {
           txn_date: date, account_id: accountId,
@@ -325,11 +359,10 @@ export default {
 
       const txns = await transactionsFor(env.DB, company.id);
       return html(booksPage(account.email, company.id, company.profile.legalName,
-        txns, today()));
+        txns, today(), undefined, chrome));
     }
 
     if (path === '/hst' && account) {
-      const company = await firstCompanyFor(env.DB, account.id);
       if (!company) return redirect('/onboarding');
 
       const options = hstPeriods(company.profile.fiscalYearEnd, today());
@@ -338,11 +371,10 @@ export default {
       const rows = await transactionsFor(env.DB, company.id, chosen.from, chosen.to);
       const ret = computeHst(toLedger(rows), chosen.from, chosen.to);
       return html(hstPage(account.email, company.profile.legalName, ret, options,
-        chosen.id, staleness(today())));
+        chosen.id, chrome));
     }
 
     if ((path === '/year-end' || path === '/assets' || path === '/assets/delete') && account) {
-      const company = await firstCompanyFor(env.DB, account.id);
       if (!company) return redirect('/onboarding');
 
       if (path === '/assets/delete' && request.method === 'POST') {
@@ -400,12 +432,11 @@ export default {
       return html(yearEndPage(
         account.email, company.profile.legalName, years, active,
         statements, s8, s1, tax, assets, today(), problem ?? undefined,
-        staleness(today()),
+        chrome,
       ), problem ? 400 : 200);
     }
 
     if (path === '/compensation' && account) {
-      const company = await firstCompanyFor(env.DB, account.id);
       if (!company) return redirect('/onboarding');
 
       // Defaults to what the year actually produced, so the first view is about
@@ -427,13 +458,11 @@ export default {
       const kind = url.searchParams.get('kind') === 'eligible' ? 'eligible' : 'nonEligible';
       const comparison = compareCompensation(company.profile, available, kind);
       return html(compensationPage(
-        account.email, company.profile.legalName, comparison, available, kind,
-        staleness(today())));
+        account.email, company.profile.legalName, comparison, available, kind, chrome));
     }
 
     if ((path === '/slips' || path === '/employees' || path === '/employees/delete')
         && account) {
-      const company = await firstCompanyFor(env.DB, account.id);
       if (!company) return redirect('/onboarding');
 
       if (path === '/employees/delete' && request.method === 'POST') {
@@ -512,7 +541,7 @@ export default {
       return html(slipsPage(account.email, company.profile.legalName,
         years, year, t4s, t5, slipDeadline(year),
         run, advice, eht, employees, ledgerSalary, problem ?? undefined,
-        staleness(today())), problem ? 400 : 200);
+        chrome), problem ? 400 : 200);
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.

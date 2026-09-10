@@ -7,6 +7,22 @@ import { CCA_CLASSES, type Schedule8, type AssetRecord } from './rules/cca';
 import type { Schedule1, TaxComputation } from './rules/t2';
 import type { Comparison } from './rules/compensation';
 import type { Staleness } from './rules/sources';
+import type { CompanySummary } from './db';
+
+/**
+ * The parts of a page that belong to the application rather than to the screen.
+ *
+ * These were separate trailing arguments until there were three of them and
+ * every page signature had to grow to carry one through. A page never reads
+ * this; it passes it to the shell.
+ */
+export interface Chrome {
+  /** Whether the compiled rates still belong to the current year. */
+  rates?: Staleness;
+  /** Every corporation on the account, for the switcher. */
+  companies?: CompanySummary[];
+  activeCompanyId?: string;
+}
 import type { T4, T5, SlipBox } from './rules/slips';
 import type {
   PayPeriodDeductions, RemitterAdvice, PayrollRun, Employee, Eht,
@@ -158,6 +174,19 @@ const CHROME = `<style>
     font-weight: 400; }
   .frow .num { font-variant-numeric: tabular-nums; font-size: .88rem; color: var(--ink); }
   .frow.total { background: var(--band); }
+  /* The corporation switcher, which only appears once there is more than one.
+     Sized to sit in the header without pushing the nav around. */
+  .switcher { margin: 0 0 0 auto; }
+  .switcher select { width: auto; max-width: 15rem; padding: .3rem .5rem;
+    font-size: .88rem; border-radius: 8px; }
+  .switcher + .app-right { margin-left: 1rem; }
+  @media (max-width: 720px) { .switcher select { max-width: 9rem; } }
+
+  /* A secondary action set apart from the form it follows, so it reads as a
+     different thing to do rather than another field. */
+  .also { margin-top: 3rem; padding-top: 1.8rem; border-top: 1px solid var(--line); }
+  .also h2 { font-size: 1.2rem; margin-bottom: .5rem; }
+
   .periods { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
   /* Separates the stages of a long worksheet, so the page reads as steps
      rather than as one wall of figures. */
@@ -213,8 +242,9 @@ ${CHROME}
 <body>`;
 
 export function shell(
-  title: string, body: string, email?: string, active = '', rates?: Staleness,
+  title: string, body: string, email?: string, active = '', chrome: Chrome = {},
 ): string {
+  const { rates, companies, activeCompanyId } = chrome;
   const link = (href: string, label: string) =>
     `<a href="${href}"${active === href ? ' class="on"' : ''}>${label}</a>`;
   return `${HEAD(title)}
@@ -224,6 +254,14 @@ export function shell(
     ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
     ${link('/year-end', 'Year end')}${link('/compensation', 'Pay')}${link('/slips', 'Slips')}
     ${link('/onboarding', 'Company')}</nav>` : ''}
+  ${companies && companies.length > 1 ? `<form method="post" action="/companies" class="switcher">
+    <input type="hidden" name="back" value="${esc(active)}">
+    <select name="id" onchange="this.form.submit()" aria-label="Corporation">
+      ${companies.map((c) => `<option value="${esc(c.id)}"${
+        c.id === activeCompanyId ? ' selected' : ''}>${esc(c.legalName || 'Unnamed')}</option>`).join('')}
+    </select>
+    <noscript><button class="btn small" type="submit">Switch</button></noscript>
+  </form>` : ''}
   ${email ? `<div class="app-right"><span>${esc(email)}</span>
     <form method="post" action="/signout" style="margin:0">
       <button class="btn small" type="submit">Sign out</button></form></div>` : ''}
@@ -292,12 +330,14 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
 
 export function onboardingPage(
   email: string, p: CompanyProfile, error?: string, welcomed = false,
+  adding = false, chrome: Chrome = {},
 ): string {
   const sel = (v: boolean) => (v ? ' checked' : '');
   return shell('Your corporation', `
 <div class="narrow">
-  <div class="steps-bar"><b>Step 1 of 1</b> &middot; about the corporation</div>
-  <h1>Tell us about the corporation.</h1>
+  <div class="steps-bar"><b>${adding ? 'Adding a corporation' : 'Step 1 of 1'}</b>
+    &middot; about the corporation</div>
+  <h1>${adding ? 'Tell us about the new one.' : 'Tell us about the corporation.'}</h1>
   <p class="hint">Every answer changes which filings exist for you, so none of this
   is a formality. All of it comes off your incorporation documents and your last
   return.</p>
@@ -461,9 +501,16 @@ export function onboardingPage(
         <label for="pe-${c}">${n}</label></div>`).join('')}
     </fieldset>
 
-    <button class="btn primary" type="submit">Build my calendar</button>
+    <button class="btn primary" type="submit">${adding ? 'Add this corporation' : 'Build my calendar'}</button>
   </form>
-</div>`, email);
+
+  ${adding ? '' : `<div class="also">
+    <h2>Another corporation?</h2>
+    <p class="hint">One account can hold as many as you own. Each keeps its own
+    calendar, books and filings, and the header switches between them.</p>
+    <a class="btn" href="/onboarding?new=1">Add a corporation</a>
+  </div>`}
+</div>`, email, '/onboarding', chrome);
 }
 
 // ---------------------------------------------------------------- dashboard
@@ -476,6 +523,7 @@ function fmt(iso: string): string {
 export function dashboardPage(
   email: string, companyId: string, p: CompanyProfile,
   filings: Filing[], states: Map<string, string>, advisories: Advisory[], today: string,
+  chrome: Chrome = {},
 ): string {
   // Grouped by month. A flat list of forty dated rows is a spreadsheet; the
   // month heading is what turns it into something a person can plan against.
@@ -548,7 +596,7 @@ ${months.map((m) => `<div class="sheet">
     m.items.length === 1 ? 'filing' : 'filings'}</span></div>
   ${m.items.map(row).join('')}
 </div>`).join('') || '<div class="sheet"><div class="frow"><span class="t">Nothing due in the next twelve months.</span></div></div>'}`,
-  email, '/dashboard');
+  email, '/dashboard', chrome);
 }
 
 // -------------------------------------------------------------------- books
@@ -564,7 +612,7 @@ const KIND_LABEL: Record<AccountKind, string> = {
 
 export function booksPage(
   email: string, companyId: string, companyName: string,
-  txns: TxnRow[], today: string, error?: string,
+  txns: TxnRow[], today: string, error?: string, chrome: Chrome = {},
 ): string {
   const grouped: AccountKind[] = ['revenue', 'expense', 'asset', 'liability', 'equity'];
   const options = grouped.map((kind) => `<optgroup label="${KIND_LABEL[kind]}">${
@@ -631,7 +679,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 <div class="sheet">
   <div class="sheet-head"><span>Ledger</span><span>${txns.length} entries</span></div>
   ${rows || '<div class="frow"><span class="t">Nothing recorded yet.</span></div>'}
-</div>`, email, '/books');
+</div>`, email, '/books', chrome);
 }
 
 // ---------------------------------------------------------------- hst return
@@ -641,7 +689,7 @@ export interface HstPeriodOption { id: string; label: string; from: string; to: 
 
 export function hstPage(
   email: string, companyName: string, r: HstReturn, periods: HstPeriodOption[],
-  active: string, rates?: Staleness,
+  active: string, chrome: Chrome = {},
 ): string {
   const better = r.quickSaves > 0;
   return shell(`${companyName} HST`, `
@@ -684,7 +732,7 @@ ${esc(r.from)} to ${esc(r.to)}.</p>
     : '<b>The Quick Method is not available at this level of sales.</b>'}
 </div>
 
-${r.caveats.map((c) => `<div class="advisory info">${esc(c)}</div>`).join('')}`, email, '/hst', rates);
+${r.caveats.map((c) => `<div class="advisory info">${esc(c)}</div>`).join('')}`, email, '/hst', chrome);
 }
 
 // ------------------------------------------------------------------ year end
@@ -705,7 +753,7 @@ export function yearEndPage(
   email: string, companyName: string,
   years: FiscalYear[], active: FiscalYear,
   s: GifiStatements, s8: Schedule8, s1: Schedule1, tax: TaxComputation,
-  assets: AssetRecord[], today: string, error?: string, rates?: Staleness,
+  assets: AssetRecord[], today: string, error?: string, chrome: Chrome = {},
 ): string {
   const rows = (lines: StatementLine[]) => lines.map((l) =>
     `<div class="frow"><span class="d">${l.gifi}</span><span class="t">${esc(l.name)}</span>
@@ -866,7 +914,7 @@ ${tax.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
   FileClear is not certified by CRA and does not transmit anything. Every figure
   above names where it goes, so it can be entered into CRA's own form or into
   software that files. The authority for each number is the schedule it names.</div>
-`, email, '/year-end', rates);
+`, email, '/year-end', chrome);
 }
 
 // -------------------------------------------------------------- compensation
@@ -881,7 +929,7 @@ ${tax.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
  */
 export function compensationPage(
   email: string, companyName: string, c: Comparison,
-  available: number, kind: 'eligible' | 'nonEligible', rates?: Staleness,
+  available: number, kind: 'eligible' | 'nonEligible', chrome: Chrome = {},
 ): string {
   const col = (title: string, note: string, r: Comparison['salary'], rows: [string, number, string?][]) => `
   <div class="sheet">
@@ -959,7 +1007,7 @@ ${c.caveats.map((x) => `<div class="advisory">${esc(x)}</div>`).join('')}
   It computes both so the decision is made on numbers rather than on folklore.
   Whether you want CPP in thirty years, or RRSP room, or employment income a
   lender will underwrite, are not questions a tax calculation can answer.</div>
-`, email, '/compensation', rates);
+`, email, '/compensation', chrome);
 }
 
 // -------------------------------------------------------------------- slips
@@ -976,7 +1024,7 @@ export function slipsPage(
   years: number[], year: number, t4s: T4[], t5: T5, deadline: string,
   run: PayrollRun | null, advice: RemitterAdvice | null, eht: Eht | null,
   employees: Employee[], ledgerSalary: number, error?: string,
-  rates?: Staleness,
+  chrome: Chrome = {},
 ): string {
   const boxes = (rows: SlipBox[]) => rows.map((b) => `<div class="frow">
     <span class="d">${b.box}</span>
@@ -1127,5 +1175,5 @@ ${t5.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}` :
 <div class="advisory info"><b>A worksheet, not a filing.</b>
   FileClear is not certified by CRA and transmits nothing. These are the numbers
   to enter, with the box each belongs in.</div>
-`, email, '/slips', rates);
+`, email, '/slips', chrome);
 }

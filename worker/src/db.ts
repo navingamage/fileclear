@@ -150,6 +150,51 @@ export async function firstCompanyFor(
   return row ? loadCompany(db, row.id, accountId) : null;
 }
 
+export interface CompanySummary { id: string; legalName: string; }
+
+/** Every corporation on the account, oldest first, for the switcher. */
+export async function companiesFor(
+  db: D1Database, accountId: string,
+): Promise<CompanySummary[]> {
+  const rows = await db.prepare(
+    'SELECT id, legal_name FROM companies WHERE account_id = ? ORDER BY created_at')
+    .bind(accountId).all<{ id: string; legal_name: string }>();
+  return (rows.results ?? []).map((r) => ({ id: r.id, legalName: r.legal_name }));
+}
+
+/**
+ * The corporation the account is currently working on.
+ *
+ * Falls back to the oldest when nothing is chosen, which is what an account
+ * with one company always gets and means it never meets the idea of choosing.
+ * Falls back again if the stored choice has been deleted, rather than showing
+ * an empty dashboard for a company that is gone.
+ */
+export async function activeCompanyFor(
+  db: D1Database, accountId: string,
+): Promise<{ id: string; profile: CompanyProfile } | null> {
+  const row = await db.prepare('SELECT active_company_id FROM accounts WHERE id = ?')
+    .bind(accountId).first<{ active_company_id: string | null }>();
+  if (row?.active_company_id) {
+    const chosen = await loadCompany(db, row.active_company_id, accountId);
+    if (chosen) return chosen;
+  }
+  return firstCompanyFor(db, accountId);
+}
+
+/** Records the switch. Ignores a company the account does not own. */
+export async function setActiveCompany(
+  db: D1Database, accountId: string, companyId: string,
+): Promise<boolean> {
+  const owned = await db.prepare(
+    'SELECT id FROM companies WHERE id = ? AND account_id = ?')
+    .bind(companyId, accountId).first();
+  if (!owned) return false;
+  await db.prepare('UPDATE accounts SET active_company_id = ? WHERE id = ?')
+    .bind(companyId, accountId).run();
+  return true;
+}
+
 export async function filingStates(
   db: D1Database, companyId: string,
 ): Promise<Map<string, string>> {

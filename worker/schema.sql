@@ -252,3 +252,17 @@ CREATE TABLE IF NOT EXISTS employees (
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS employees_company ON employees (company_id);
+
+-- --------------------------------------------------- more than one corporation
+
+-- Which company the account is currently looking at.
+--
+-- The schema always allowed an account to own several; the application only
+-- ever read the first, which meant incorporating a second company made it
+-- invisible. That assumption sat in a query rather than in a screen, which is
+-- the expensive kind.
+--
+-- Kept on the account rather than in a cookie so the choice follows the person
+-- between devices, and nullable so an account with one company never has to
+-- think about it.
+ALTER TABLE accounts ADD COLUMN active_company_id TEXT;

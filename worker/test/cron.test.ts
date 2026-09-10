@@ -111,11 +111,12 @@ describe('sending refuses rather than throwing', () => {
 });
 
 describe('the envelope', () => {
-  /** Captures the body the mailer would post, without posting it. */
-  async function payload(env: Record<string, string>): Promise<Record<string, any>> {
+  /** Captures the request the mailer would make, without making it. */
+  async function request(env: Record<string, string>): Promise<{ url: string; body: Record<string, any> }> {
     const real = globalThis.fetch;
-    let body = '';
-    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    let url = '', body = '';
+    globalThis.fetch = (async (u: string, init: RequestInit) => {
+      url = String(u);
       body = String(init.body);
       return new Response('{}', { status: 201 });
     }) as unknown as typeof fetch;
@@ -124,8 +125,22 @@ describe('the envelope', () => {
     } finally {
       globalThis.fetch = real;
     }
-    return JSON.parse(body);
+    return { url, body: JSON.parse(body) };
   }
+
+  const payload = async (env: Record<string, string>) => (await request(env)).body;
+
+  /**
+   * ZeptoMail keeps its data centres separate and a token only works in the one
+   * that issued it. Antipode's account is Canadian, and the .com endpoint
+   * answers a Canadian token with "Invalid API Token found", which looks like a
+   * bad secret. Nothing at runtime would have caught it: an unsendable reminder
+   * is recorded as skipped and quietly retried the next day.
+   */
+  it('posts to the Canadian data centre', async () => {
+    const { url } = await request({ ZEPTOMAIL_TOKEN: 'x', FC_MAIL_FROM: 'a@b.co' });
+    expect(url).toBe('https://api.zeptomail.ca/v1.1/email');
+  });
 
   it('splits a name off the sender', async () => {
     const p = await payload({ ZEPTOMAIL_TOKEN: 'x', FC_MAIL_FROM: 'FileClear <no-reply@fileclear.ca>' });

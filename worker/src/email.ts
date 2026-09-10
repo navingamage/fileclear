@@ -42,7 +42,22 @@ export interface Mail {
 
 export interface SendResult { sent: boolean; reason?: string; }
 
-const ZEPTO_URL = 'https://api.zeptomail.com/v1.1/email';
+/**
+ * The Canadian data centre, not the default .com one.
+ *
+ * ZeptoMail runs separate data centres and a send token is only valid in the
+ * one that issued it. Antipode's account is Canadian: the bounce record points
+ * at cluster89.zeptomail.ca and Zoho Mail sits on zohocloud.ca. Posting this
+ * token to api.zeptomail.com returns SERR_157, "Invalid API Token found",
+ * which reads as a bad secret rather than a wrong address and is why this is
+ * written down here.
+ *
+ * The failure would have been quiet. An unsendable reminder is recorded as
+ * skipped and retried the next morning, so the sweep would have reported
+ * itself healthy every day while never delivering anything.
+ */
+const ZEPTO_HOST = 'api.zeptomail.ca';
+const ZEPTO_URL = `https://${ZEPTO_HOST}/v1.1/email`;
 
 /**
  * Refuses rather than throws when it is not configured.

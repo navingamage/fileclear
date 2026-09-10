@@ -181,6 +181,7 @@ const HEAD = (title: string) => `<!doctype html>
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="/brand/tokens.css">
 <link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/brand/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/brand/icon-32.png">
 <meta name="theme-color" content="#14110d">
 <link rel="preconnect" href="https://fonts.googleapis.com">

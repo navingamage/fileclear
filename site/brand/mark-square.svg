@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="FileClear">
+  <!-- The same mark with square corners, for the Apple touch icon. iOS applies
+       its own mask, so a corner radius baked into the file gets rounded twice
+       and the artwork ends up sitting inside a visible seam. -->
+  <rect width="100" height="100" fill="#c8102e"/>
+  <path d="M33 22h35v13H46v13h19v13H46v18H33z" fill="#ffffff"/>
+</svg>

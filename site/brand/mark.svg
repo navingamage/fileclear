@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="FileClear">
+  <!-- The FileClear mark: the letter on the brand red, and nothing else.
+       Everything in it is a straight edge, which is what keeps it sharp at
+       16px in a browser tab, where the icon spends most of its life. The
+       terminals are flat because the wordmark is IBM Plex Sans and Plex has
+       flat terminals. Red is #c8102e from brand/tokens.css. -->
+  <rect width="100" height="100" rx="22" fill="#c8102e"/>
+  <path d="M33 22h35v13H46v13h19v13H46v18H33z" fill="#ffffff"/>
+</svg>

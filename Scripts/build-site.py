@@ -26,6 +26,7 @@ FONTS = (
 HEADLINKS = (
     '<link rel="stylesheet" href="/brand/tokens.css">\n'
     '<link rel="icon" href="/favicon.ico" sizes="any">\n'
+    '<link rel="icon" type="image/svg+xml" href="/brand/mark.svg">\n'
     '<link rel="icon" type="image/png" sizes="32x32" href="/brand/icon-32.png">\n'
     '<link rel="icon" type="image/png" sizes="192x192" href="/brand/icon-192.png">\n'
     '<link rel="apple-touch-icon" href="/brand/icon-180.png">\n'

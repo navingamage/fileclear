@@ -171,5 +171,34 @@ expensive out of proportion to its size, because the penalty is a percentage of
 the whole remittance rather than of any shortfall, so that is shown in dollars
 rather than described.
 
+## Staying current
+
+Every rate in this product is a constant compiled into the Worker, which is a
+claim about the outside world that was true on the day it was typed. Rates move
+every January. Nothing about a hard coded 5.95% announces that it has stopped
+being correct, and a tax product quietly a year out of date is worse than none,
+because it is confidently wrong.
+
+Three defences, in order of how much they can be trusted.
+
+The rates carry the year they belong to, and if that year is behind the calendar
+every screen that computes money says so. Arithmetic, no network, cannot fail.
+
+Changes already announced are written down with their dates, so the warning
+arrives before the change rather than after somebody files on the old number.
+Ontario's dividend credit falling in January 2027 and the accelerated investment
+incentive expiring in 2028 are both already in there. Anything still only
+proposed stays out of it and becomes a caveat beside the calculation instead:
+the enacted rule is computed and the proposal is named.
+
+A weekly job reduces each authority's page to the set of amounts and rates on it
+and reports when that set moves. Reducing to figures rather than to text is what
+makes it usable: navigation, banners and the "date modified" stamp on every
+canada.ca page all change constantly, and a watch that fires every week is a
+watch that gets switched off. An alert says what we hold and which file to edit,
+never what the new rate is, because it does not know. A page that returns no
+figures at all is reported as needing attention rather than hashed to the empty
+digest, since an error page has no figures in it either.
+
 Ahead: multiple shareholders and employees, which needs an arm's length payroll
 calculation with EI in it, and provinces other than Ontario.

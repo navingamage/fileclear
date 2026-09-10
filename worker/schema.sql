@@ -212,3 +212,21 @@ CREATE TABLE IF NOT EXISTS cca_claims (
   claimed_cents INTEGER NOT NULL,
   PRIMARY KEY (company_id, year_end, class_number)
 );
+
+-- ------------------------------------------------------- watching the sources
+
+-- One row per authority page being watched.
+--
+-- Every rate in this product is a constant compiled into the Worker, which is a
+-- claim about the outside world that was true the day it was typed. This is how
+-- the claim gets rechecked: a hash of the figure bearing text on the page it
+-- came from, compared each week.
+--
+-- Only the digest is kept, not the page. The question is whether it changed,
+-- and storing government web pages to answer that would be a strange use of a
+-- database.
+CREATE TABLE IF NOT EXISTS source_watch (
+  source_id  TEXT PRIMARY KEY,
+  digest     TEXT NOT NULL,
+  checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

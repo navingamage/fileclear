@@ -6,6 +6,7 @@ import { GIFI } from './rules/yearend';
 import { CCA_CLASSES, type Schedule8, type AssetRecord } from './rules/cca';
 import type { Schedule1, TaxComputation } from './rules/t2';
 import type { Comparison } from './rules/compensation';
+import type { Staleness } from './rules/sources';
 import type { T4, T5, SlipBox } from './rules/slips';
 import type { PayPeriodDeductions, RemitterAdvice } from './rules/payroll';
 
@@ -209,7 +210,9 @@ ${CHROME}
 </head>
 <body>`;
 
-export function shell(title: string, body: string, email?: string, active = ''): string {
+export function shell(
+  title: string, body: string, email?: string, active = '', rates?: Staleness,
+): string {
   const link = (href: string, label: string) =>
     `<a href="${href}"${active === href ? ' class="on"' : ''}>${label}</a>`;
   return `${HEAD(title)}
@@ -224,6 +227,9 @@ export function shell(title: string, body: string, email?: string, active = ''):
       <button class="btn small" type="submit">Sign out</button></form></div>` : ''}
 </div></header>
 <main><div class="wrap">
+${rates?.message ? `<div class="advisory${rates.stale ? '' : ' info'}">
+  <b>${rates.stale ? 'These rates are out of date.' : 'New rates are due.'}</b>
+  ${esc(rates.message)}</div>` : ''}
 ${body}
 </div></main>
 </body></html>`;
@@ -633,7 +639,7 @@ export interface HstPeriodOption { id: string; label: string; from: string; to: 
 
 export function hstPage(
   email: string, companyName: string, r: HstReturn, periods: HstPeriodOption[],
-  active: string,
+  active: string, rates?: Staleness,
 ): string {
   const better = r.quickSaves > 0;
   return shell(`${companyName} HST`, `
@@ -676,7 +682,7 @@ ${esc(r.from)} to ${esc(r.to)}.</p>
     : '<b>The Quick Method is not available at this level of sales.</b>'}
 </div>
 
-${r.caveats.map((c) => `<div class="advisory info">${esc(c)}</div>`).join('')}`, email, '/hst');
+${r.caveats.map((c) => `<div class="advisory info">${esc(c)}</div>`).join('')}`, email, '/hst', rates);
 }
 
 // ------------------------------------------------------------------ year end
@@ -697,7 +703,7 @@ export function yearEndPage(
   email: string, companyName: string,
   years: FiscalYear[], active: FiscalYear,
   s: GifiStatements, s8: Schedule8, s1: Schedule1, tax: TaxComputation,
-  assets: AssetRecord[], today: string, error?: string,
+  assets: AssetRecord[], today: string, error?: string, rates?: Staleness,
 ): string {
   const rows = (lines: StatementLine[]) => lines.map((l) =>
     `<div class="frow"><span class="d">${l.gifi}</span><span class="t">${esc(l.name)}</span>
@@ -858,7 +864,7 @@ ${tax.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
   FileClear is not certified by CRA and does not transmit anything. Every figure
   above names where it goes, so it can be entered into CRA's own form or into
   software that files. The authority for each number is the schedule it names.</div>
-`, email, '/year-end');
+`, email, '/year-end', rates);
 }
 
 // -------------------------------------------------------------- compensation
@@ -873,7 +879,7 @@ ${tax.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
  */
 export function compensationPage(
   email: string, companyName: string, c: Comparison,
-  available: number, kind: 'eligible' | 'nonEligible',
+  available: number, kind: 'eligible' | 'nonEligible', rates?: Staleness,
 ): string {
   const col = (title: string, note: string, r: Comparison['salary'], rows: [string, number, string?][]) => `
   <div class="sheet">
@@ -951,7 +957,7 @@ ${c.caveats.map((x) => `<div class="advisory">${esc(x)}</div>`).join('')}
   It computes both so the decision is made on numbers rather than on folklore.
   Whether you want CPP in thirty years, or RRSP room, or employment income a
   lender will underwrite, are not questions a tax calculation can answer.</div>
-`, email, '/compensation');
+`, email, '/compensation', rates);
 }
 
 // -------------------------------------------------------------------- slips
@@ -967,6 +973,7 @@ export function slipsPage(
   email: string, companyName: string,
   years: number[], year: number, t4: T4, t5: T5, deadline: string,
   pay: PayPeriodDeductions | null, advice: RemitterAdvice | null,
+  rates?: Staleness,
 ): string {
   const boxes = (rows: SlipBox[]) => rows.map((b) => `<div class="frow">
     <span class="d">${b.box}</span>
@@ -1044,5 +1051,5 @@ ${t5.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}` :
 <div class="advisory info"><b>A worksheet, not a filing.</b>
   FileClear is not certified by CRA and transmits nothing. These are the numbers
   to enter, with the box each belongs in.</div>
-`, email, '/slips');
+`, email, '/slips', rates);
 }

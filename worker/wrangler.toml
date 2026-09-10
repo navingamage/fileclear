@@ -76,3 +76,11 @@ FC_PUBLIC_ORIGIN = "https://fileclear.ca"
 # separate accounts, which is how peaberry.ca carries hello@ and orders@.
 FC_MAIL_FROM = "FileClear <reminders@fileclear.ca>"
 FC_MAIL_REPLY_TO = "FileClear <hello@fileclear.ca>"
+
+# Where the rate watch reports. Internal, never shown to a customer.
+#
+# Every rate in this product is a constant compiled into the Worker, which is a
+# claim about the outside world that was true the day it was typed. src/watch.ts
+# rechecks those claims weekly against CRA and Corporations Canada and writes
+# here when something moves. See src/rules/sources.ts for what is watched.
+FC_WATCH_TO = "hello@antipodetech.com"

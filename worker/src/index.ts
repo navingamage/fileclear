@@ -11,6 +11,8 @@ import {
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
+import { watchSources } from './watch';
+import { staleness } from './rules/sources';
 import { send, welcomeMail } from './email';
 import { ACCOUNT_BY_ID } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
@@ -135,10 +137,22 @@ export default {
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const now = torontoNow();
     if (now.hour !== SEND_HOUR) return;
+
     ctx.waitUntil(sweep(env, now.date).then((r) => {
       console.log(`sweep ${now.date}: ${r.emailed}/${r.companies} companies emailed, `
         + `${r.filings} filings` + (r.skipped.length ? `, skipped ${r.skipped.join('; ')}` : ''));
     }));
+
+    // The rate watch runs weekly rather than daily. Government pages do not
+    // change often enough to be worth seven requests a week, and an alert that
+    // arrives every morning is an alert nobody reads.
+    if (new Date(`${now.date}T12:00:00Z`).getUTCDay() === 1) {
+      ctx.waitUntil(watchSources(env, now.date).then((r) => {
+        console.log(`rate watch ${now.date}: ${r.checked} checked, `
+          + `${r.changed.length} changed, ${r.unreachable.length} unreachable, `
+          + `${r.upcoming.length} announced, stale=${r.stale.stale}, emailed=${r.emailed}`);
+      }));
+    }
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -312,7 +326,8 @@ export default {
       const chosen = options.find((o) => o.id === wanted) ?? options[0]!;
       const rows = await transactionsFor(env.DB, company.id, chosen.from, chosen.to);
       const ret = computeHst(toLedger(rows), chosen.from, chosen.to);
-      return html(hstPage(account.email, company.profile.legalName, ret, options, chosen.id));
+      return html(hstPage(account.email, company.profile.legalName, ret, options,
+        chosen.id, staleness(today())));
     }
 
     if ((path === '/year-end' || path === '/assets' || path === '/assets/delete') && account) {
@@ -374,6 +389,7 @@ export default {
       return html(yearEndPage(
         account.email, company.profile.legalName, years, active,
         statements, s8, s1, tax, assets, today(), problem ?? undefined,
+        staleness(today()),
       ), problem ? 400 : 200);
     }
 
@@ -400,7 +416,8 @@ export default {
       const kind = url.searchParams.get('kind') === 'eligible' ? 'eligible' : 'nonEligible';
       const comparison = compareCompensation(company.profile, available, kind);
       return html(compensationPage(
-        account.email, company.profile.legalName, comparison, available, kind));
+        account.email, company.profile.legalName, comparison, available, kind,
+        staleness(today())));
     }
 
     if (path === '/slips' && account) {
@@ -432,7 +449,7 @@ export default {
         : null;
 
       return html(slipsPage(account.email, company.profile.legalName,
-        years, year, t4, t5, slipDeadline(year), pay, advice));
+        years, year, t4, t5, slipDeadline(year), pay, advice, staleness(today())));
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.

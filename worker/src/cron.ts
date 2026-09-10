@@ -16,6 +16,8 @@ import { send, reminderMail, type MailEnv, type ReminderItem } from './email';
 
 export interface CronEnv extends MailEnv {
   DB: D1Database;
+  /** Where the rate watch reports. See src/watch.ts. */
+  FC_WATCH_TO?: string;
 }
 
 export interface SweepResult {

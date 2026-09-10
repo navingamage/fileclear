@@ -151,5 +151,25 @@ computed both ways, the daily reminder sweep, the year end worksheet
 (Schedules 100, 125, 8 and 1 and the tax that falls out of them), and the
 compensation comparison.
 
-Ahead: T4 and T5 slips generated from the compensation actually paid, and
-payroll source deduction amounts for the months between.
+## Slips and remittances
+
+The calendar already knew when a T4 was due. What it could not say was what
+goes on it, which is where people actually get stuck, so both slips are filled
+in from what the ledger says was paid and every figure carries its box number.
+
+The trap this is built around: **T4 and T5 are calendar year slips.** A
+corporation with a June year end still reports January to December on them, and
+only the T2 follows the fiscal year. Lining the two up produces slips CRA cannot
+match to a remittance account, so the page says so and the year picker offers
+calendar years only.
+
+Source deductions are annualised the way CRA's own formula does it, so twelve
+withholdings add up to the year's tax rather than drifting and leaving a balance
+in April. The CPP exemption is prorated across periods, which is why a monthly
+contribution is not a twelfth of the annual one. Being late on a remittance is
+expensive out of proportion to its size, because the penalty is a percentage of
+the whole remittance rather than of any shortfall, so that is shown in dollars
+rather than described.
+
+Ahead: multiple shareholders and employees, which needs an arm's length payroll
+calculation with EI in it, and provinces other than Ontario.

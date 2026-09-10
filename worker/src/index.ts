@@ -16,12 +16,14 @@ import { ACCOUNT_BY_ID } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
-  compensationPage, shell, html, type HstPeriodOption,
+  compensationPage, slipsPage, shell, html, type HstPeriodOption,
 } from './views';
 import { fiscalYears, statementsFor } from './rules/yearend';
 import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
 import { schedule1, computeTax } from './rules/t2';
 import { compareCompensation } from './rules/compensation';
+import { t4For, t5For, slipDeadline } from './rules/slips';
+import { deductionsFor, remitterAdvice } from './rules/payroll';
 
 export interface Env extends CronEnv {
   DB: D1Database;
@@ -214,7 +216,7 @@ export default {
     // ------------------------------------------------------- authenticated
     const needsAccount = ['/dashboard', '/onboarding', '/filing', '/books',
       '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete',
-      '/compensation'].includes(path);
+      '/compensation', '/slips'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
     if (path === '/onboarding' && account) {
@@ -399,6 +401,38 @@ export default {
       const comparison = compareCompensation(company.profile, available, kind);
       return html(compensationPage(
         account.email, company.profile.legalName, comparison, available, kind));
+    }
+
+    if (path === '/slips' && account) {
+      const company = await firstCompanyFor(env.DB, account.id);
+      if (!company) return redirect('/onboarding');
+
+      // Calendar years, not fiscal ones. The slips do not follow the year end
+      // and offering fiscal years here would invite exactly the mistake the
+      // page warns about.
+      const thisYear = Number(today().slice(0, 4));
+      const since = Number(company.profile.incorporationDate.slice(0, 4)) || thisYear;
+      const years: number[] = [];
+      for (let y = thisYear; y >= since && years.length < 8; y--) years.push(y);
+
+      const asked = Number(url.searchParams.get('year'));
+      // Last year by default: the slips being worked on are for the year that
+      // has finished, not the one in progress.
+      const year = years.includes(asked) ? asked : (years[1] ?? years[0]!);
+
+      const rows = await transactionsFor(env.DB, company.id, `${year}-01-01`, `${year}-12-31`);
+      const ledger = toLedger(rows);
+      const t4 = t4For(ledger, year);
+      const t5 = t5For(ledger, year);
+
+      const salary = t4.boxes.find((b) => b.box === '14')?.amount ?? 0;
+      const pay = salary > 0 ? deductionsFor(salary, 'monthly') : null;
+      const advice = pay
+        ? remitterAdvice(company.profile.payroll.remitter, pay.remittance * 12)
+        : null;
+
+      return html(slipsPage(account.email, company.profile.legalName,
+        years, year, t4, t5, slipDeadline(year), pay, advice));
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.

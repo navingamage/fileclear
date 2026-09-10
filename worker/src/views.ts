@@ -6,6 +6,8 @@ import { GIFI } from './rules/yearend';
 import { CCA_CLASSES, type Schedule8, type AssetRecord } from './rules/cca';
 import type { Schedule1, TaxComputation } from './rules/t2';
 import type { Comparison } from './rules/compensation';
+import type { T4, T5, SlipBox } from './rules/slips';
+import type { PayPeriodDeductions, RemitterAdvice } from './rules/payroll';
 
 /**
  * Server rendered HTML. No client framework, because there is no client state
@@ -215,7 +217,8 @@ export function shell(title: string, body: string, email?: string, active = ''):
   <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="30" height="30">FileClear</a>
   ${email ? `<nav class="app-nav" aria-label="Sections">
     ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
-    ${link('/year-end', 'Year end')}${link('/compensation', 'Pay')}${link('/onboarding', 'Company')}</nav>` : ''}
+    ${link('/year-end', 'Year end')}${link('/compensation', 'Pay')}${link('/slips', 'Slips')}
+    ${link('/onboarding', 'Company')}</nav>` : ''}
   ${email ? `<div class="app-right"><span>${esc(email)}</span>
     <form method="post" action="/signout" style="margin:0">
       <button class="btn small" type="submit">Sign out</button></form></div>` : ''}
@@ -949,4 +952,97 @@ ${c.caveats.map((x) => `<div class="advisory">${esc(x)}</div>`).join('')}
   Whether you want CPP in thirty years, or RRSP room, or employment income a
   lender will underwrite, are not questions a tax calculation can answer.</div>
 `, email, '/compensation');
+}
+
+// -------------------------------------------------------------------- slips
+
+/**
+ * The slips and the remittances, filled in from the ledger.
+ *
+ * The calendar already says when a T4 is due. This is what goes on it, which is
+ * where people actually get stuck, and every box carries its number so it can
+ * be transcribed into CRA's form without a guide open beside it.
+ */
+export function slipsPage(
+  email: string, companyName: string,
+  years: number[], year: number, t4: T4, t5: T5, deadline: string,
+  pay: PayPeriodDeductions | null, advice: RemitterAdvice | null,
+): string {
+  const boxes = (rows: SlipBox[]) => rows.map((b) => `<div class="frow">
+    <span class="d">${b.box}</span>
+    <span class="t">${esc(b.label)}${b.note ? `<span class="sub">${esc(b.note)}</span>` : ''}</span>
+    <span class="f num">${dollars(b.amount)}</span></div>`).join('');
+
+  const nothing = t4.boxes.every((b) => b.amount === 0) && t5.boxes.every((b) => b.amount === 0);
+
+  return shell(`${companyName} slips`, `
+<span class="label">${esc(companyName)} &middot; slips and remittances</span>
+<h1>What goes on the slips.</h1>
+<p class="hint">Filled in from what the ledger says was paid, so the figures agree
+with the books rather than being typed twice. Both slips are due
+${esc(deadline)}.</p>
+
+<div class="periods">${years.map((y) =>
+  `<a class="btn small${y === year ? ' primary' : ''}" href="/slips?year=${y}">${y}</a>`).join('')}</div>
+
+<div class="advisory"><b>These are calendar year slips.</b>
+  A T4 and a T5 cover January to December whatever your fiscal year end is. Only
+  the T2 follows the fiscal year. Lining the slips up with the year end instead
+  produces figures CRA cannot match to your remittance account.</div>
+
+${nothing ? `<div class="advisory info">Nothing was paid as salary or dividends in
+  ${year}, so there is no slip to file. If that is wrong, the ledger is missing
+  entries: a salary belongs on the salaries account and a dividend on dividends
+  declared.</div>` : ''}
+
+${t4.boxes.some((b) => b.amount !== 0) ? `
+<h2 class="sec">T4, statement of remuneration paid</h2>
+<div class="sheet">
+  <div class="sheet-head"><span>${year}</span><span>T4</span></div>
+  ${boxes(t4.boxes)}
+</div>
+<div class="sheet">
+  <div class="sheet-head"><span>For the T4 Summary</span><span>Employer share</span></div>
+  <div class="frow"><span class="d">27</span>
+    <span class="t">Employer CPP contributions
+      <span class="sub">Matches box 16 and 16A together. A cost to the corporation, not a withholding.</span></span>
+    <span class="f num">${dollars(t4.employerCpp)}</span></div>
+</div>
+${t4.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}` : ''}
+
+${pay ? `
+<h2 class="sec">Each pay period</h2>
+<p class="hint">Monthly, annualised the way CRA's own formula does it, so twelve
+withholdings add up to the year's tax instead of leaving a balance in April.</p>
+<div class="sheet">
+  <div class="sheet-head"><span>One month</span><span>PD7A</span></div>
+  <div class="frow"><span class="t">Gross pay</span><span class="f num">${dollars(pay.gross)}</span></div>
+  <div class="frow"><span class="t">Income tax withheld</span><span class="f num">-${dollars(pay.incomeTax)}</span></div>
+  <div class="frow"><span class="t">CPP withheld</span><span class="f num">-${dollars(pay.cpp + pay.cpp2)}</span></div>
+  <div class="frow total"><span class="t"><b>Net pay</b></span><span class="f num"><b>${dollars(pay.netPay)}</b></span></div>
+  <div class="frow"><span class="t">Employer CPP
+    <span class="sub">Paid by the corporation on top, not deducted from the cheque.</span></span>
+    <span class="f num">${dollars(pay.employerCpp)}</span></div>
+  <div class="frow total"><span class="t"><b>Remit to CRA</b>
+    <span class="sub">Income tax plus both halves of CPP, on one PD7A.</span></span>
+    <span class="f num"><b>${dollars(pay.remittance)}</b></span></div>
+</div>
+<div class="advisory"><b>Late is expensive out of proportion.</b>
+  The penalty is a percentage of the whole remittance rather than of any shortfall,
+  starting at 3% from the first day late and reaching 10%. On this remittance one
+  day late costs ${dollars(Math.round(pay.remittance * 0.03))}.</div>
+${advice?.warning ? `<div class="advisory">${esc(advice.warning)}</div>` : ''}` : ''}
+
+${t5.boxes.some((b) => b.amount !== 0) ? `
+<h2 class="sec">T5, statement of investment income</h2>
+<div class="sheet">
+  <div class="sheet-head"><span>${year}</span><span>T5</span></div>
+  ${boxes(t5.boxes)}
+</div>
+${t5.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}` : ''}
+
+<div class="advisory info"><b>A worksheet, not a filing.</b>
+  FileClear is not certified by CRA and transmits nothing. These are the numbers
+  to enter, with the box each belongs in.</div>
+`, email, '/slips');
 }

@@ -104,6 +104,32 @@
   .cta-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.9rem; }
   .hero-note { color: var(--muted); font-size: .93rem; margin-top: 1.4rem; }
 
+  .nav-signin { font-size: .95rem; font-weight: 500; color: var(--muted);
+    margin-right: .2rem; }
+  .nav-signin:hover { color: var(--ink); text-decoration: none; }
+  @media (max-width: 620px) { .nav-signin { display: none; } }
+
+  /* Two plans, side by side, in the same card language as the rest. */
+  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
+    max-width: 760px; }
+  @media (max-width: 720px) { .plans { grid-template-columns: 1fr; } }
+  .plan { border: 1px solid var(--line); border-radius: 16px; padding: 1.6rem 1.5rem;
+    background: var(--surface); box-shadow: var(--shadow); }
+  /* The yearly plan is the one worth taking, so it is the one that is marked. */
+  .plan.best { border-color: var(--ink); box-shadow: var(--shadow-lg); }
+  .plan-name { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); display: block; }
+  .plan-name em { font-style: normal; color: var(--brand); }
+  .plan-price { margin: .8rem 0 .5rem; display: flex; align-items: baseline; gap: .5rem; }
+  .plan-price b { font-family: var(--font-mono); font-size: 2.4rem; font-weight: 500;
+    letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .plan-price span { color: var(--muted); font-size: .92rem; }
+  .plan-note { color: var(--muted); font-size: .9rem; margin-bottom: 1.2rem;
+    line-height: 1.5; }
+  .plan-includes { max-width: 760px; margin-top: 2rem; }
+  .plan-includes p { font-size: .97rem; line-height: 1.65; }
+  .plan-includes .muted { font-size: .88rem; }
+
   /* The calendar panel. Sits in the hero grid rather than centred under it. */
   .panel { background: var(--surface); border: 1px solid var(--line);
     border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
@@ -216,9 +242,11 @@
   <nav class="nav-links" aria-label="Main">
     <a href="/#how">How it works</a>
     <a href="/#different">Why yours differs</a>
+    <a href="/#pricing">Pricing</a>
     <a href="/support">Support</a>
   </nav>
-  <!--email_off--><a class="btn primary small" href="mailto:hello@fileclear.ca?subject=Early%20access">Get early access</a><!--/email_off-->
+  <a class="nav-signin" href="/signin">Sign in</a>
+  <a class="btn primary small" href="/signup">Start free</a>
 </div></header>
 <main id="main">
 <section><div class="wrap narrow prose">

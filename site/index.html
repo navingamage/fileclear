@@ -104,6 +104,32 @@
   .cta-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.9rem; }
   .hero-note { color: var(--muted); font-size: .93rem; margin-top: 1.4rem; }
 
+  .nav-signin { font-size: .95rem; font-weight: 500; color: var(--muted);
+    margin-right: .2rem; }
+  .nav-signin:hover { color: var(--ink); text-decoration: none; }
+  @media (max-width: 620px) { .nav-signin { display: none; } }
+
+  /* Two plans, side by side, in the same card language as the rest. */
+  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
+    max-width: 760px; }
+  @media (max-width: 720px) { .plans { grid-template-columns: 1fr; } }
+  .plan { border: 1px solid var(--line); border-radius: 16px; padding: 1.6rem 1.5rem;
+    background: var(--surface); box-shadow: var(--shadow); }
+  /* The yearly plan is the one worth taking, so it is the one that is marked. */
+  .plan.best { border-color: var(--ink); box-shadow: var(--shadow-lg); }
+  .plan-name { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); display: block; }
+  .plan-name em { font-style: normal; color: var(--brand); }
+  .plan-price { margin: .8rem 0 .5rem; display: flex; align-items: baseline; gap: .5rem; }
+  .plan-price b { font-family: var(--font-mono); font-size: 2.4rem; font-weight: 500;
+    letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .plan-price span { color: var(--muted); font-size: .92rem; }
+  .plan-note { color: var(--muted); font-size: .9rem; margin-bottom: 1.2rem;
+    line-height: 1.5; }
+  .plan-includes { max-width: 760px; margin-top: 2rem; }
+  .plan-includes p { font-size: .97rem; line-height: 1.65; }
+  .plan-includes .muted { font-size: .88rem; }
+
   /* The calendar panel. Sits in the hero grid rather than centred under it. */
   .panel { background: var(--surface); border: 1px solid var(--line);
     border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
@@ -216,9 +242,11 @@
   <nav class="nav-links" aria-label="Main">
     <a href="/#how">How it works</a>
     <a href="/#different">Why yours differs</a>
+    <a href="/#pricing">Pricing</a>
     <a href="/support">Support</a>
   </nav>
-  <!--email_off--><a class="btn primary small" href="mailto:hello@fileclear.ca?subject=Early%20access">Get early access</a><!--/email_off-->
+  <a class="nav-signin" href="/signin">Sign in</a>
+  <a class="btn primary small" href="/signup">Start free</a>
 </div></header>
 <main id="main">
 <section class="hero"><div class="wrap hero-grid">
@@ -228,11 +256,11 @@
     <p class="lead">FileClear reads how your corporation is set up and builds the exact
     calendar that follows from it. Every date, every form, every authority.</p>
     <div class="cta-row">
-      <!--email_off--><a class="btn primary" href="mailto:hello@fileclear.ca?subject=Early%20access">Get early access</a><!--/email_off-->
+      <a class="btn primary" href="/signup">Start free</a>
       <a class="btn ghost" href="#how">See how it works</a>
     </div>
-    <p class="hero-note">In development. Opening to a first group of Canadian
-    corporations soon.</p>
+    <p class="hero-note">Free while you set up your calendar. $29 a month when you
+    start filing from it. No card to begin.</p>
   </div>
 
   <div class="panel">
@@ -327,16 +355,52 @@
   </div>
 </div></section>
 
+<section class="band" id="pricing"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">Pricing</span>
+    <h2>One price. Every filing.</h2>
+    <p class="lead">A CPA charges $2,000 to $4,000 a year to do what is on this page.
+    FileClear does not file for you, and it does not charge like something that does.</p>
+  </div>
+
+  <div class="plans">
+    <div class="plan">
+      <span class="plan-name">Monthly</span>
+      <p class="plan-price"><b>$29</b><span>per month</span></p>
+      <p class="plan-note">Cancel any time. Cancelling stops the next payment and
+      leaves the current period running.</p>
+      <a class="btn primary" href="/signup">Start free</a>
+    </div>
+    <div class="plan best">
+      <span class="plan-name">Yearly <em>two months free</em></span>
+      <p class="plan-price"><b>$290</b><span>per year</span></p>
+      <p class="plan-note">The same product, billed once. Works out at $24.17 a month.</p>
+      <a class="btn primary" href="/signup">Start free</a>
+    </div>
+  </div>
+
+  <div class="plan-includes">
+    <p><b>Everything is included.</b> There is no tier where the calendar stops at
+    three filings, and no charge per corporation. One price covers the filing calendar,
+    the books, the HST return computed both ways, year end with schedules 100, 125, 8
+    and 1, the salary against dividends comparison, T4 and T5 figures, and the reminders
+    that arrive before a window closes.</p>
+    <p class="muted">Prices in Canadian dollars. HST is added where it applies.
+    FileClear works out what you owe and when; it is not certified by CRA and does not
+    transmit anything.</p>
+  </div>
+</div></section>
+
 <section class="on-dark"><div class="wrap">
   <div class="sec-head">
-    <span class="eyebrow">Get in early</span>
-    <h2>Tell us your year end.</h2>
-    <p class="lead">Say where you incorporated and when your year ends, and you will
-    hear the moment it opens. The first corporations in help decide what gets built
-    next.</p>
+    <span class="eyebrow">Start</span>
+    <h2>Tell it your year end.</h2>
+    <p class="lead">Eight questions about how your corporation is set up, and the
+    calendar that follows from them. Free until you rely on it, and no card to begin.</p>
   </div>
   <div class="cta-row">
-    <!--email_off--><a class="btn primary" href="mailto:hello@fileclear.ca?subject=Early%20access">hello@fileclear.ca</a><!--/email_off-->
+    <a class="btn primary" href="/signup">Create an account</a>
+    <a class="btn ghost" href="/signin">Sign in</a>
   </div>
 </div></section>
 </main>

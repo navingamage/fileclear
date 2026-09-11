@@ -4,6 +4,7 @@ import type { LedgerLine } from './hst';
 import { balances } from './postings';
 import type { FiscalYear, GifiStatements } from './yearend';
 import type { Schedule8 } from './cca';
+import { provincialTax as provincialTaxForReturn } from './provinces';
 
 /**
  * Schedule 1 and the tax on the result.

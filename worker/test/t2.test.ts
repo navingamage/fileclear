@@ -71,7 +71,8 @@ describe('the tax', () => {
     expect(tax.taxableIncome).toBe(10_000_000);
     expect(tax.sbdIncome).toBe(10_000_000);
     expect(tax.federalTax).toBe(900_000);      // 9%
-    expect(tax.ontarioTax).toBe(320_000);      // 3.2%
+    expect(tax.provincialTax).toBe(320_000);   // Ontario, 3.2%
+    expect(tax.provinceName).toBe('Ontario');
     expect(tax.totalTax).toBe(1_220_000);
     expect(tax.effectiveRate).toBeCloseTo(0.122, 4);
   });

@@ -1,0 +1,38 @@
+# The generated site, checked against its generator.
+#
+# site/*.html is committed, because Workers Builds has no Python and the deploy
+# needs the files to already exist. That leaves one way to be wrong: edit
+# Scripts/build-site.py, forget to run it, and ship HTML that no longer matches
+# the source it came from. Nothing at deploy time would notice.
+#
+# So regeneration happens here, where Python is available, and the job fails if
+# anything moved. Same shape as the layout job in TradeClear: the half that
+# cannot run where the deploy runs, runs where it can.
+name: Site
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  generated-html-is-current:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate
+        run: python3 Scripts/build-site.py
+
+      - name: Fail if the committed HTML is behind its generator
+        run: |
+          if ! git diff --quiet -- site; then
+            echo "site/ does not match Scripts/build-site.py."
+            echo "Run: python3 Scripts/build-site.py, then commit the result."
+            git diff --stat -- site
+            exit 1
+          fi
+          echo "site/ is current."

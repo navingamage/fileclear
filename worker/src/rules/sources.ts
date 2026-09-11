@@ -85,6 +85,18 @@ export const SCHEDULED_CHANGES: ScheduledChange[] = [
     url: 'https://www.canada.ca/en/revenue-agency/services/tax/rates.html',
     leadDays: 60,
   },
+  {
+    effective: '2027-01-01',
+    authority: 'CRA',
+    what: 'Provincial corporate rates and business limits are reviewed with each '
+      + 'province\'s budget rather than on one schedule. Three moved during 2025 '
+      + 'alone: Nova Scotia\'s lower rate and limit in April, Prince Edward Island\'s '
+      + 'higher rate and limit in July.',
+    where: 'src/rules/provinces.ts',
+    url: 'https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/'
+      + 'corporations/corporation-tax-rates.html',
+    leadDays: 60,
+  },
 ];
 
 // ---------------------------------------------------------- watched pages
@@ -159,8 +171,9 @@ export const WATCHED_SOURCES: WatchedSource[] = [
     label: 'Corporation tax rates',
     url: 'https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/'
       + 'corporations/corporation-tax-rates.html',
-    holds: 'federal small business 9%, general 15%, Ontario 3.2% and 11.5%',
-    where: 'src/rules/t2.ts',
+    holds: 'federal small business 9% and general 15%, plus the lower and higher '
+      + 'rate and business limit for all eleven provinces CRA administers',
+    where: 'src/rules/t2.ts and src/rules/provinces.ts',
   },
   {
     id: 'payroll-tables-on',

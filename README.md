@@ -171,6 +171,18 @@ expensive out of proportion to its size, because the penalty is a percentage of
 the whole remittance rather than of any shortfall, so that is shown in dollars
 rather than described.
 
+## Deploying
+
+Workers Builds, from the `worker` directory, with the whole repository checked
+out so that `../site` resolves. The generated HTML is committed rather than
+built at deploy time, because the build container has no Python.
+
+That leaves one way to be wrong: edit the generator, forget to run it, and ship
+HTML that no longer matches its source. `.github/workflows/site.yml` regenerates
+on every push and fails if anything moved, which is where Python is available.
+Same shape as TradeClear's layout job: the half that cannot run where the deploy
+runs, runs where it can.
+
 ## Getting back in, and not being battered
 
 A reset token is random, single use, expires in an hour, and is **never stored**:

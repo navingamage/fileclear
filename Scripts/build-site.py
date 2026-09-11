@@ -119,7 +119,9 @@ STYLE = """<style>
   @media (max-width: 1000px) { .hero-grid { grid-template-columns: 1fr; } }
   .hero .lead { max-width: 42ch; }
   .cta-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.9rem; }
-  .hero-note { color: var(--muted); font-size: .93rem; margin-top: 1.4rem; }
+  .hero-note { color: var(--ink-2); font-size: .97rem; margin-top: 1.6rem;
+    max-width: 46ch; line-height: 1.55; }
+  .hero-note b { color: var(--ink); font-weight: 600; }
 
   .nav-signin { font-size: .95rem; font-weight: 500; color: var(--muted);
     margin-right: .2rem; }
@@ -336,8 +338,9 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
       <a class="btn primary" href="/signup">Start free</a>
       <a class="btn ghost" href="#how">See how it works</a>
     </div>
-    <p class="hero-note">Free while you set up your calendar. $29 a month when you
-    start filing from it. No card to begin.</p>
+    <p class="hero-note"><b>A CPA charges $2,000 to $4,000 a year to keep track of
+    this.</b> FileClear is $29 a month, free until you file from it, and there is no
+    card to begin.</p>
   </div>
 
   <div class="panel">

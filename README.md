@@ -173,7 +173,15 @@ rather than described.
 
 ## Deploying
 
-Workers Builds, from the `worker` directory, with the whole repository checked
+Workers Builds, and **the root directory has to be `worker`**. Both the
+`package.json` and the `wrangler.toml` live there, and the repository root has
+neither, so a build that runs at the root fails on `npm ci` with "can only
+install with an existing package-lock.json" before it reaches anything else.
+The empty "Detected the following tools from environment" line in the log is the
+same cause: Cloudflare looks for a `package.json` to work out the runtime.
+
+Root directory `worker`, build `npm ci && npm run typecheck && npm test`, deploy
+`npx wrangler deploy`, with the whole repository checked
 out so that `../site` resolves. The generated HTML is committed rather than
 built at deploy time, because the build container has no Python.
 

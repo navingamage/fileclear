@@ -126,26 +126,40 @@ STYLE = """<style>
   .nav-signin:hover { color: var(--ink); text-decoration: none; }
   @media (max-width: 620px) { .nav-signin { display: none; } }
 
-  /* Two plans, side by side, in the same card language as the rest. */
-  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
-    max-width: 760px; }
-  @media (max-width: 720px) { .plans { grid-template-columns: 1fr; } }
-  .plan { border: 1px solid var(--line); border-radius: 16px; padding: 1.6rem 1.5rem;
-    background: var(--surface); box-shadow: var(--shadow); }
+  /* Three across, on the same grid as .cards above.
+     The first version was two cards at 760px under a heading that ran the full
+     1164, which left four hundred pixels of ragged space on the right and broke
+     the rhythm every other section on the page keeps. */
+  /* No align-items here on purpose: the default stretch is what gives the three
+     a level bottom edge, and with the button pushed down by margin-top:auto the
+     two prices line up regardless of how much copy each carries. */
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
+  @media (max-width: 900px) { .plans { grid-template-columns: 1fr; } }
+  .plan { background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 1.6rem 1.5rem 1.7rem;
+    display: flex; flex-direction: column; height: 100%; }
   /* The yearly plan is the one worth taking, so it is the one that is marked. */
   .plan.best { border-color: var(--ink); box-shadow: var(--shadow-lg); }
-  .plan-name { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
-    text-transform: uppercase; color: var(--muted); display: block; }
-  .plan-name em { font-style: normal; color: var(--brand); }
-  .plan-price { margin: .8rem 0 .5rem; display: flex; align-items: baseline; gap: .5rem; }
-  .plan-price b { font-family: var(--font-mono); font-size: 2.4rem; font-weight: 500;
-    letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .plan-name { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--brand); display: block;
+    margin-bottom: .8rem; }
+  .plan-name em { font-style: normal; color: var(--muted); }
+  .plan-price { margin: 0 0 .5rem; display: flex; align-items: baseline; gap: .45rem; }
+  .plan-price b { font-family: var(--font-mono); font-size: 2.5rem; font-weight: 500;
+    letter-spacing: -.045em; font-variant-numeric: tabular-nums; line-height: 1; }
   .plan-price span { color: var(--muted); font-size: .92rem; }
-  .plan-note { color: var(--muted); font-size: .9rem; margin-bottom: 1.2rem;
-    line-height: 1.5; }
-  .plan-includes { max-width: 760px; margin-top: 2rem; }
-  .plan-includes p { font-size: .97rem; line-height: 1.65; }
-  .plan-includes .muted { font-size: .88rem; }
+  .plan-note { color: var(--ink-2); font-size: .95rem; margin: 0 0 1.4rem;
+    line-height: 1.55; }
+  /* Pushes the button to the bottom so all three line up whatever the copy does. */
+  .plan .btn { margin-top: auto; align-self: flex-start; }
+  .plan ul { margin: 0; padding-left: 1.1rem; color: var(--ink-2); font-size: .94rem; }
+  .plan li { margin-bottom: .42rem; }
+  .plan li:last-child { margin-bottom: 0; }
+  /* Dark mode follows the same surfaces the other cards use. */
+  .on-dark .plan { background: var(--dark-2); border-color: rgba(255,255,255,.1); }
+
+  .plan-fineprint { margin-top: 1.6rem; color: var(--muted); font-size: .88rem;
+    max-width: 62ch; }
 
   /* The calendar panel. Sits in the hero grid rather than centred under it. */
   .panel { background: var(--surface); border: 1px solid var(--line);
@@ -431,27 +445,36 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
       <span class="plan-name">Monthly</span>
       <p class="plan-price"><b>$29</b><span>per month</span></p>
       <p class="plan-note">Cancel any time. Cancelling stops the next payment and
-      leaves the current period running.</p>
+      leaves the period you have paid for running to its end.</p>
       <a class="btn primary" href="/signup">Start free</a>
     </div>
+
     <div class="plan best">
-      <span class="plan-name">Yearly <em>two months free</em></span>
+      <span class="plan-name">Yearly <em>&middot; two months free</em></span>
       <p class="plan-price"><b>$290</b><span>per year</span></p>
-      <p class="plan-note">The same product, billed once. Works out at $24.17 a month.</p>
+      <p class="plan-note">The same product, billed once instead of twelve times.
+      That is $24.17 a month.</p>
       <a class="btn primary" href="/signup">Start free</a>
+    </div>
+
+    <div class="plan">
+      <span class="plan-name">Both include</span>
+      <ul>
+        <li>Every filing your corporation owes, on one calendar</li>
+        <li>Reminders before a window closes, not after</li>
+        <li>HST computed both ways, with the difference</li>
+        <li>Year end: schedules 100, 125, 8 and 1</li>
+        <li>Salary against dividends, both columns</li>
+        <li>T4 and T5 figures, box by box</li>
+        <li>As many corporations as you own</li>
+      </ul>
     </div>
   </div>
 
-  <div class="plan-includes">
-    <p><b>Everything is included.</b> There is no tier where the calendar stops at
-    three filings, and no charge per corporation. One price covers the filing calendar,
-    the books, the HST return computed both ways, year end with schedules 100, 125, 8
-    and 1, the salary against dividends comparison, T4 and T5 figures, and the reminders
-    that arrive before a window closes.</p>
-    <p class="muted">Prices in Canadian dollars. HST is added where it applies.
-    FileClear works out what you owe and when; it is not certified by CRA and does not
-    transmit anything.</p>
-  </div>
+  <p class="plan-fineprint">There is no tier where the calendar stops at three
+  filings. Prices in Canadian dollars, HST added where it applies. FileClear works
+  out what you owe and when; it is not certified by CRA and does not file anything
+  for you.</p>
 </div></section>
 
 <section class="on-dark"><div class="wrap">

@@ -108,26 +108,40 @@
   .nav-signin:hover { color: var(--ink); text-decoration: none; }
   @media (max-width: 620px) { .nav-signin { display: none; } }
 
-  /* Two plans, side by side, in the same card language as the rest. */
-  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
-    max-width: 760px; }
-  @media (max-width: 720px) { .plans { grid-template-columns: 1fr; } }
-  .plan { border: 1px solid var(--line); border-radius: 16px; padding: 1.6rem 1.5rem;
-    background: var(--surface); box-shadow: var(--shadow); }
+  /* Three across, on the same grid as .cards above.
+     The first version was two cards at 760px under a heading that ran the full
+     1164, which left four hundred pixels of ragged space on the right and broke
+     the rhythm every other section on the page keeps. */
+  /* No align-items here on purpose: the default stretch is what gives the three
+     a level bottom edge, and with the button pushed down by margin-top:auto the
+     two prices line up regardless of how much copy each carries. */
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
+  @media (max-width: 900px) { .plans { grid-template-columns: 1fr; } }
+  .plan { background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 1.6rem 1.5rem 1.7rem;
+    display: flex; flex-direction: column; height: 100%; }
   /* The yearly plan is the one worth taking, so it is the one that is marked. */
   .plan.best { border-color: var(--ink); box-shadow: var(--shadow-lg); }
-  .plan-name { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
-    text-transform: uppercase; color: var(--muted); display: block; }
-  .plan-name em { font-style: normal; color: var(--brand); }
-  .plan-price { margin: .8rem 0 .5rem; display: flex; align-items: baseline; gap: .5rem; }
-  .plan-price b { font-family: var(--font-mono); font-size: 2.4rem; font-weight: 500;
-    letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .plan-name { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--brand); display: block;
+    margin-bottom: .8rem; }
+  .plan-name em { font-style: normal; color: var(--muted); }
+  .plan-price { margin: 0 0 .5rem; display: flex; align-items: baseline; gap: .45rem; }
+  .plan-price b { font-family: var(--font-mono); font-size: 2.5rem; font-weight: 500;
+    letter-spacing: -.045em; font-variant-numeric: tabular-nums; line-height: 1; }
   .plan-price span { color: var(--muted); font-size: .92rem; }
-  .plan-note { color: var(--muted); font-size: .9rem; margin-bottom: 1.2rem;
-    line-height: 1.5; }
-  .plan-includes { max-width: 760px; margin-top: 2rem; }
-  .plan-includes p { font-size: .97rem; line-height: 1.65; }
-  .plan-includes .muted { font-size: .88rem; }
+  .plan-note { color: var(--ink-2); font-size: .95rem; margin: 0 0 1.4rem;
+    line-height: 1.55; }
+  /* Pushes the button to the bottom so all three line up whatever the copy does. */
+  .plan .btn { margin-top: auto; align-self: flex-start; }
+  .plan ul { margin: 0; padding-left: 1.1rem; color: var(--ink-2); font-size: .94rem; }
+  .plan li { margin-bottom: .42rem; }
+  .plan li:last-child { margin-bottom: 0; }
+  /* Dark mode follows the same surfaces the other cards use. */
+  .on-dark .plan { background: var(--dark-2); border-color: rgba(255,255,255,.1); }
+
+  .plan-fineprint { margin-top: 1.6rem; color: var(--muted); font-size: .88rem;
+    max-width: 62ch; }
 
   /* The calendar panel. Sits in the hero grid rather than centred under it. */
   .panel { background: var(--surface); border: 1px solid var(--line);

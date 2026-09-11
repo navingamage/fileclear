@@ -299,3 +299,30 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS subscriptions_customer ON subscriptions (stripe_customer_id);
+
+-- --------------------------------------------------------- getting back in
+
+-- Password reset tokens.
+--
+-- Only the SHA-256 of a token is kept, never the token, so a copy of this table
+-- is not a set of working reset links. One live token per account: asking again
+-- replaces the last rather than leaving a trail of usable links behind.
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS password_resets_account ON password_resets (account_id);
+
+-- Attempt counters for sign in, signup and password reset.
+--
+-- A Worker has no memory worth the name, so the counter lives here. One row per
+-- key, a fixed window, and the key is either an address or an account: either
+-- can trip, which stops a spread out attack without letting anybody lock a
+-- customer out of their own product by failing their sign in on purpose.
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key          TEXT PRIMARY KEY,
+  count        INTEGER NOT NULL,
+  window_start INTEGER NOT NULL      -- epoch milliseconds
+);

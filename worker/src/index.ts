@@ -3,7 +3,9 @@ import { filingsBetween, advisoriesFor, addDays, yearEndFor } from './rules/engi
 import {
   accountForRequest, createSession, endSession, hashPassword, verifyPassword,
   randomId, sessionCookie, clearedCookie, looksLikeEmail, passwordProblem,
+  issueReset, consumeReset, pruneResets, RESET_TOKEN_MINUTES,
 } from './auth';
+import { hit, clear, prune, addressOf, waitMessage, LIMITS } from './ratelimit';
 import {
   saveCompany, activeCompanyFor, companiesFor, setActiveCompany,
   loadCompany, filingStates, setFilingState,
@@ -20,12 +22,12 @@ import {
   entitled, checkoutUrl, portalUrl, verifyWebhook, subscriptionFromEvent,
   fetchSubscription, type StripeEnv,
 } from './stripe';
-import { send, welcomeMail } from './email';
+import { send, welcomeMail, resetMail } from './email';
 import { ACCOUNT_BY_ID } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
-  compensationPage, slipsPage, billingPage, shell, html,
+  compensationPage, slipsPage, billingPage, forgotPage, resetPage, shell, html,
   type HstPeriodOption, type Chrome,
 } from './views';
 import { fiscalYears, statementsFor } from './rules/yearend';
@@ -169,6 +171,12 @@ export default {
     const now = torontoNow();
     if (now.hour !== SEND_HOUR) return;
 
+    // Expired reset tokens and spent throttle counters, swept with the rest.
+    // Neither is large, but a table that only ever grows is a slow leak.
+    ctx.waitUntil(Promise.all([pruneResets(env.DB), prune(env)]).then(([, rows]) => {
+      console.log(`housekeeping ${now.date}: ${rows} throttle rows cleared`);
+    }));
+
     ctx.waitUntil(sweep(env, now.date).then((r) => {
       console.log(`sweep ${now.date}: ${r.emailed}/${r.companies} companies emailed, `
         + `${r.filings} filings` + (r.skipped.length ? `, skipped ${r.skipped.join('; ')}` : ''));
@@ -241,6 +249,22 @@ export default {
         return html(authPage(mode, 'That does not look like an email address.', email), 400);
       }
 
+      // Counted before the password is checked, so the throttle costs an
+      // attacker the attempt whether or not they guessed.
+      const ip = addressOf(request);
+      const byIp = await hit(env, `${mode}:ip:${ip}`,
+        mode === 'up' ? LIMITS.signupByIp : LIMITS.signinByIp);
+      const byAccount = mode === 'in'
+        ? await hit(env, `in:acct:${email.toLowerCase()}`, LIMITS.signinByAccount)
+        : { allowed: true, remaining: 99, retryAfter: 0 };
+
+      if (!byIp.allowed || !byAccount.allowed) {
+        const wait = Math.max(byIp.retryAfter, byAccount.retryAfter);
+        return html(authPage(mode,
+          `Too many attempts. ${waitMessage(wait)}`, email), 429,
+        { 'Retry-After': String(wait) });
+      }
+
       if (mode === 'up') {
         const problem = passwordProblem(password);
         if (problem) return html(authPage(mode, problem, email), 400);
@@ -280,7 +304,65 @@ export default {
       }
       await env.DB.prepare("UPDATE accounts SET last_seen_at = datetime('now') WHERE id = ?")
         .bind(row.id).run();
+      // Somebody who fumbles their password nine times and then gets it right
+      // should not be left one attempt from a lockout.
+      await clear(env, `in:acct:${email.toLowerCase()}`);
+      await clear(env, `in:ip:${ip}`);
       const session = await createSession(env.DB, row.id);
+      return redirect('/dashboard', { 'Set-Cookie': sessionCookie(session) });
+    }
+
+    if (path === '/forgot') {
+      if (account) return redirect('/dashboard');
+      if (request.method === 'GET') return html(forgotPage());
+
+      const form = await request.formData();
+      const email = String(form.get('email') ?? '').trim();
+      if (!looksLikeEmail(email)) {
+        return html(forgotPage(false, email, 'That does not look like an email address.'), 400);
+      }
+
+      // Limited hardest of the three. Each request sends mail to an address
+      // nobody has proved they own, so an open endpoint here is a way to use
+      // this product to post somebody else's inbox.
+      const ip = addressOf(request);
+      const byIp = await hit(env, `reset:ip:${ip}`, LIMITS.resetByIp);
+      const byAccount = await hit(env, `reset:acct:${email.toLowerCase()}`, LIMITS.resetByAccount);
+      if (!byIp.allowed || !byAccount.allowed) {
+        const wait = Math.max(byIp.retryAfter, byAccount.retryAfter);
+        return html(forgotPage(false, email,
+          `Too many requests. ${waitMessage(wait)}`), 429, { 'Retry-After': String(wait) });
+      }
+
+      const issued = await issueReset(env.DB, email);
+      if (issued) {
+        const origin = env.FC_PUBLIC_ORIGIN ?? url.origin;
+        ctx.waitUntil(
+          send(env, { to: email, ...resetMail(origin, issued.issue.token, RESET_TOKEN_MINUTES) })
+            .then((r) => { if (!r.sent) console.log(`reset mail to ${email}: ${r.reason}`); }));
+      }
+      // The same page whether or not the address has an account. Answering
+      // differently is a way to find out who banks here.
+      return html(forgotPage(true, email));
+    }
+
+    if (path === '/reset') {
+      if (request.method === 'GET') {
+        return html(resetPage(url.searchParams.get('token') ?? ''));
+      }
+      const form = await request.formData();
+      const token = String(form.get('token') ?? '');
+      const password = String(form.get('password') ?? '');
+
+      const problem = passwordProblem(password);
+      if (problem) return html(resetPage(token, problem), 400);
+
+      const outcome = await consumeReset(env.DB, token, password);
+      if (!outcome.ok) return html(resetPage(token, undefined, true), 400);
+
+      // Straight in, since they have just proved control of the address and
+      // every other session was ended by the reset.
+      const session = await createSession(env.DB, outcome.accountId);
       return redirect('/dashboard', { 'Set-Cookie': sessionCookie(session) });
     }
 

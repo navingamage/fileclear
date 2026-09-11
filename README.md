@@ -171,6 +171,25 @@ expensive out of proportion to its size, because the penalty is a percentage of
 the whole remittance rather than of any shortfall, so that is shown in dollars
 rather than described.
 
+## Getting back in, and not being battered
+
+A reset token is random, single use, expires in an hour, and is **never stored**:
+only its SHA-256 goes in the database, so a copy of that table is not a set of
+working reset links. Spending one ends every session on the account, because
+somebody resetting a password either forgot it or believes it was taken, and in
+the second case leaving the other session alive defeats the exercise. Asking for
+a link says the same thing whether or not the address has an account, since
+answering differently is a way to find out who banks here.
+
+Sign in, signup and reset are all throttled, counted in D1 because a Worker has
+no memory worth the name. Two keys are counted for a sign in and either can
+trip. Counting only the address lets one attacker work through a list of
+accounts from a pool of addresses; counting only the account lets anybody lock a
+customer out of their own product by failing their sign in on purpose, which
+turns the protection into the attack. Counting both means the attacker meets the
+address limit first, and the account limit stays loose enough that a real person
+fumbling never reaches it. A successful sign in forgets the count.
+
 ## Staying current
 
 Every rate in this product is a constant compiled into the Worker, which is a

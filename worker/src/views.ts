@@ -309,6 +309,7 @@ export function authPage(mode: 'in' | 'up', error?: string, email = ''): string 
     </div>
     <button class="btn primary" type="submit">${up ? 'Create account' : 'Sign in'}</button>
   </form>
+  ${mode === "in" ? '<p class="hint" style="margin-top:1.1rem"><a href="/forgot">Forgotten your password?</a></p>' : ''}
   <p class="hint" style="margin-top:1.6rem">
     ${up ? 'Already have an account? <a href="/signin">Sign in</a>.'
          : 'No account yet? <a href="/signup">Create one</a>.'}
@@ -1250,4 +1251,59 @@ ${hasCustomer ? `<form method="post" action="/billing/portal" style="margin-top:
   Cancelling stops the next renewal and leaves everything running to the end of
   the period you have paid for.</div>
 </div>`, email, '/billing', chrome);
+}
+
+// ---------------------------------------------------------- password reset
+
+/** Asking for a link. */
+export function forgotPage(sent = false, email = '', error?: string): string {
+  return shell('Reset your password', `
+<div class="auth">
+  <span class="label">FileClear</span>
+  <h1>${sent ? 'Check your email.' : 'Forgotten password'}</h1>
+  ${sent
+    ? `<p class="hint">If ${esc(email)} has an account here, a link is on its way.
+       It works once and stops working in an hour.</p>
+       <p class="hint">Nothing arrived? Check the address, and look in spam. We do not
+       say whether an address has an account, so this page looks the same either way.</p>
+       <p><a href="/signin">Back to sign in</a></p>`
+    : `<p class="hint">We will send a link that lets you choose a new one.</p>
+      ${error ? `<div class="err">${esc(error)}</div>` : ''}
+      <form method="post" action="/forgot">
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" required autocomplete="username"
+            value="${esc(email)}">
+        </div>
+        <button class="btn primary" type="submit">Send the link</button>
+      </form>
+      <p class="hint" style="margin-top:1.4rem"><a href="/signin">Back to sign in</a></p>`}
+</div>`);
+}
+
+/** Choosing a new one. */
+export function resetPage(token: string, error?: string, dead = false): string {
+  return shell('Choose a new password', `
+<div class="auth">
+  <span class="label">FileClear</span>
+  ${dead
+    ? `<h1>That link has expired.</h1>
+       <p class="hint">Reset links work once and last an hour. Ask for a fresh one and
+       it will arrive in a moment.</p>
+       <p><a class="btn primary" href="/forgot">Send me another</a></p>`
+    : `<h1>Choose a new password.</h1>
+       <p class="hint">Signing in everywhere else will stop working, which is the point
+       if somebody else had your old one.</p>
+       ${error ? `<div class="err">${esc(error)}</div>` : ''}
+       <form method="post" action="/reset">
+         <input type="hidden" name="token" value="${esc(token)}">
+         <div class="field">
+           <label for="password">New password</label>
+           <input id="password" name="password" type="password" required
+             autocomplete="new-password" minlength="10">
+           <span class="sub">At least ten characters.</span>
+         </div>
+         <button class="btn primary" type="submit">Set it and sign in</button>
+       </form>`}
+</div>`);
 }

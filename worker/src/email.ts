@@ -257,3 +257,35 @@ export function welcomeMail(email: string, origin: string): Omit<Mail, 'to'> {
 
   return { subject, text, html };
 }
+
+// ---------------------------------------------------------- password reset
+
+/**
+ * The reset link.
+ *
+ * Says plainly what to do if the request was not theirs, because this is the
+ * one message the product sends that a stranger can cause to be sent. Somebody
+ * receiving it unexpectedly should be told the account is untouched and that
+ * ignoring it is the right move, rather than being left to wonder.
+ */
+export function resetMail(origin: string, token: string, minutes: number): Omit<Mail, 'to'> {
+  const link = `${origin}/reset?token=${encodeURIComponent(token)}`;
+
+  const text =
+    'Somebody asked to reset the password on your FileClear account.\n\n'
+    + `${link}\n\n`
+    + `The link works once and stops working in ${minutes} minutes.\n\n`
+    + 'If this was not you, nothing has happened and nothing will. Your password\n'
+    + 'is unchanged and the link expires on its own, so there is nothing to do.\n';
+
+  const html = wrapper(`
+  <p style="margin:0 0 6px;font:600 20px ${SANS};color:${C.ink};letter-spacing:-.02em">Reset your password</p>
+  <p style="margin:0 0 20px;font:400 15px ${SANS};color:${C.body};line-height:1.55">
+    Somebody asked to reset the password on your FileClear account. The link below
+    works once and stops working in ${minutes} minutes.</p>
+  <p style="margin:0">${button(link, 'Choose a new password')}</p>`,
+    'If this was not you, nothing has happened and nothing will. Your password is '
+    + 'unchanged and the link expires on its own, so there is nothing to do.');
+
+  return { subject: 'Reset your FileClear password', text, html };
+}

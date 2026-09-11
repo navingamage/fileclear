@@ -129,3 +129,97 @@ export function passwordProblem(v: string): string | null {
   if (v.length > 200) return 'That is longer than 200 characters.';
   return null;
 }
+
+// ------------------------------------------------------------ password reset
+
+/**
+ * Resetting a forgotten password.
+ *
+ * The token is random, single use, short lived, and **never stored**. Only its
+ * SHA-256 goes in the database, so a copy of the table is not a set of working
+ * reset links. That matters more here than in most products: the table also
+ * holds the email address each token belongs to, so a leak that handed over
+ * live tokens would hand over the accounts with them.
+ *
+ * Using one ends every session on the account. Somebody resetting a password
+ * either forgot it or believes it was taken, and in the second case leaving the
+ * attacker's session alive defeats the exercise.
+ */
+export const RESET_TOKEN_MINUTES = 60;
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(value));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Exported for the tests, which need to hash a token the same way. */
+export const hashToken = sha256Hex;
+
+export interface ResetIssue { token: string; expiresAt: string; }
+
+/**
+ * Issues a token for an address, if it belongs to an account.
+ *
+ * Returns null when it does not, and the caller shows the same page either way.
+ * Answering differently is a way to find out which addresses have accounts
+ * here, which for a product about somebody's tax affairs is worth not leaking.
+ */
+export async function issueReset(
+  db: D1Database, email: string, now: Date = new Date(),
+): Promise<{ accountId: string; issue: ResetIssue } | null> {
+  const row = await db.prepare('SELECT id FROM accounts WHERE lower(email) = lower(?)')
+    .bind(email).first<{ id: string }>();
+  if (!row) return null;
+
+  const token = randomId(32);
+  const expiresAt = new Date(now.getTime() + RESET_TOKEN_MINUTES * 60_000).toISOString();
+
+  // One live token per account: asking again replaces the last one rather than
+  // leaving a trail of working links behind.
+  await db.prepare('DELETE FROM password_resets WHERE account_id = ?').bind(row.id).run();
+  await db.prepare(
+    'INSERT INTO password_resets (token_hash, account_id, expires_at) VALUES (?, ?, ?)',
+  ).bind(await sha256Hex(token), row.id, expiresAt).run();
+
+  return { accountId: row.id, issue: { token, expiresAt } };
+}
+
+export type ResetFailure = 'unknown' | 'expired';
+
+/**
+ * Spends a token and sets the new password.
+ *
+ * Everything happens together: the password changes, the token goes, and every
+ * session on the account ends. A partial success here is an account in a state
+ * nobody designed.
+ */
+export async function consumeReset(
+  db: D1Database, token: string, newPassword: string, now: Date = new Date(),
+): Promise<{ ok: true; accountId: string } | { ok: false; reason: ResetFailure }> {
+  const hash = await sha256Hex(token);
+  const row = await db.prepare(
+    'SELECT account_id, expires_at FROM password_resets WHERE token_hash = ?',
+  ).bind(hash).first<{ account_id: string; expires_at: string }>();
+
+  if (!row) return { ok: false, reason: 'unknown' };
+
+  if (new Date(row.expires_at).getTime() <= now.getTime()) {
+    await db.prepare('DELETE FROM password_resets WHERE token_hash = ?').bind(hash).run();
+    return { ok: false, reason: 'expired' };
+  }
+
+  await db.batch([
+    db.prepare('UPDATE accounts SET password = ? WHERE id = ?')
+      .bind(await hashPassword(newPassword), row.account_id),
+    db.prepare('DELETE FROM password_resets WHERE token_hash = ?').bind(hash),
+    db.prepare('DELETE FROM sessions WHERE account_id = ?').bind(row.account_id),
+  ]);
+
+  return { ok: true, accountId: row.account_id };
+}
+
+/** Housekeeping, so expired tokens do not accumulate. */
+export async function pruneResets(db: D1Database, now: Date = new Date()): Promise<void> {
+  await db.prepare('DELETE FROM password_resets WHERE expires_at < ?')
+    .bind(now.toISOString()).run();
+}

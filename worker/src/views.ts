@@ -8,6 +8,7 @@ import type { Schedule1, TaxComputation } from './rules/t2';
 import type { Comparison } from './rules/compensation';
 import type { Staleness } from './rules/sources';
 import type { CompanySummary } from './db';
+import type { Subscription } from './stripe';
 
 /**
  * The parts of a page that belong to the application rather than to the screen.
@@ -253,7 +254,7 @@ export function shell(
   ${email ? `<nav class="app-nav" aria-label="Sections">
     ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
     ${link('/year-end', 'Year end')}${link('/compensation', 'Pay')}${link('/slips', 'Slips')}
-    ${link('/onboarding', 'Company')}</nav>` : ''}
+    ${link('/onboarding', 'Company')}${link('/billing', 'Billing')}</nav>` : ''}
   ${companies && companies.length > 1 ? `<form method="post" action="/companies" class="switcher">
     <input type="hidden" name="back" value="${esc(active)}">
     <select name="id" onchange="this.form.submit()" aria-label="Corporation">
@@ -1177,4 +1178,76 @@ ${t5.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}` :
   FileClear is not certified by CRA and transmits nothing. These are the numbers
   to enter, with the box each belongs in.</div>
 `, email, '/slips', chrome);
+}
+
+// ------------------------------------------------------------------ billing
+
+export function billingPage(
+  email: string, state: { allowed: boolean; reason: string; trialDaysLeft: number },
+  sub: Subscription | null, hasCustomer: boolean, trialEndsAt: string | null,
+  monthly: number, yearly: number, planLabel: string,
+  justPaid: boolean, error?: string,
+  chrome: Chrome = {},
+): string {
+  const when = (seconds: number) => new Date(seconds * 1000).toISOString().slice(0, 10);
+
+  return shell('Billing', `
+<div class="narrow">
+<span class="label">Billing</span>
+<h1>${sub ? 'Your subscription.' : 'Keep using FileClear.'}</h1>
+
+${justPaid ? '<div class="ok"><b>Thank you.</b> Your subscription is active. If this page '
+  + 'still shows a trial, give it a moment: Stripe confirms it in the background.</div>' : ''}
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+${sub ? `<div class="sheet">
+  <div class="sheet-head"><span>Status</span><span>${esc(sub.status)}</span></div>
+  <div class="frow"><span class="t">Plan</span>
+    <span class="f num">${esc(planLabel)}</span></div>
+  <div class="frow"><span class="t">${sub.cancelAtPeriodEnd ? 'Runs until' : 'Renews on'}
+    <span class="sub">${sub.cancelAtPeriodEnd
+      ? 'Cancelled. Everything keeps working until this date, which is what the terms promise.'
+      : 'Cancel any time; cancelling stops the next renewal.'}</span></span>
+    <span class="f num">${sub.currentPeriodEnd ? when(sub.currentPeriodEnd) : '&mdash;'}</span></div>
+</div>` : ''}
+
+${state.reason === 'trial' ? `<div class="advisory"><b>${state.trialDaysLeft}
+  day${state.trialDaysLeft === 1 ? '' : 's'} left in your trial.</b>
+  It ends on ${esc(trialEndsAt ?? '')}. Nothing is locked until then, and no card is
+  needed to keep looking around.</div>` : ''}
+
+${!state.allowed ? `<div class="advisory"><b>Your trial has ended.</b>
+  The calendar and reminders keep running. The screens that compute money, the HST
+  return, the year end and the slips, need a subscription.</div>` : ''}
+
+${!sub ? `<div class="two">
+  <div class="sheet">
+    <div class="sheet-head"><span>Monthly</span><span>CAD</span></div>
+    <div class="frow"><span class="t"><b style="font-size:1.6rem">$${(monthly / 100).toFixed(0)}</b>
+      <span class="sub">a month, every corporation you own</span></span></div>
+    <form method="post" action="/billing/checkout" style="padding:0 1.25rem 1.25rem">
+      <input type="hidden" name="plan" value="monthly">
+      <button class="btn primary" type="submit">Subscribe monthly</button>
+    </form>
+  </div>
+  <div class="sheet">
+    <div class="sheet-head"><span>Yearly</span><span>two months free</span></div>
+    <div class="frow"><span class="t"><b style="font-size:1.6rem">$${(yearly / 100).toFixed(0)}</b>
+      <span class="sub">a year, every corporation you own</span></span></div>
+    <form method="post" action="/billing/checkout" style="padding:0 1.25rem 1.25rem">
+      <input type="hidden" name="plan" value="yearly">
+      <button class="btn primary" type="submit">Subscribe yearly</button>
+    </form>
+  </div>
+</div>` : ''}
+
+${hasCustomer ? `<form method="post" action="/billing/portal" style="margin-top:1.5rem">
+  <button class="btn" type="submit">Manage billing, cards and invoices</button>
+</form>` : ''}
+
+<div class="advisory info"><b>Your card never touches FileClear.</b>
+  It is entered on Stripe's own page and what comes back here is an identifier.
+  Cancelling stops the next renewal and leaves everything running to the end of
+  the period you have paid for.</div>
+</div>`, email, '/billing', chrome);
 }

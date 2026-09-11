@@ -223,4 +223,32 @@ most small corporations owe nothing and still have to file. The rate band is set
 by total remuneration before the exemption and applied to what is left after it,
 which is the easy thing to get backwards.
 
-Ahead: provinces other than Ontario.
+## Billing
+
+Two rules shape it. Card details never touch the Worker: the card is entered on
+Stripe's own page and what comes back is an identifier. And Stripe is the record
+of what somebody is entitled to, not D1; the local copy exists so a page render
+does not need a network call, and it is written from webhooks rather than from
+the application's opinion at checkout. A subscription ends for reasons the
+application never sees, and deciding entitlement from what happened to be
+recorded at checkout leaves a paying screen open to somebody who stopped paying.
+
+A cancelled subscription keeps working to the end of the period already paid
+for, because that is what the terms promise, and that is a date question rather
+than a status one. A past due subscription keeps working too: a failed renewal
+is usually an expired card, Stripe retries, and locking the door on the first
+failure loses customers who were always going to pay.
+
+The paywall is deliberately partial. The calendar and the reminders stay open
+after a trial ends, because switching off the thing that stops somebody missing
+a deadline would make FileClear the cause of the penalty it exists to prevent.
+The screens that compute money are what a subscription buys.
+
+Thirty days free to start, dated rather than counted, on Toronto's clock like
+every other date here.
+
+## Status
+
+Everything above, plus billing. Ahead: password reset and sign in throttling,
+which matter before real customers, and Quebec and Alberta corporate tax, which
+needs their own returns rather than their rates.

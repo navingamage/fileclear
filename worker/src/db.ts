@@ -410,3 +410,93 @@ export async function deleteEmployee(
   await db.prepare('DELETE FROM employees WHERE company_id = ? AND id = ?')
     .bind(companyId, id).run();
 }
+
+// ------------------------------------------------------------------ billing
+
+import type { Subscription, WebhookSubscription } from './stripe';
+
+export async function subscriptionFor(
+  db: D1Database, accountId: string,
+): Promise<{ sub: Subscription | null; customerId: string | null; trialEndsAt: string | null }> {
+  const row = await db.prepare(
+    `SELECT s.status, s.current_period_end, s.cancel_at_period_end, s.plan,
+            s.stripe_customer_id, a.trial_ends_at
+       FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id
+      WHERE a.id = ?`,
+  ).bind(accountId).first<{
+    status: string | null; current_period_end: number | null;
+    cancel_at_period_end: number | null; plan: string | null;
+    stripe_customer_id: string | null; trial_ends_at: string | null;
+  }>();
+
+  if (!row) return { sub: null, customerId: null, trialEndsAt: null };
+
+  return {
+    sub: row.status
+      ? {
+        status: row.status,
+        currentPeriodEnd: row.current_period_end ?? 0,
+        cancelAtPeriodEnd: !!row.cancel_at_period_end,
+        plan: row.plan ?? '',
+      }
+      : null,
+    customerId: row.stripe_customer_id,
+    trialEndsAt: row.trial_ends_at,
+  };
+}
+
+/**
+ * Records what Stripe said, keyed by account where the event carries one and by
+ * customer otherwise. A subscription update does not always name the account,
+ * so the customer id written at checkout is what ties the two together.
+ */
+export async function recordSubscription(
+  db: D1Database, s: WebhookSubscription,
+): Promise<boolean> {
+  let accountId = s.accountId;
+  if (!accountId && s.customerId) {
+    const row = await db.prepare(
+      'SELECT account_id FROM subscriptions WHERE stripe_customer_id = ?')
+      .bind(s.customerId).first<{ account_id: string }>();
+    accountId = row?.account_id;
+  }
+  if (!accountId) return false;
+
+  await db.prepare(
+    `INSERT INTO subscriptions
+       (account_id, stripe_customer_id, stripe_subscription_id, status,
+        current_period_end, cancel_at_period_end, plan, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT (account_id) DO UPDATE SET
+       stripe_customer_id = excluded.stripe_customer_id,
+       stripe_subscription_id = excluded.stripe_subscription_id,
+       status = excluded.status,
+       -- A checkout event has no period end on it, so an update that does not
+       -- know one must not wipe the one already recorded.
+       current_period_end = CASE WHEN excluded.current_period_end > 0
+         THEN excluded.current_period_end ELSE subscriptions.current_period_end END,
+       cancel_at_period_end = excluded.cancel_at_period_end,
+       plan = CASE WHEN excluded.plan != '' THEN excluded.plan ELSE subscriptions.plan END,
+       updated_at = datetime('now')`,
+  ).bind(accountId, s.customerId, s.subscriptionId, s.status,
+         s.currentPeriodEnd, s.cancelAtPeriodEnd ? 1 : 0, s.plan).run();
+  return true;
+}
+
+/**
+ * The trial is set once, when the account is created.
+ *
+ * Counted from the caller's date rather than from the UTC instant. Everything
+ * else in this product runs on Toronto's clock, and after 20:00 there the two
+ * are different days, so a thirty day trial set from UTC reads as thirty one
+ * days left on the screen that counts it.
+ */
+export async function startTrial(
+  db: D1Database, accountId: string, days: number, todayIso: string,
+): Promise<string> {
+  const ends = new Date(Date.parse(`${todayIso}T00:00:00Z`) + days * 86_400_000)
+    .toISOString().slice(0, 10);
+  await db.prepare('UPDATE accounts SET trial_ends_at = ? WHERE id = ? AND trial_ends_at IS NULL')
+    .bind(ends, accountId).run();
+  return ends;
+}

@@ -266,3 +266,36 @@ CREATE INDEX IF NOT EXISTS employees_company ON employees (company_id);
 -- between devices, and nullable so an account with one company never has to
 -- think about it.
 ALTER TABLE accounts ADD COLUMN active_company_id TEXT;
+
+-- ------------------------------------------------------------------ billing
+
+-- A free trial, dated rather than counted.
+--
+-- Set when the account is created, so the trial is a date somebody can be told
+-- rather than a number of logins nobody can check. Stripe's own trial would
+-- need a card up front, and asking for one before the product has proved
+-- anything is how a trial stops being a trial.
+ALTER TABLE accounts ADD COLUMN trial_ends_at TEXT;
+
+-- A copy of what Stripe says the account is entitled to.
+--
+-- Stripe is the record, not this table. A subscription ends for reasons the
+-- application never sees: a card expires, a payment is disputed, somebody
+-- cancels from an email receipt. So this is written from webhooks rather than
+-- from the application's own opinion at checkout, and it exists only so a page
+-- render does not need a network call.
+--
+-- current_period_end is kept because a cancelled subscription still entitles
+-- somebody until the period they paid for runs out, which is what the terms
+-- promise. That is a date question, not a status question.
+CREATE TABLE IF NOT EXISTS subscriptions (
+  account_id             TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  stripe_customer_id     TEXT,
+  stripe_subscription_id TEXT,
+  status                 TEXT NOT NULL DEFAULT 'none',
+  current_period_end     INTEGER NOT NULL DEFAULT 0,
+  cancel_at_period_end   INTEGER NOT NULL DEFAULT 0,
+  plan                   TEXT NOT NULL DEFAULT '',
+  updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS subscriptions_customer ON subscriptions (stripe_customer_id);

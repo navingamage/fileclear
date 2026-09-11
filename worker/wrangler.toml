@@ -52,8 +52,13 @@ database_id = "95918583-9d63-4186-a3f8-507439e0d12a"
 [triggers]
 crons = ["0 11 * * *", "0 12 * * *"]
 
-# One secret, set with `wrangler secret put ZEPTOMAIL_TOKEN`, never written to
-# this file. Without it the sweep still runs, finds what is due, and reports
+# Secrets, set with `wrangler secret put <name>`, never written to this file:
+#   ZEPTOMAIL_TOKEN        transactional mail
+#   STRIPE_SECRET_KEY      billing. Test mode until the live key replaces it
+#   STRIPE_WEBHOOK_SECRET  signs the webhook. Without it the endpoint refuses
+#                          every request rather than trusting an unsigned one
+#
+# On ZeptoMail specifically: Without it the sweep still runs, finds what is due, and reports
 # that it could not send: a scheduled job that throws on a missing secret takes
 # every other company's reminder down with it.
 
@@ -84,3 +89,10 @@ FC_MAIL_REPLY_TO = "FileClear <hello@fileclear.ca>"
 # rechecks those claims weekly against CRA and Corporations Canada and writes
 # here when something moves. See src/rules/sources.ts for what is watched.
 FC_WATCH_TO = "hello@antipodetech.com"
+
+# Stripe price identifiers, not secrets: they are visible in the checkout URL.
+# These are TEST mode prices. Going live means creating the same two prices in
+# live mode and replacing these, plus swapping STRIPE_SECRET_KEY and
+# STRIPE_WEBHOOK_SECRET for their live equivalents.
+FC_PRICE_MONTHLY = "price_1UEHsy2OOsaIaWLu1UCUWazw"   # $29 CAD per month
+FC_PRICE_YEARLY  = "price_1UEHsy2OOsaIaWLuEam8KdFl"   # $290 CAD per year

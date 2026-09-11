@@ -10,17 +10,22 @@ import {
   addTransaction, deleteTransaction, transactionsFor, toLedger,
   assetsFor, addAsset, deleteAsset, ccaClaims,
   employeesFor, addEmployee, deleteEmployee,
+  subscriptionFor, recordSubscription, startTrial,
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
 import { watchSources } from './watch';
 import { staleness } from './rules/sources';
+import {
+  entitled, checkoutUrl, portalUrl, verifyWebhook, subscriptionFromEvent,
+  fetchSubscription, type StripeEnv,
+} from './stripe';
 import { send, welcomeMail } from './email';
 import { ACCOUNT_BY_ID } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
-  compensationPage, slipsPage, shell, html,
+  compensationPage, slipsPage, billingPage, shell, html,
   type HstPeriodOption, type Chrome,
 } from './views';
 import { fiscalYears, statementsFor } from './rules/yearend';
@@ -32,10 +37,23 @@ import {
   deductionsFor, remitterAdvice, payrollRun, ontarioEht, type PayFrequency,
 } from './rules/payroll';
 
-export interface Env extends CronEnv {
+export interface Env extends CronEnv, StripeEnv {
   DB: D1Database;
   ASSETS: Fetcher;
 }
+
+/** How long a new account can look around before a card is needed. */
+const TRIAL_DAYS = 30;
+
+/**
+ * The screens a subscription is actually required for.
+ *
+ * Deliberately not everything. The calendar and the reminders are what stop
+ * somebody missing a deadline, and switching those off the day a trial ends
+ * would make FileClear the cause of the penalty it exists to prevent. The
+ * screens that compute money are the ones behind the paywall.
+ */
+const PAID_PATHS = ['/hst', '/year-end', '/compensation', '/slips'];
 
 const redirect = (to: string, extra: HeadersInit = {}) =>
   new Response(null, { status: 303, headers: { Location: to, ...extra } });
@@ -178,6 +196,35 @@ export default {
       return Response.redirect(`https://fileclear.ca${url.pathname}${url.search}`, 301);
     }
 
+    // Stripe's webhook, before any session handling: it arrives with no cookie
+    // and proves itself with a signature instead.
+    if (path === '/stripe/webhook' && request.method === 'POST') {
+      if (!env.STRIPE_WEBHOOK_SECRET) return new Response('not configured', { status: 503 });
+      const payload = await request.text();
+      const signature = request.headers.get('stripe-signature') ?? '';
+      const check = await verifyWebhook(env.STRIPE_WEBHOOK_SECRET, payload, signature);
+      if (!check.ok) {
+        console.log(`stripe webhook rejected: ${check.reason}`);
+        return new Response('bad signature', { status: 400 });
+      }
+
+      const event = JSON.parse(payload) as { type: string; data: { object: Record<string, unknown> } };
+      const parsed = subscriptionFromEvent(event);
+      if (parsed) {
+        // A checkout event says a subscription exists but not what it contains,
+        // so the subscription is read back from Stripe, which is the authority.
+        const full = parsed.currentPeriodEnd === 0 && parsed.subscriptionId
+          ? (await fetchSubscription(env, parsed.subscriptionId)) ?? parsed
+          : parsed;
+        const recorded = await recordSubscription(env.DB,
+          { ...full, accountId: full.accountId ?? parsed.accountId });
+        console.log(`stripe ${event.type}: ${recorded ? 'recorded' : 'no matching account'}`);
+      }
+      // Always 200 once the signature is good. Stripe retries a non 200, and
+      // retrying an event this product does not act on achieves nothing.
+      return new Response('ok');
+    }
+
     const account = await accountForRequest(env.DB, request);
 
     // ------------------------------------------------------------ public
@@ -216,6 +263,8 @@ export default {
           send(env, { to: email, ...welcomeMail(email, origin) })
             .then((r) => { if (!r.sent) console.log(`welcome mail to ${email}: ${r.reason}`); }));
 
+        await startTrial(env.DB, id, TRIAL_DAYS, today());
+
         const session = await createSession(env.DB, id);
         return redirect('/onboarding?welcome=1', { 'Set-Cookie': sessionCookie(session) });
       }
@@ -244,7 +293,7 @@ export default {
     const needsAccount = ['/dashboard', '/onboarding', '/filing', '/books',
       '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete',
       '/compensation', '/slips', '/employees', '/employees/delete',
-      '/companies'].includes(path);
+      '/companies', '/billing', '/billing/checkout', '/billing/portal'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
     // Resolved once per request rather than per screen: which corporation is
@@ -258,6 +307,53 @@ export default {
         activeCompanyId: company?.id,
       }
       : {};
+
+    // Entitlement, checked once. The calendar and the reminders stay open past
+    // the trial on purpose: switching off the thing that stops somebody missing
+    // a deadline would make FileClear the cause of the penalty it exists to
+    // prevent. The screens that compute money are what a subscription buys.
+    const billing = account
+      ? await subscriptionFor(env.DB, account.id)
+      : { sub: null, customerId: null, trialEndsAt: null };
+    const access = entitled(billing.sub, billing.trialEndsAt, new Date(), today());
+
+    if (account && PAID_PATHS.includes(path) && !access.allowed) {
+      return redirect('/billing');
+    }
+
+    if (path === '/billing' && account) {
+      // A price identifier means nothing to the person paying it.
+      const planLabel = !billing.sub?.plan ? '\u2014'
+        : billing.sub.plan === env.FC_PRICE_YEARLY ? 'Yearly, $290 CAD'
+        : billing.sub.plan === env.FC_PRICE_MONTHLY ? 'Monthly, $29 CAD'
+        : 'Subscribed';
+      return html(billingPage(
+        account.email, access, billing.sub, !!billing.customerId, billing.trialEndsAt,
+        2900, 29000, planLabel, url.searchParams.get('paid') === '1',
+        url.searchParams.get('error') ?? undefined, chrome));
+    }
+
+    if (path === '/billing/checkout' && account && request.method === 'POST') {
+      const form = await request.formData();
+      const plan = String(form.get('plan')) === 'yearly' ? 'yearly' : 'monthly';
+      const result = await checkoutUrl(
+        env, account.id, account.email, plan, billing.customerId ?? undefined);
+      if ('error' in result) {
+        console.log(`checkout failed for ${account.id}: ${result.error}`);
+        return redirect('/billing?error=Could+not+reach+Stripe.+Nothing+was+charged.');
+      }
+      return redirect(result.url);
+    }
+
+    if (path === '/billing/portal' && account && request.method === 'POST') {
+      if (!billing.customerId) return redirect('/billing');
+      const result = await portalUrl(env, billing.customerId);
+      if ('error' in result) {
+        console.log(`portal failed for ${account.id}: ${result.error}`);
+        return redirect('/billing?error=Could+not+open+the+billing+portal.');
+      }
+      return redirect(result.url);
+    }
 
     if (path === '/onboarding' && account) {
       // ?new=1 adds a corporation rather than editing the current one. A second

@@ -296,12 +296,28 @@ export function subscriptionFromEvent(event: {
   return null;
 }
 
-/** Reads a subscription back from Stripe, which is the authority on it. */
+/**
+ * Reads a subscription back from Stripe, which is the authority on it.
+ *
+ * Used only after a checkout event, which says a subscription exists without
+ * saying what is in it. The live key is a restricted one without permission to
+ * read subscriptions, so this fails there and the failure is logged rather than
+ * swallowed: silence would look identical to a subscription that simply had
+ * nothing to add.
+ *
+ * Nothing is lost when it fails. Stripe sends customer.subscription.created
+ * moments later carrying the period end and the plan, and that fills in what
+ * the checkout event could not.
+ */
 export async function fetchSubscription(
   env: StripeEnv, subscriptionId: string,
 ): Promise<WebhookSubscription | null> {
   const result = await call<Record<string, unknown>>(env, `subscriptions/${subscriptionId}`);
-  if (!result.ok) return null;
+  if (!result.ok) {
+    console.log(`could not read ${subscriptionId} back from Stripe: ${result.error}. `
+      + 'The subscription webhook that follows will fill this in.');
+    return null;
+  }
   const o = result.data;
   const items = (o.items as { data?: { price?: { id?: string } }[] } | undefined)?.data;
   return {

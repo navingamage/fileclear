@@ -54,7 +54,15 @@ crons = ["0 11 * * *", "0 12 * * *"]
 
 # Secrets, set with `wrangler secret put <name>`, never written to this file:
 #   ZEPTOMAIL_TOKEN        transactional mail
-#   STRIPE_SECRET_KEY      billing. Test mode until the live key replaces it
+#   STRIPE_SECRET_KEY      billing. The live restricted key. It can create
+#                          checkout and billing portal sessions, which is what
+#                          the running app needs, but it cannot read
+#                          subscriptions or manage webhook endpoints
+# A secret set with `wrangler secret put` takes a few seconds to reach every
+# edge location. Testing a webhook signature immediately after setting the
+# secret produces one puzzling rejection and then works, which reads exactly
+# like a mangled secret. Wait, or retry, before concluding anything.
+#
 #   STRIPE_WEBHOOK_SECRET  signs the webhook. Without it the endpoint refuses
 #                          every request rather than trusting an unsigned one
 #
@@ -91,8 +99,9 @@ FC_MAIL_REPLY_TO = "FileClear <hello@fileclear.ca>"
 FC_WATCH_TO = "hello@antipodetech.com"
 
 # Stripe price identifiers, not secrets: they are visible in the checkout URL.
-# These are TEST mode prices. Going live means creating the same two prices in
-# live mode and replacing these, plus swapping STRIPE_SECRET_KEY and
-# STRIPE_WEBHOOK_SECRET for their live equivalents.
-FC_PRICE_MONTHLY = "price_1UEHsy2OOsaIaWLu1UCUWazw"   # $29 CAD per month
-FC_PRICE_YEARLY  = "price_1UEHsy2OOsaIaWLuEam8KdFl"   # $290 CAD per year
+#
+# LIVE mode. Real cards are charged against these. The test mode equivalents,
+# kept here so a sandbox can be pointed back at them, were
+# price_1UEHsy2OOsaIaWLu1UCUWazw and price_1UEHsy2OOsaIaWLuEam8KdFl.
+FC_PRICE_MONTHLY = "price_1UEIl6RxWnn6cQ10S1ebvuIi"   # $29 CAD per month
+FC_PRICE_YEARLY  = "price_1UEIl6RxWnn6cQ10SQZjuI3o"   # $290 CAD per year

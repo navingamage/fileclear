@@ -7,6 +7,7 @@ import { CCA_CLASSES, type Schedule8, type AssetRecord } from './rules/cca';
 import type { Schedule1, TaxComputation } from './rules/t2';
 import type { Comparison } from './rules/compensation';
 import type { Staleness } from './rules/sources';
+import { IMPORTABLE_ACCOUNTS, type ImportPreview } from './rules/csv';
 import type { CompanySummary } from './db';
 import type { Subscription } from './stripe';
 
@@ -652,6 +653,7 @@ export function booksPage(
   return shell(`${companyName} books`, `
 <span class="label">${esc(companyName)} &middot; ledger</span>
 <h1>The books.</h1>
+<p class="hint">Type a row, or <a href="/books/import">import a bank export</a> and correct what it guessed.</p>
 <p class="hint">Every line carries the HST that was actually on the document, not a
 computed 13%. A supplier outside Canada charges none, and claiming tax that was never
 charged is claiming a credit that does not exist.
@@ -1306,4 +1308,105 @@ export function resetPage(token: string, error?: string, dead = false): string {
          <button class="btn primary" type="submit">Set it and sign in</button>
        </form>`}
 </div>`);
+}
+
+// -------------------------------------------------------- importing a file
+
+/** The upload step, and where an unreadable file reports back to. */
+export function importPage(
+  email: string, companyName: string, error?: string, chrome: Chrome = {},
+): string {
+  return shell(`${companyName} import`, `
+<span class="label">${esc(companyName)} &middot; books</span>
+<h1>Import a bank export.</h1>
+<p class="hint">A CSV from your bank or card. FileClear works out which column is
+which rather than asking you, and nothing is written until you have looked at it.</p>
+
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+<form method="post" action="/books/import" enctype="multipart/form-data" class="txn-form">
+  <div class="field">
+    <label for="file">The file</label>
+    <input id="file" name="file" type="file" accept=".csv,text/csv" required>
+    <span class="sub">Most banks call this "Download transactions" or "Export to CSV".</span>
+  </div>
+  <div class="field">
+    <label for="order">If the dates could be read either way round</label>
+    <select id="order" name="order">
+      <option value="">Work it out from the file</option>
+      <option value="dmy">Day first, 03/04 is 3 April</option>
+      <option value="mdy">Month first, 03/04 is 4 March</option>
+    </select>
+    <span class="sub">Only needed when nothing in the file settles it, and you
+    will be told if that happens.</span>
+  </div>
+  <button class="btn primary" type="submit">Read the file</button>
+</form>
+
+<p class="hint"><a href="/books">Back to the books</a></p>
+`, email, '/books', chrome);
+}
+
+/**
+ * The preview.
+ *
+ * Everything is editable before it is written, because a bank export is
+ * somebody else's data in somebody else's format and the step between reading
+ * it and trusting it is a person looking at it. A row that guessed is marked as
+ * a guess, and a row already in the ledger arrives unticked.
+ */
+export function importPreviewPage(
+  email: string, companyName: string, preview: ImportPreview, payload: string,
+  chrome: Chrome = {},
+): string {
+  const options = (selected: string) => IMPORTABLE_ACCOUNTS.map((a) =>
+    `<option value="${a.id}"${a.id === selected ? ' selected' : ''}>${esc(a.name)}</option>`).join('');
+
+  const duplicates = preview.rows.filter((r) => r.duplicate).length;
+
+  return shell(`${companyName} import`, `
+<span class="label">${esc(companyName)} &middot; books</span>
+<h1>${preview.rows.length} row${preview.rows.length === 1 ? '' : 's'} read.</h1>
+<p class="hint">Nothing has been written yet. Check the accounts, untick anything
+you do not want, and the ones you correct will be remembered for next time.</p>
+
+<div class="stats">
+  <div class="stat"><b>${dollars(preview.moneyIn)}</b><span>in</span></div>
+  <div class="stat"><b>${dollars(preview.moneyOut)}</b><span>out</span></div>
+  <div class="stat"><b>${preview.rows.length}</b><span>rows</span></div>
+</div>
+
+${duplicates ? `<div class="advisory"><b>${duplicates} row${duplicates === 1 ? ' is' : 's are'}
+  already in your books.</b> They are unticked below. Importing the same statement
+  twice is the commonest way a ledger ends up double counting.</div>` : ''}
+
+${preview.problems.length ? `<div class="advisory info">
+  <b>${preview.problems.length} row${preview.problems.length === 1 ? '' : 's'} could not be read</b>
+  and ${preview.problems.length === 1 ? 'is' : 'are'} left out:
+  ${preview.problems.slice(0, 5).map((p) => `line ${p.line}, ${esc(p.why.toLowerCase())}`).join('; ')}
+  ${preview.problems.length > 5 ? ` and ${preview.problems.length - 5} more` : ''}</div>` : ''}
+
+<form method="post" action="/books/import/confirm">
+  <input type="hidden" name="payload" value="${esc(payload)}">
+  <div class="sheet">
+    <div class="sheet-head"><span>What will be written</span><span>${esc(preview.dateOrder)}</span></div>
+    ${preview.rows.map((r, i) => `<div class="frow${r.duplicate ? ' done' : ''}">
+      <span class="d">
+        <input type="checkbox" name="take" value="${i}"${r.duplicate ? '' : ' checked'}
+          aria-label="Import this row">
+        ${esc(r.date)}</span>
+      <span class="t">${esc(r.description || '(no description)')}
+        <span class="sub">${dollars(Math.abs(r.signed))} ${r.signed < 0 ? 'out' : 'in'}${
+          r.hst ? ` &middot; ${dollars(r.amount)} plus ${dollars(r.hst)} HST` : ''}${
+          r.reason === 'direction' ? ' &middot; guessed from the direction only' : ''}${
+          r.reason === 'remembered' ? ' &middot; remembered' : ''}</span></span>
+      <span class="f">
+        <select name="account-${i}" aria-label="Account">${options(r.accountId)}</select>
+      </span>
+    </div>`).join('')}
+  </div>
+  <button class="btn primary" type="submit">Write these to the books</button>
+  <a class="btn" href="/books/import">Start again</a>
+</form>
+`, email, '/books', chrome);
 }

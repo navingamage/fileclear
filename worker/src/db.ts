@@ -500,3 +500,61 @@ export async function startTrial(
     .bind(ends, accountId).run();
   return ends;
 }
+
+// -------------------------------------------------------- reading a bank file
+
+import { descriptionKey, rowFingerprint, type Remembered } from './rules/csv';
+
+export async function importRules(
+  db: D1Database, companyId: string,
+): Promise<Remembered[]> {
+  const rows = await db.prepare(
+    'SELECT pattern, account_id FROM import_rules WHERE company_id = ?',
+  ).bind(companyId).all<{ pattern: string; account_id: string }>();
+  return (rows.results ?? []).map((r) => ({ pattern: r.pattern, accountId: r.account_id }));
+}
+
+/** Remembers a correction, so the next import of the same supplier is right. */
+export async function rememberImportRule(
+  db: D1Database, companyId: string, description: string, accountId: string,
+): Promise<void> {
+  const pattern = descriptionKey(description);
+  if (!pattern) return;
+  await db.prepare(
+    `INSERT INTO import_rules (company_id, pattern, account_id, updated_at)
+     VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT (company_id, pattern) DO UPDATE SET account_id = excluded.account_id,
+       updated_at = excluded.updated_at`,
+  ).bind(companyId, pattern, accountId).run();
+}
+
+/**
+ * Fingerprints of everything already in the ledger.
+ *
+ * Loaded whole rather than queried per row: a small corporation's ledger is
+ * thousands of rows at most, and one read beats one query per line of a
+ * statement.
+ */
+export async function ledgerFingerprints(
+  db: D1Database, companyId: string,
+): Promise<Set<string>> {
+  const rows = await db.prepare(
+    `SELECT txn_date, amount_cents, hst_cents, account_id, description
+       FROM transactions WHERE company_id = ?`,
+  ).bind(companyId).all<{
+    txn_date: string; amount_cents: number; hst_cents: number;
+    account_id: string; description: string;
+  }>();
+
+  const out = new Set<string>();
+  for (const r of rows.results ?? []) {
+    // The bank saw the gross, and revenue arrives positive while everything
+    // else leaves as negative, so the sign is reconstructed the same way the
+    // import derived it.
+    const gross = r.amount_cents + r.hst_cents;
+    for (const signed of [gross, -gross]) {
+      out.add(rowFingerprint(r.txn_date, signed, r.description));
+    }
+  }
+  return out;
+}

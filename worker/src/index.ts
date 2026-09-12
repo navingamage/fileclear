@@ -13,6 +13,7 @@ import {
   assetsFor, addAsset, deleteAsset, ccaClaims,
   employeesFor, addEmployee, deleteEmployee,
   subscriptionFor, recordSubscription, startTrial,
+  importRules, rememberImportRule, ledgerFingerprints,
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
@@ -23,14 +24,16 @@ import {
   fetchSubscription, type StripeEnv,
 } from './stripe';
 import { send, welcomeMail, resetMail } from './email';
-import { ACCOUNT_BY_ID } from './rules/gifi';
+import { ACCOUNT_BY_ID, HST_RATE } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
+import { parseCsv, buildPreview, type ImportRow } from './rules/csv';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
-  compensationPage, slipsPage, billingPage, forgotPage, resetPage, shell, html,
+  compensationPage, slipsPage, billingPage, forgotPage, resetPage,
+  importPage, importPreviewPage, shell, html,
   type HstPeriodOption, type Chrome,
 } from './views';
-import { fiscalYears, statementsFor } from './rules/yearend';
+import { fiscalYears, statementsFor, shareholderLoans } from './rules/yearend';
 import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
 import { schedule1, computeTax } from './rules/t2';
 import { compareCompensation } from './rules/compensation';
@@ -475,10 +478,32 @@ export default {
 
       const from = today();
       const filings = filingsBetween(company.profile, from, addDays(from, 365));
-      const states = await filingStates(env.DB, company.id);
+      const [states, txns] = await Promise.all([
+        filingStates(env.DB, company.id),
+        transactionsFor(env.DB, company.id),
+      ]);
+
+      // A shareholder loan is the one thing the ledger knows about that the
+      // calendar cannot see, because its deadline comes from a balance rather
+      // than from the company profile. It joins the advisories so it appears
+      // where somebody is already looking.
+      const loans = shareholderLoans(
+        toLedger(txns), fiscalYears(company.profile, from), from);
+      const advisories = [
+        ...loans.map((l) => ({
+          id: `shareholder-loan-${l.yearEnd}`,
+          severity: 'warn' as const,
+          title: l.overdue
+            ? 'A shareholder loan passed its repayment deadline'
+            : 'A shareholder loan has to be repaid',
+          detail: l.message,
+        })),
+        ...advisoriesFor(company.profile),
+      ];
+
       return html(dashboardPage(
         account.email, company.id, company.profile, filings, states,
-        advisoriesFor(company.profile), from, chrome,
+        advisories, from, chrome,
       ));
     }
 
@@ -538,6 +563,109 @@ export default {
       const txns = await transactionsFor(env.DB, company.id);
       return html(booksPage(account.email, company.id, company.profile.legalName,
         txns, today(), undefined, chrome));
+    }
+
+    if (path.startsWith('/books/import') && account) {
+      if (!company) return redirect('/onboarding');
+
+      if (path === '/books/import' && request.method === 'GET') {
+        return html(importPage(account.email, company.profile.legalName,
+          undefined, chrome));
+      }
+
+      if (path === '/books/import' && request.method === 'POST') {
+        const form = await request.formData();
+        const file = form.get('file');
+        if (!(file instanceof File) || file.size === 0) {
+          return html(importPage(account.email, company.profile.legalName,
+            'Choose a file to read.', chrome), 400);
+        }
+        // A statement is a few hundred rows. Anything much larger is not one,
+        // and reading it into a Worker's memory is how the request dies.
+        if (file.size > 2_000_000) {
+          return html(importPage(account.email, company.profile.legalName,
+            'That file is larger than 2 MB, which is bigger than any bank statement. '
+            + 'Export a single account over a single period.', chrome), 400);
+        }
+
+        const order = String(form.get('order') ?? '');
+        const [remembered, existing] = await Promise.all([
+          importRules(env.DB, company.id),
+          ledgerFingerprints(env.DB, company.id),
+        ]);
+
+        const preview = buildPreview(parseCsv(await file.text()), {
+          remembered,
+          existing,
+          ...(order === 'dmy' || order === 'mdy' ? { dateOrder: order } : {}),
+        });
+
+        if ('error' in preview) {
+          return html(importPage(account.email, company.profile.legalName,
+            preview.error, chrome), 400);
+        }
+        if (!preview.rows.length) {
+          return html(importPage(account.email, company.profile.legalName,
+            'Nothing in that file could be read as a transaction.', chrome), 400);
+        }
+
+        // The rows travel through the confirm step in the form rather than in a
+        // session, so an abandoned import leaves nothing behind to clean up.
+        const payload = JSON.stringify(preview.rows);
+        return html(importPreviewPage(account.email, company.profile.legalName,
+          preview, payload, chrome));
+      }
+
+      if (path === '/books/import/confirm' && request.method === 'POST') {
+        const form = await request.formData();
+        let rows: ImportRow[];
+        try {
+          rows = JSON.parse(String(form.get('payload') ?? '[]')) as ImportRow[];
+        } catch {
+          return redirect('/books/import');
+        }
+
+        const take = new Set(form.getAll('take').map((v) => Number(String(v))));
+        const writes = [];
+        let corrections = 0;
+
+        for (let i = 0; i < rows.length; i++) {
+          if (!take.has(i)) continue;
+          const row = rows[i]!;
+          const chosen = String(form.get(`account-${i}`) ?? row.accountId);
+          if (!ACCOUNT_BY_ID.has(chosen)) continue;
+
+          // Choosing a different account than the guess is the signal worth
+          // keeping: it is a person saying what this supplier actually is.
+          if (chosen !== row.accountId) {
+            await rememberImportRule(env.DB, company.id, row.description, chosen);
+            corrections++;
+          }
+
+          const account = ACCOUNT_BY_ID.get(chosen)!;
+          // The HST split was computed for the guessed account. A different
+          // account can have a different treatment, so it is recomputed rather
+          // than carried over.
+          const gross = Math.abs(row.signed);
+          const carries = account.hst === 'standard';
+          const amount = carries ? Math.round(gross / (1 + HST_RATE)) : gross;
+
+          writes.push({
+            txn_date: row.date,
+            account_id: chosen,
+            amount_cents: amount,
+            hst_cents: carries ? gross - amount : 0,
+            counter_account_id: DEFAULT_COUNTER,
+            description: row.description.slice(0, 200),
+          });
+        }
+
+        for (const w of writes) {
+          await addTransaction(env.DB, randomId(16), company.id, w);
+        }
+        console.log(`import: ${writes.length} rows written, ${corrections} corrections learned`);
+        return redirect('/books');
+      }
     }
 
     if (path === '/hst' && account) {

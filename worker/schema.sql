@@ -326,3 +326,18 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   count        INTEGER NOT NULL,
   window_start INTEGER NOT NULL      -- epoch milliseconds
 );
+
+-- --------------------------------------------------------- reading a bank file
+
+-- What an account was corrected to, so the next import does not ask again.
+--
+-- Keyed on the stable part of a bank description rather than the whole string,
+-- because a card transaction carries a different reference number every time
+-- and matching the whole thing would remember nothing.
+CREATE TABLE IF NOT EXISTS import_rules (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  pattern    TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (company_id, pattern)
+);

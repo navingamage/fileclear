@@ -323,6 +323,30 @@ const CHROME = `<style>
   .empty-books p { margin: 0 0 .9rem; max-width: 54ch; color: var(--ink-2); }
   .empty-books p:last-child { margin-bottom: 0; }
 
+  /* Folded away, because a note is read once and then known. */
+  .notes { margin: 1rem 0 1.8rem; border-top: 1px solid var(--line); padding-top: .9rem; }
+  .notes summary { cursor: pointer; font-size: .88rem; color: var(--muted); }
+  .notes p { margin: .8rem 0 0; font-size: .92rem; line-height: 1.6; color: var(--ink-2);
+    max-width: 72ch; }
+
+  .worksheet-foot { margin: 2.4rem 0 0; padding-top: 1.2rem;
+    border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted);
+    max-width: 72ch; line-height: 1.6; }
+
+  /* The one figure a screen exists to produce, against the ones supporting it. */
+  .stat.lead { background: var(--ink); border-color: var(--ink); }
+  .stat.lead b, .stat.lead span { color: var(--primary-ink); }
+  .stat.lead span { opacity: .75; }
+
+  /* A short question row, sized to its own fields rather than borrowing the
+     ledger's seven column grid, which truncated every label it was given. */
+  .ask-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, auto));
+    gap: .8rem; align-items: end; justify-content: start; }
+  .ask-grid.wide { grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
+  .ask-grid .field { margin: 0; min-width: 0; }
+  .ask-grid input, .ask-grid select, .ask-grid .btn { height: 2.6rem; }
+  @media (max-width: 620px) { .ask-grid { grid-template-columns: 1fr; } }
+
   .periods { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
   /* Separates the stages of a long worksheet, so the page reads as steps
      rather than as one wall of figures. */
@@ -335,6 +359,11 @@ const CHROME = `<style>
   .two .sheet { margin-bottom: 0; }
   .two .sheet.win { border-color: var(--brand); box-shadow: var(--shadow-lg); }
   .two .frow { grid-template-columns: 1fr auto; }
+  /* A GIFI line carries its code in front of the name, so it needs the third
+     column back. Without this the amount wrapped to a line of its own and every
+     statement row stood 90 pixels tall. */
+  .two .frow.gifi { grid-template-columns: 3.2rem 1fr auto; }
+  .frow.gifi .d { font-size: .76rem; }
   .verdict { margin: 1.5rem 0; padding: 1.1rem 1.3rem; border-radius: 16px;
     background: var(--band); font-size: .97rem; }
   .verdict.good { background: var(--brand-tint); }
@@ -957,6 +986,15 @@ ${esc(r.from)} to ${esc(r.to)}.</p>
 <div class="periods">${periods.map((o) =>
   `<a class="btn small${o.id === active ? ' primary' : ''}" href="/hst?period=${o.id}">${esc(o.label)}</a>`).join('')}</div>
 
+${summary([
+  { value: dollars(better ? r.quick.netTax : r.netTaxRegular),
+    label: r.netTaxRegular < 0 || r.quick.netTax < 0 ? 'refund due' : 'net tax to remit',
+    strong: true },
+  { value: dollars(r.totalRevenue), label: 'revenue, line 101' },
+  { value: dollars(r.collected), label: 'HST collected, line 105' },
+  { value: dollars(r.itcs), label: 'credits claimed, line 108' },
+])}
+
 <div class="two">
   <div class="sheet">
     <div class="sheet-head"><span>Regular method</span><span>GST34</span></div>
@@ -988,7 +1026,53 @@ ${esc(r.from)} to ${esc(r.to)}.</p>
     : '<b>The Quick Method is not available at this level of sales.</b>'}
 </div>
 
-${r.caveats.map((c) => `<div class="advisory info">${esc(c)}</div>`).join('')}`, email, '/hst', chrome);
+${notes(r.caveats, 'this return')}
+${worksheetFooter()}`, email, '/hst', chrome);
+}
+
+// ------------------------------------------------------- notes and summaries
+
+/**
+ * Three kinds of message were wearing one costume.
+ *
+ * The slips screen had eleven advisory boxes on it, all styled the same, and
+ * eleven boxes that look equally important mean none of them gets read. Reading
+ * them apart, they were three different things:
+ *
+ *   act on this      a penalty, a category CRA is about to move you into
+ *   understand this  why a T4 follows the calendar year, why an owner pays no EI
+ *   what this is not the standing reminder that FileClear does not file
+ *
+ * Only the first needs to interrupt. The second is worth having and worth
+ * folding away, because it is read once and then known. The third belongs at the
+ * foot of every screen in the same place, said once, rather than competing for
+ * attention with a penalty.
+ */
+export function notes(items: string[], about = 'these figures'): string {
+  if (!items.length) return '';
+  return `<details class="notes">
+    <summary>${items.length} note${items.length === 1 ? '' : 's'} about ${esc(about)}</summary>
+    ${items.map((n) => `<p>${esc(n)}</p>`).join('')}
+  </details>`;
+}
+
+/**
+ * Said once, at the foot, on every screen that produces a figure.
+ *
+ * It used to appear as an advisory in the middle of the page, which put the most
+ * repeated sentence in the product in the same visual bracket as a warning about
+ * a penalty.
+ */
+export function worksheetFooter(extra = ''): string {
+  return `<p class="worksheet-foot">FileClear works out what you owe and when. It is
+  not certified by CRA and does not transmit anything, so every figure here is one
+  to enter rather than one that has been filed.${extra ? ` ${esc(extra)}` : ''}</p>`;
+}
+
+/** The two to four numbers a screen exists to produce. */
+export function summary(cells: { value: string; label: string; strong?: boolean }[]): string {
+  return `<div class="stats">${cells.map((c) => `<div class="stat${
+    c.strong ? ' lead' : ''}"><b>${c.value}</b><span>${esc(c.label)}</span></div>`).join('')}</div>`;
 }
 
 // ------------------------------------------------------------------ year end
@@ -1013,11 +1097,11 @@ export function yearEndPage(
   plain?: string,
 ): string {
   const rows = (lines: StatementLine[]) => lines.map((l) =>
-    `<div class="frow"><span class="d">${l.gifi}</span><span class="t">${esc(l.name)}</span>
+    `<div class="frow gifi"><span class="d">${l.gifi}</span><span class="t">${esc(l.name)}</span>
      <span class="f num">${dollars(l.amount)}</span></div>`).join('');
 
   const total = (gifi: number, label: string, amount: number) =>
-    `<div class="frow total"><span class="d">${gifi}</span><span class="t"><b>${label}</b></span>
+    `<div class="frow gifi total"><span class="d">${gifi}</span><span class="t"><b>${label}</b></span>
      <span class="f num"><b>${dollars(amount)}</b></span></div>`;
 
   const classOptions = CCA_CLASSES.map((c) =>
@@ -1032,6 +1116,13 @@ the numbers out; it does not file them.</p>
 
 <div class="periods">${years.map((y) =>
   `<a class="btn small${y.id === active.id ? ' primary' : ''}" href="/year-end?year=${y.id}">${esc(y.label)}${y.ended ? '' : ' (open)'}</a>`).join('')}</div>
+
+${summary([
+  { value: dollars(tax.totalTax), label: 'total tax payable', strong: true },
+  { value: dollars(tax.taxableIncome), label: 'taxable income' },
+  { value: `${(tax.effectiveRate * 100).toFixed(1)}%`, label: 'effective rate' },
+  { value: dollars(s.income.netBeforeTax), label: 'net income per the books' },
+])}
 
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
@@ -1076,7 +1167,7 @@ class is deducted each year. Record it in the ledger so the money leaves the ban
 and here so the deduction is right.</p>
 
 <form method="post" action="/assets" class="txn-form">
-  <div class="txn-grid">
+  <div class="ask-grid wide">
     <div class="field"><label for="a-date">Available for use</label>
       <input id="a-date" name="date" type="date" required value="${esc(today)}"></div>
     <div class="field"><label for="a-class">Class</label>
@@ -1120,7 +1211,7 @@ and here so the deduction is right.</p>
     <span class="t"><b>Total capital cost allowance</b></span>
     <span class="f num"><b>${dollars(s8.totalCca)}</b></span></div>` : ''}
 </div>
-${s8.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
+${notes(s8.notes, 'capital cost allowance')}
 
 <h2 class="sec">From the books to taxable income</h2>
 <div class="sheet">
@@ -1174,12 +1265,9 @@ ${tax.instalmentsRequired ? `<div class="advisory"><b>Instalments are required n
   go. The base is ${dollars(tax.instalmentBase)}, and the instalments show up on
   your filing calendar.</div>` : ''}
 
-${tax.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
+${notes(tax.notes, 'the tax calculation')}
 
-<div class="advisory info"><b>This is a worksheet, not a return.</b>
-  FileClear is not certified by CRA and does not transmit anything. Every figure
-  above names where it goes, so it can be entered into CRA's own form or into
-  software that files. The authority for each number is the schedule it names.</div>
+${worksheetFooter('Every figure above names the schedule and line it belongs on.')}
 `, email, '/year-end', chrome);
 }
 
@@ -1216,7 +1304,7 @@ income. FileClear shows the arithmetic for each and stops there: the gap is usua
 small enough that something other than tax decides it.</p>
 
 <form method="get" action="/compensation" class="txn-form">
-  <div class="txn-grid">
+  <div class="ask-grid">
     <div class="field"><label for="amount">To take out of the corporation</label>
       <input id="amount" name="amount" type="text" inputmode="decimal"
         value="${(available / 100).toFixed(0)}"></div>
@@ -1228,6 +1316,18 @@ small enough that something other than tax decides it.</p>
     <div class="field"><button class="btn primary" type="submit">Compare</button></div>
   </div>
 </form>
+
+${summary([
+  { value: dollars(Math.abs(c.salaryAdvantage)),
+    label: `${c.salaryAdvantage >= 0 ? 'salary' : 'dividends'} leaves more in hand`,
+    strong: true },
+  { value: dollars(c.salary.netToPerson), label: 'in hand, salary' },
+  { value: dollars(c.dividend.netToPerson), label: 'in hand, dividends' },
+  // The number the page exists to make visible: a good part of the cash gap is
+  // a pension contribution rather than tax, and without it the comparison reads
+  // as "dividends win" when it is really "dividends skip CPP".
+  { value: dollars(c.gapFromCpp), label: 'of the gap is CPP, not tax' },
+])}
 
 <div class="two">
   ${col('Salary', 'T4', c.salary, [
@@ -1264,10 +1364,11 @@ small enough that something other than tax decides it.</p>
 </div>
 
 <h2 class="sec">What the arithmetic cannot see</h2>
-${c.considerations.map((x) => `<div class="advisory info">${esc(x)}</div>`).join('')}
+${notes(c.considerations, 'what the arithmetic cannot see')}
 
 <h2 class="sec">What this does not include</h2>
-${c.caveats.map((x) => `<div class="advisory">${esc(x)}</div>`).join('')}
+${notes(c.caveats, 'the limits of this comparison')}
+${worksheetFooter()}
 
 <div class="advisory info"><b>FileClear does not tell you which to pick.</b>
   It computes both so the decision is made on numbers rather than on folklore.
@@ -1317,6 +1418,18 @@ ${esc(deadline)}.</p>
   the T2 follows the fiscal year. Lining the slips up with the year end instead
   produces figures CRA cannot match to your remittance account.</div>
 
+${anySalary || t5.boxes.some((b) => b.amount !== 0) ? summary([
+  ...(anySalary ? [{ value: dollars(t4s.reduce((n, t) =>
+      n + (t.boxes.find((b) => b.box === '14')?.amount ?? 0), 0)),
+    label: 'on T4s' }] : []),
+  ...(t5.boxes.some((b) => b.amount !== 0) ? [{ value: dollars(
+      t5.boxes.find((b) => b.box === '10' || b.box === '24')?.amount ?? 0),
+    label: 'on the T5' }] : []),
+  ...(run && run.periodRemittance ? [{ value: dollars(run.periodRemittance),
+    label: 'per PD7A' }] : []),
+  { value: deadline.slice(8) + ' Feb', label: 'both slips due', strong: true },
+]) : ''}
+
 ${nothing ? `<div class="advisory info">Nothing was paid as salary or dividends in
   ${year}, so there is no slip to file. If that is wrong, the ledger is missing
   entries: a salary belongs on the salaries account and a dividend on dividends
@@ -1330,7 +1443,7 @@ and the employment is not insurable, whatever anybody would prefer.</p>
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
 <form method="post" action="/employees" class="txn-form">
-  <div class="txn-grid">
+  <div class="ask-grid wide">
     <div class="field"><label for="e-name">Name</label>
       <input id="e-name" name="name" type="text" required placeholder="A. Director"></div>
     <div class="field"><label for="e-salary">Annual salary</label>
@@ -1367,7 +1480,7 @@ ${drift !== 0 ? `<div class="advisory"><b>The register and the ledger disagree b
   for the year and the salaries account says ${dollars(ledgerSalary)}. One of them is
   wrong, and the slips are built on the register.</div>` : ''}
 
-${run?.questions.map((q) => `<div class="advisory info">${esc(q)}</div>`).join('') ?? ''}
+${notes(run?.questions ?? [], 'who is insurable')}
 
 ${t4s.filter((t) => t.boxes.some((b) => b.box === '14' && b.amount !== 0)).map((t) => `
 <h2 class="sec">T4${t.name ? `, ${esc(t.name)}` : ', statement of remuneration paid'}</h2>
@@ -1386,7 +1499,7 @@ ${t4s.filter((t) => t.boxes.some((b) => b.box === '14' && b.amount !== 0)).map((
       <span class="sub">1.4 times box 18. The one payroll contribution that is not matched.</span></span>
     <span class="f num">${dollars(t.employerEi)}</span></div>` : ''}
 </div>`).join('')}
-${(t4s[0]?.notes ?? []).map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
+${notes(t4s[0]?.notes ?? [], 'the T4')}
 
 ${run && run.periodRemittance ? `
 <h2 class="sec">What to remit</h2>
@@ -1427,7 +1540,7 @@ is watching. Most small corporations owe nothing and still have to file.</p>
   <div class="frow total"><span class="t"><b>Employer health tax</b></span>
     <span class="f num"><b>${dollars(eht.tax)}</b></span></div>
 </div>
-<div class="advisory info">${esc(eht.note)}</div>
+${notes([eht.note], 'the health tax')}
 ${eht.instalmentsRequired ? '<div class="advisory">Payroll is over $1.2 million, so this is paid in monthly instalments rather than once a year.</div>' : ''}` : ''}
 
 ${t5.boxes.some((b) => b.amount !== 0) ? `
@@ -1436,11 +1549,9 @@ ${t5.boxes.some((b) => b.amount !== 0) ? `
   <div class="sheet-head"><span>${year}</span><span>T5</span></div>
   ${boxes(t5.boxes)}
 </div>
-${t5.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}` : ''}
+${notes(t5.notes, 'the T5')}` : ''}
 
-<div class="advisory info"><b>A worksheet, not a filing.</b>
-  FileClear is not certified by CRA and transmits nothing. These are the numbers
-  to enter, with the box each belongs in.</div>
+${worksheetFooter('Each figure above carries the box it belongs in.')}
 `, email, '/slips', chrome);
 }
 

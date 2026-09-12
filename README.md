@@ -257,6 +257,26 @@ The empty state offers the fastest way in rather than saying "nothing recorded
 yet" and leaving it there, because the quickest first ledger is a bank export
 rather than a typed row.
 
+## Notices, and telling them apart
+
+The slips screen carried eleven advisory boxes, all styled the same. Eleven
+boxes that look equally important mean none of them gets read, and reading them
+apart they were three different things wearing one costume: something to act on,
+something to understand once, and the standing reminder that FileClear does not
+file. Two of them said the same thing twice.
+
+Only the first needs to interrupt. Explanations fold into one collapsible block
+per section, because a note is read once and then known. The standing reminder
+sits at the foot of every screen that produces a figure, said once, instead of
+competing with a warning about a penalty. Slips went from eleven boxes to three.
+
+Every screen that computes something now opens with the figure it exists to
+produce, in a strip of four: the net tax to remit, the total tax payable, which
+way the salary and dividend comparison came out, or the date both slips are due.
+The compensation strip carries how much of the gap is CPP rather than tax, which
+is the number that stops the comparison reading as "dividends win" when it
+really means "dividends skip a pension contribution".
+
 ## Where a model is allowed to help
 
 One line, drawn in `src/llm.ts` rather than left to judgement at each call

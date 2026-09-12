@@ -234,3 +234,106 @@ export function statementsFor(
     },
   };
 }
+
+// ------------------------------------------------- shareholder loans, s.15(2)
+
+/**
+ * Money the shareholder owes the corporation, and the clock on it.
+ *
+ * A director taking money out that is neither salary nor a dividend has taken a
+ * loan. Subsection 15(2) says a loan to a shareholder is included in that
+ * person's income unless it is repaid within one year of the end of the tax
+ * year in which it was made, and the inclusion lands in the year the money was
+ * taken, not the year the deadline passed. So the assessment arrives for a year
+ * already filed, which is what makes it expensive rather than merely annoying.
+ *
+ * FileClear already records the money. Nothing was watching it, which is the
+ * gap this closes: a balance that only exists as a negative number on an
+ * account nobody looks at is exactly the kind of thing a product about
+ * deadlines should be pointing at.
+ *
+ * The direction matters and is easy to get backwards. `due-shareholder` is a
+ * liability: a positive balance is the corporation owing the director, which is
+ * money they put in and carries no problem at all. It is a **negative** balance,
+ * the liability turned around, that means the director owes the corporation.
+ */
+export interface ShareholderLoan {
+  /** The year end the balance was outstanding at. */
+  yearEnd: string;
+  /** Cents the shareholder owed the corporation on that date. */
+  owed: number;
+  /** The date it has to be repaid by: one year after that year end. */
+  repayBy: string;
+  /** Whether that date has already passed. */
+  overdue: boolean;
+  /** Days remaining, negative once it has gone. */
+  daysLeft: number;
+  message: string;
+}
+
+/**
+ * Only the earliest unresolved year is reported, and that is deliberate.
+ *
+ * A balance outstanding at one year end is usually still outstanding at the
+ * next, and it is the same money. Reporting a fresh clock for each would say
+ * twenty thousand dollars is at risk twice over. The earliest year end is the
+ * one whose deadline falls first, and once that one is breached the amount is
+ * income in that year, so every later balance is money already dealt with.
+ */
+export function shareholderLoans(
+  lines: LedgerLine[], years: FiscalYear[], today: string,
+): ShareholderLoan[] {
+  const out: ShareholderLoan[] = [];
+  const oldestFirst = [...years].sort((a, b) => (a.to < b.to ? -1 : 1));
+
+  for (const year of oldestFirst) {
+    if (!year.ended) continue;
+
+    const atYearEnd = balances(lines, year.to)
+      .find((b) => b.accountId === 'due-shareholder')?.amount ?? 0;
+
+    // Positive is the corporation owing the director, which is fine.
+    if (atYearEnd >= 0) continue;
+    const owed = -atYearEnd;
+
+    const repayBy = oneYearAfter(year.to);
+    const daysLeft = Math.round(
+      (Date.parse(`${repayBy}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+
+    // Already repaid by now, so the clock stopped before it ran out.
+    const nowBalance = balances(lines, today)
+      .find((b) => b.accountId === 'due-shareholder')?.amount ?? 0;
+    if (nowBalance >= 0 && daysLeft >= 0) continue;
+
+    out.push({
+      yearEnd: year.to,
+      owed,
+      repayBy,
+      overdue: daysLeft < 0,
+      daysLeft,
+      message: daysLeft < 0
+        ? `At ${year.to} the shareholder owed the corporation ${money(owed)}, and the `
+          + `repayment deadline of ${repayBy} has passed. Under subsection 15(2) that `
+          + `amount is personal income in ${year.to.slice(0, 4)}, the year it was taken, `
+          + 'not this one. A return that has already been filed may need amending.'
+        : `At ${year.to} the shareholder owed the corporation ${money(owed)}. Under `
+          + `subsection 15(2) it has to be repaid by ${repayBy}, ${daysLeft} days from `
+          + 'now, or it becomes personal income in the year it was taken. Repaying and '
+          + 'immediately re-borrowing does not restart the clock.',
+    });
+    break;
+  }
+
+  return out;
+}
+
+/** One year after a date, handling the leap day rather than adding 365. */
+function oneYearAfter(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+  const day = Math.min(d, daysInMonth(y + 1, m));
+  return `${y + 1}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function money(cents: number): string {
+  return `$${Math.floor(Math.abs(cents) / 100).toLocaleString('en-CA')}`;
+}

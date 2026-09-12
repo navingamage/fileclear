@@ -87,6 +87,12 @@ const CHROME = `<style>
   .app-right { margin-left: auto; display: flex; align-items: center; gap: .9rem;
     font-size: .9rem; color: var(--muted); }
   @media (max-width: 720px) { .app-nav { display: none; } }
+  /* The address is who you are signed in as, which matters on a shared machine
+     and not much otherwise. On a phone it was wrapping to two lines and pushing
+     the sign out button off the screen entirely. */
+  @media (max-width: 620px) { .app-right span { display: none; } }
+  .app-right span { max-width: 18rem; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; }
 
   .label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .15em;
     text-transform: uppercase; color: var(--brand); display: block;
@@ -177,9 +183,16 @@ const CHROME = `<style>
 
   .txn-form { border: 1px solid var(--line); border-radius: 16px;
     padding: 1.2rem 1.3rem; margin-bottom: 1.8rem; background: var(--band); }
-  .txn-grid { display: grid; grid-template-columns: 9rem 1fr 8rem 8rem 1fr auto;
+  .txn-grid { display: grid;
+    grid-template-columns: 9.5rem minmax(0,1.2fr) 7.5rem 7.5rem minmax(0,1fr) minmax(0,1.2fr) auto;
     gap: .7rem; align-items: end; }
   .txn-grid .field { margin: 0; }
+  .txn-grid .field:last-child { align-self: end; }
+  /* One height for everything on the entry row. A date input, a select and a
+     button each have their own intrinsic height, which left the row sitting on
+     three slightly different baselines. */
+  .txn-grid input, .txn-grid select, .txn-grid .btn { height: 2.6rem; }
+  .txn-grid label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   @media (max-width: 980px) { .txn-grid { grid-template-columns: 1fr 1fr; } }
   .frow .sub { display: block; color: var(--muted); font-size: .82rem;
     font-weight: 400; }
@@ -255,6 +268,61 @@ const CHROME = `<style>
   .pe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .2rem 1rem; }
   @media (max-width: 700px) { .pe-grid { grid-template-columns: repeat(2, 1fr); } }
 
+  /* A ledger row.
+     Six columns for six things, because the previous version laid five out in a
+     four column grid and the remove button wrapped onto a line of its own,
+     making every row 125px tall. */
+  .brow { display: grid;
+    grid-template-columns: 4.2rem minmax(0, 1.6fr) minmax(0, 1fr) 7rem 5.5rem 1.6rem;
+    gap: .9rem; align-items: center; padding: .5rem 1.25rem;
+    border-bottom: 1px solid var(--line); }
+  .brow:last-child { border-bottom: 0; }
+  .brow form { margin: 0; }
+  .brow.head { background: var(--band); border-bottom: 1px solid var(--line);
+    font-family: var(--font-mono); font-size: .68rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); padding: .7rem 1.25rem; }
+  .brow-d { font-family: var(--font-mono); font-size: .8rem; color: var(--muted);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .brow-a { font-size: .93rem; font-weight: 500; min-width: 0; }
+  .brow-desc { display: block; font-weight: 400; font-size: .82rem; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brow-c { font-size: .85rem; color: var(--muted); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .brow-n { font-family: var(--font-mono); font-size: .86rem; text-align: right;
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .brow-n.in { color: var(--brand); }
+  .brow-n.hst { color: var(--muted); font-size: .8rem; }
+  /* A quiet cross rather than a button: removing a row is rare, and a button
+     per row competes with the figures for attention. */
+  .brow-x { border: 0; background: none; cursor: pointer; color: var(--muted);
+    font-size: 1.1rem; line-height: 1; padding: .2rem .35rem; border-radius: 6px; }
+  .brow-x:hover { background: var(--danger-tint); color: var(--danger); }
+
+  /* Months, grouped the way the filing calendar groups them. */
+  .brow-month { display: flex; align-items: baseline; gap: .8rem;
+    padding: .8rem 1.25rem; background: var(--band);
+    border-bottom: 1px solid var(--line); border-top: 1px solid var(--line);
+    font-family: var(--font-mono); font-size: .72rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); }
+  .brow-month .brow-net { margin-left: auto; font-size: .82rem; letter-spacing: 0;
+    font-variant-numeric: tabular-nums; text-transform: none; }
+  .brow-month .brow-net.up { color: var(--brand); }
+  .brow-month .brow-net.down { color: var(--ink-2); }
+
+  @media (max-width: 900px) {
+    .brow { grid-template-columns: 3.8rem minmax(0, 1fr) 6rem 1.4rem; }
+    .brow.head, .brow-c, .brow-n.hst { display: none; }
+  }
+
+  .why-books { margin: 1.4rem 0 1.8rem; }
+  .why-books summary { cursor: pointer; font-size: .89rem; color: var(--muted); }
+  .why-books p { margin: .7rem 0 0; font-size: .92rem; color: var(--ink-2);
+    max-width: 66ch; line-height: 1.6; }
+
+  .empty-books { padding: 2rem 1.5rem; }
+  .empty-books p { margin: 0 0 .9rem; max-width: 54ch; color: var(--ink-2); }
+  .empty-books p:last-child { margin-bottom: 0; }
+
   .periods { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
   /* Separates the stages of a long worksheet, so the page reads as steps
      rather than as one wall of figures. */
@@ -272,7 +340,8 @@ const CHROME = `<style>
   .verdict.good { background: var(--brand-tint); }
   .verdict b { display: block; margin-bottom: .25rem; }
 
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1rem;
     margin: 1.6rem 0; }
   @media (max-width: 660px) { .stats { grid-template-columns: 1fr; } }
   .stat { background: var(--band); border: 1px solid var(--line);
@@ -719,6 +788,22 @@ const KIND_LABEL: Record<AccountKind, string> = {
   liability: 'Liabilities', equity: 'Equity',
 };
 
+/**
+ * The ledger.
+ *
+ * The only screen somebody touches weekly rather than a few times a year, which
+ * is the whole reason it was worth rebuilding. Measured before: every row was
+ * 125 pixels tall because five things were being laid out in a four column
+ * grid, so the remove button wrapped onto a line of its own and twelve
+ * transactions filled two and a half screens. There were no column headings, no
+ * totals to check against a statement, no grouping, and fifty five words of
+ * explanation above the fold that a weekly visitor reads once and then scrolls
+ * past forever.
+ *
+ * So: a row is a row, the months are grouped the way the filing calendar groups
+ * them, the four figures somebody reconciles against a bank statement are at the
+ * top, and the explanation is folded away for whoever still wants it.
+ */
 export function booksPage(
   email: string, companyId: string, companyName: string,
   txns: TxnRow[], today: string, error?: string, chrome: Chrome = {},
@@ -738,33 +823,78 @@ export function booksPage(
     .map((a) => `<option value="${a.id}"${a.id === DEFAULT_COUNTER ? ' selected' : ''}>${esc(a.name)}</option>`)
     .join('');
 
-  const rows = txns.map((t) => {
-    const a = ACCOUNT_BY_ID.get(t.account_id);
-    return `<div class="frow">
-      <span class="d">${esc(t.txn_date)}</span>
-      <span class="t">${esc(a?.name ?? t.account_id)}
-        <span class="sub">${
-          ACCOUNT_BY_ID.get(t.counter_account_id)?.name ?? t.counter_account_id
-        }${t.description ? ` &middot; ${esc(t.description)}` : ''}</span></span>
-      <span class="f">${dollars(t.amount_cents)}</span>
-      <span class="f">${t.hst_cents ? dollars(t.hst_cents) : '&mdash;'}</span>
-      <form method="post" action="/books/delete">
-        <input type="hidden" name="company" value="${esc(companyId)}">
-        <input type="hidden" name="id" value="${esc(t.id)}">
-        <button class="btn small" type="submit">Remove</button>
-      </form>
-    </div>`;
+  // The four figures somebody actually reconciles against a statement. Revenue
+  // is money arriving and everything else is money leaving, which is the same
+  // rule the import uses to read a bank file.
+  let moneyIn = 0;
+  let moneyOut = 0;
+  let hstCollected = 0;
+  let hstPaid = 0;
+  for (const t of txns) {
+    const inflow = ACCOUNT_BY_ID.get(t.account_id)?.kind === 'revenue';
+    if (inflow) { moneyIn += t.amount_cents; hstCollected += t.hst_cents; }
+    else { moneyOut += t.amount_cents; hstPaid += t.hst_cents; }
+  }
+
+  // Newest first, grouped by the month the transaction fell in, because
+  // checking a ledger is something people do one statement at a time.
+  const months = new Map<string, TxnRow[]>();
+  for (const t of [...txns].sort((a, b) => (a.txn_date < b.txn_date ? 1 : -1))) {
+    const key = t.txn_date.slice(0, 7);
+    const bucket = months.get(key);
+    if (bucket) bucket.push(t); else months.set(key, [t]);
+  }
+
+  const monthName = (key: string): string => {
+    const [y, m] = key.split('-').map(Number) as [number, number];
+    return `${MONTHS[m - 1]} ${y}`;
+  };
+
+  const ledger = [...months.entries()].map(([key, rows]) => {
+    const net = rows.reduce((sum, t) => {
+      const inflow = ACCOUNT_BY_ID.get(t.account_id)?.kind === 'revenue';
+      return sum + (inflow ? t.amount_cents : -t.amount_cents);
+    }, 0);
+
+    return `<div class="brow-month">
+      <span>${esc(monthName(key))}</span>
+      <span>${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span>
+      <span class="brow-net ${net < 0 ? 'down' : 'up'}">${net < 0 ? '' : '+'}${dollars(net)}</span>
+    </div>
+    ${rows.map((t) => {
+      const a = ACCOUNT_BY_ID.get(t.account_id);
+      const inflow = a?.kind === 'revenue';
+      return `<div class="brow">
+        <span class="brow-d">${esc(t.txn_date.slice(8))} ${esc(MONTHS[Number(t.txn_date.slice(5, 7)) - 1]!.slice(0, 3))}</span>
+        <span class="brow-a">${esc(a?.name ?? t.account_id)}${
+          t.description ? `<span class="brow-desc">${esc(t.description)}</span>` : ''}</span>
+        <span class="brow-c">${esc(ACCOUNT_BY_ID.get(t.counter_account_id)?.name ?? t.counter_account_id)}</span>
+        <span class="brow-n${inflow ? ' in' : ''}">${inflow ? '+' : ''}${dollars(t.amount_cents)}</span>
+        <span class="brow-n hst">${t.hst_cents ? dollars(t.hst_cents) : '&middot;'}</span>
+        <form method="post" action="/books/delete">
+          <input type="hidden" name="company" value="${esc(companyId)}">
+          <input type="hidden" name="id" value="${esc(t.id)}">
+          <button class="brow-x" type="submit" aria-label="Remove this entry"
+            title="Remove">&times;</button>
+        </form>
+      </div>`;
+    }).join('')}`;
   }).join('');
 
   return shell(`${companyName} books`, `
 <span class="label">${esc(companyName)} &middot; ledger</span>
 <h1>The books.</h1>
-<p class="hint">Type a row, or <a href="/books/import">import a bank export</a> and correct what it guessed.</p>
-<p class="hint">Every line carries the HST that was actually on the document, not a
-computed 13%. A supplier outside Canada charges none, and claiming tax that was never
-charged is claiming a credit that does not exist.
-<a href="/hst">See the HST return</a> this produces.</p>
+<p class="hint">Type a row below, or <a href="/books/import">import a bank export</a>
+and correct what it guessed.</p>
+
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+${txns.length ? `<div class="stats">
+  <div class="stat"><b>${dollars(moneyIn)}</b><span>money in</span></div>
+  <div class="stat"><b>${dollars(moneyOut)}</b><span>money out</span></div>
+  <div class="stat"><b>${dollars(hstCollected)}</b><span>HST collected</span></div>
+  <div class="stat"><b>${dollars(hstPaid)}</b><span>HST paid</span></div>
+</div>` : ''}
 
 <form method="post" action="/books" class="txn-form">
   <input type="hidden" name="company" value="${esc(companyId)}">
@@ -773,23 +903,39 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
       <input id="date" name="date" type="date" required value="${esc(today)}"></div>
     <div class="field"><label for="account">Account</label>
       <select id="account" name="account" required>${options}</select></div>
-    <div class="field"><label for="amount">Amount, before HST</label>
-      <input id="amount" name="amount" type="text" inputmode="decimal" required placeholder="1000.00"></div>
-    <div class="field"><label for="hst">HST on the document</label>
-      <input id="hst" name="hst" type="text" inputmode="decimal" placeholder="130.00"></div>
-    <div class="field"><label for="counter">Money from or to</label>
+    <div class="field"><label for="amount">Amount</label>
+      <input id="amount" name="amount" type="text" inputmode="decimal" required placeholder="1000.00 before HST"></div>
+    <div class="field"><label for="hst">HST</label>
+      <input id="hst" name="hst" type="text" inputmode="decimal" placeholder="130.00 as charged"></div>
+    <div class="field"><label for="counter">From or to</label>
       <select id="counter" name="counter" required>${counterOptions}</select></div>
     <div class="field"><label for="description">Description</label>
       <input id="description" name="description" type="text" placeholder="Invoice 014"></div>
-    <div class="field"><label>&nbsp;</label>
-      <button class="btn primary" type="submit">Add</button></div>
+    <div class="field"><button class="btn primary" type="submit">Add</button></div>
   </div>
 </form>
 
-<div class="sheet">
-  <div class="sheet-head"><span>Ledger</span><span>${txns.length} entries</span></div>
-  ${rows || '<div class="frow"><span class="t">Nothing recorded yet.</span></div>'}
-</div>`, email, '/books', chrome);
+<details class="why-books">
+  <summary>Why the HST is typed rather than worked out</summary>
+  <p>Every line carries the HST that was actually on the document, not a computed
+  13%. A supplier outside Canada charges none, a supplier's rounding is theirs,
+  and claiming tax that was never charged is claiming a credit that does not
+  exist. <a href="/hst">See the HST return</a> these rows produce.</p>
+</details>
+
+${txns.length ? `<div class="sheet">
+  <div class="brow head">
+    <span>Date</span><span>Account</span><span>From or to</span>
+    <span class="brow-n">Amount</span><span class="brow-n">HST</span><span></span>
+  </div>
+  ${ledger}
+</div>` : `<div class="sheet empty-books">
+  <p><b>Nothing recorded yet.</b></p>
+  <p>The quickest start is a bank export: download a CSV from your bank, and
+  FileClear will read the columns, work out the HST, and guess the accounts for
+  you to correct.</p>
+  <p><a class="btn primary" href="/books/import">Import a bank export</a></p>
+</div>`}`, email, '/books', chrome);
 }
 
 // ---------------------------------------------------------------- hst return

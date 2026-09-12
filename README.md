@@ -236,6 +236,27 @@ happens after the button. What somebody weighs before typing a password into a
 tax product is how much work they are agreeing to, so the answer is on the page,
 and it is deliberately smaller than what the product actually delivers.
 
+## The ledger
+
+The one screen somebody touches weekly rather than a few times a year, which is
+why it was worth rebuilding. Measured before: every row was 125 pixels tall,
+because five things were being laid out in a four column grid and the remove
+button wrapped onto a line of its own. Twelve transactions filled two and a half
+screens. There were no column headings, no totals to check against a statement,
+no grouping, and fifty five words of explanation above the fold that a weekly
+visitor reads once and then scrolls past forever.
+
+Now a row is a row, at 62 pixels. Months are grouped the way the filing calendar
+groups them, each with its own net, so checking a ledger can be done one
+statement at a time. The four figures somebody reconciles against a bank
+statement, money in, money out, HST collected and HST paid, are at the top. The
+explanation folds away for whoever still wants it. Same twelve rows now take 1.8
+screens instead of 2.5.
+
+The empty state offers the fastest way in rather than saying "nothing recorded
+yet" and leaving it there, because the quickest first ledger is a bank export
+rather than a typed row.
+
 ## Where a model is allowed to help
 
 One line, drawn in `src/llm.ts` rather than left to judgement at each call

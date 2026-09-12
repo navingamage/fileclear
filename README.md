@@ -210,6 +210,31 @@ turns the protection into the attack. Counting both means the attacker meets the
 address limit first, and the account limit stays loose enough that a real person
 fumbling never reaches it. A successful sign in forgets the count.
 
+## Where a model is allowed to help
+
+One line, drawn in `src/llm.ts` rather than left to judgement at each call
+site: a model may **classify, draft or explain**. It may never compute. The
+product's claim is that its numbers are right, and a model confidently wrong
+about a tax rule is worse than no feature.
+
+Two uses. It labels bank rows that neither a remembered correction nor a
+keyword could identify, and it turns figures the engine has already worked out
+into a paragraph. Both sit behind something that catches a wrong answer: a
+suggestion appears in the import preview marked as a suggestion, in front of
+somebody who is already checking, and an explanation is discarded outright if it
+contains a dollar figure that was not in the input. That second guard is what
+makes the feature safe to ship: a number the model produced rather than repeated
+is arithmetic, which is the one thing it is not allowed to do.
+
+Everything fails soft. No key, a timeout, a refusal, a malformed answer: all
+degrade to exactly what the product did before, and none fail a request. A
+bookkeeping page that will not load because an inference provider is having an
+afternoon is not a trade worth making.
+
+Measured rather than estimated: a classification call is about 70 tokens in and
+7 out on Gemini Flash Lite, which is $0.00001. A customer importing monthly for
+a year costs a hundredth of a cent.
+
 ## Staying current
 
 Every rate in this product is a constant compiled into the Worker, which is a

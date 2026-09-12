@@ -90,6 +90,17 @@ FC_PUBLIC_ORIGIN = "https://fileclear.ca"
 FC_MAIL_FROM = "FileClear <reminders@fileclear.ca>"
 FC_MAIL_REPLY_TO = "FileClear <hello@fileclear.ca>"
 
+# The model, overridable so a cheaper or better one can be swapped in without a
+# deploy. It classifies bank rows nothing else could identify and turns figures
+# the engine already computed into a paragraph. It never computes anything: see
+# the line drawn at the top of src/llm.ts, and the guard that discards any
+# explanation carrying a number it was not given.
+#
+# Measured rather than guessed: a classification call is about 70 tokens in and
+# 7 out, which is $0.00001. A customer importing monthly for a year costs a
+# hundredth of a cent.
+FC_LLM_MODEL = "google/gemini-2.5-flash-lite"
+
 # Where the rate watch reports. Internal, never shown to a customer.
 #
 # Every rate in this product is a constant compiled into the Worker, which is a

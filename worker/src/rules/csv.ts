@@ -267,7 +267,7 @@ export interface ImportRow {
   /** The account this will post to, guessed or chosen. */
   accountId: string;
   /** Why that account was chosen, so a guess can be recognised as one. */
-  reason: 'remembered' | 'keyword' | 'direction';
+  reason: 'remembered' | 'keyword' | 'direction' | 'suggested';
   /** Cents of HST backed out of the gross, when the account normally carries it. */
   hst: number;
   /** Amount before HST, which is what the ledger stores. */
@@ -461,6 +461,43 @@ export function buildPreview(
     moneyIn: out.filter((r) => r.signed > 0).reduce((t, r) => t + r.signed, 0),
     moneyOut: out.filter((r) => r.signed < 0).reduce((t, r) => t - r.signed, 0),
   };
+}
+
+/**
+ * Applies model suggestions to the rows nothing else could identify.
+ *
+ * Only rows that fell all the way through to the direction fallback are
+ * touched, so a remembered correction and a keyword match both outrank the
+ * model, and a suggestion is marked as one so the preview can show it for what
+ * it is.
+ */
+export function applySuggestions(
+  rows: ImportRow[], suggestions: { index: number; accountId: string }[],
+): ImportRow[] {
+  const byIndex = new Map(suggestions.map((s) => [s.index, s.accountId]));
+  return rows.map((row, i) => {
+    const suggested = byIndex.get(i);
+    if (!suggested || row.reason !== 'direction') return row;
+    const account = ACCOUNT_BY_ID.get(suggested);
+    if (!account) return row;
+
+    // The HST split follows the account, so it is recomputed rather than kept.
+    const gross = Math.abs(row.signed);
+    const carries = account.hst === 'standard';
+    const amount = carries ? Math.round(gross / (1 + HST_RATE)) : gross;
+    return { ...row, accountId: suggested, reason: 'suggested' as const,
+      amount, hst: carries ? gross - amount : 0 };
+  });
+}
+
+/** The rows worth asking a model about: the ones nothing else identified. */
+export function unidentified(rows: ImportRow[]): {
+  index: number; description: string; outflow: boolean;
+}[] {
+  return rows
+    .map((r, index) => ({ index, description: r.description, outflow: r.signed < 0, r }))
+    .filter((x) => x.r.reason === 'direction' && x.description.trim() !== '')
+    .map(({ index, description, outflow }) => ({ index, description, outflow }));
 }
 
 /** The accounts offered on the preview, grouped so the list is navigable. */

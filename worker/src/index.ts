@@ -19,6 +19,7 @@ import { computeHst } from './rules/hst';
 import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
 import { watchSources } from './watch';
 import { staleness } from './rules/sources';
+import { suggestAccounts, explain } from './llm';
 import {
   entitled, checkoutUrl, portalUrl, verifyWebhook, subscriptionFromEvent,
   fetchSubscription, type StripeEnv,
@@ -26,7 +27,9 @@ import {
 import { send, welcomeMail, resetMail } from './email';
 import { ACCOUNT_BY_ID, HST_RATE } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
-import { parseCsv, buildPreview, type ImportRow } from './rules/csv';
+import {
+  parseCsv, buildPreview, unidentified, applySuggestions, type ImportRow,
+} from './rules/csv';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
   compensationPage, slipsPage, billingPage, forgotPage, resetPage,
@@ -79,6 +82,18 @@ const num = (v: FormValue, fallback = 0): number => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 const on = (v: FormValue): boolean => v === 'on' || v === 'true';
+
+/**
+ * Cents as a figure the explanation guard can match against.
+ *
+ * Written the same way on both sides, so a model repeating a number it was
+ * handed is recognised as repeating it rather than as inventing one.
+ */
+function factFigure(cents: number): string {
+  const sign = cents < 0 ? '-' : '';
+  const abs = Math.abs(cents);
+  return `${sign}$${Math.floor(abs / 100).toLocaleString('en-CA')}.${String(abs % 100).padStart(2, '0')}`;
+}
 
 /** Dollars typed by a person into cents, or null if it is not a number. */
 function money(v: FormValue): number | null {
@@ -609,6 +624,18 @@ export default {
             'Nothing in that file could be read as a transaction.', chrome), 400);
         }
 
+        // Only the rows nothing else could identify. A remembered correction
+        // and a keyword both outrank a model, and asking about rows that are
+        // already answered would be paying for an opinion nobody needs.
+        const unknowns = unidentified(preview.rows);
+        if (unknowns.length) {
+          const { suggestions, reason } = await suggestAccounts(env, unknowns);
+          if (reason) console.log(`import suggestions unavailable: ${reason}`);
+          if (suggestions.length) {
+            preview.rows = applySuggestions(preview.rows, suggestions);
+          }
+        }
+
         // The rows travel through the confirm step in the form rather than in a
         // session, so an abandoned import leaves nothing behind to clean up.
         const payload = JSON.stringify(preview.rows);
@@ -735,10 +762,33 @@ export default {
       const s1 = schedule1(statements, ledger, active, s8);
       const tax = computeTax(company.profile, active, s1, ledger);
 
+      // Prose beside the figures, never instead of them. Everything here was
+      // computed before the model saw it, and llm.ts discards any answer
+      // carrying a number that is not in this string.
+      const facts = [
+        `Fiscal year: ${active.from} to ${active.to}.`,
+        `Net income per the books: ${factFigure(s1.netIncomePerBooks)}.`,
+        `Net income for tax purposes: ${factFigure(s1.netIncomeForTax)}.`,
+        `Taxable income: ${factFigure(tax.taxableIncome)}.`,
+        `Income at the small business rate: ${factFigure(tax.sbdIncome)}.`,
+        `Income at the general rate: ${factFigure(tax.generalIncome)}.`,
+        `Federal tax: ${factFigure(tax.federalTax)}.`,
+        `${tax.provinceName || 'Provincial'} tax: ${factFigure(tax.provincialTax)}.`,
+        `Total tax payable: ${factFigure(tax.totalTax)}.`,
+        `Capital cost allowance claimed: ${factFigure(s8.totalCca)}.`,
+      ].join(' ');
+
+      const plain = tax.taxableIncome > 0
+        ? await explain(env,
+          'Explain in plain words what this corporation owes for the year and where '
+          + 'that figure came from.', facts)
+        : { text: null as string | null, reason: undefined as string | undefined };
+      if (plain.reason) console.log(`year end explanation unavailable: ${plain.reason}`);
+
       return html(yearEndPage(
         account.email, company.profile.legalName, years, active,
         statements, s8, s1, tax, assets, today(), problem ?? undefined,
-        chrome,
+        chrome, plain.text ?? undefined,
       ), problem ? 400 : 200);
     }
 

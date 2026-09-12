@@ -189,6 +189,16 @@ const CHROME = `<style>
   .also { margin-top: 3rem; padding-top: 1.8rem; border-top: 1px solid var(--line); }
   .also h2 { font-size: 1.2rem; margin-bottom: .5rem; }
 
+  /* Prose beside the figures. Deliberately quieter than the sheets it sits
+     above, because the numbers are the product and this is a reading aid. */
+  .plain { border: 1px solid var(--line); border-left: 3px solid var(--muted);
+    background: var(--band); border-radius: 0 12px 12px 0;
+    padding: 1rem 1.2rem; margin: 1rem 0 1.6rem; }
+  .plain-tag { font-family: var(--font-mono); font-size: .68rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); display: block; margin-bottom: .5rem; }
+  .plain p { margin: 0; font-size: .99rem; line-height: 1.6; color: var(--ink-2); }
+  .plain .plain-note { margin-top: .7rem; font-size: .85rem; color: var(--muted); }
+
   .periods { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
   /* Separates the stages of a long worksheet, so the page reads as steps
      rather than as one wall of figures. */
@@ -758,6 +768,7 @@ export function yearEndPage(
   years: FiscalYear[], active: FiscalYear,
   s: GifiStatements, s8: Schedule8, s1: Schedule1, tax: TaxComputation,
   assets: AssetRecord[], today: string, error?: string, chrome: Chrome = {},
+  plain?: string,
 ): string {
   const rows = (lines: StatementLine[]) => lines.map((l) =>
     `<div class="frow"><span class="d">${l.gifi}</span><span class="t">${esc(l.name)}</span>
@@ -886,6 +897,14 @@ ${s8.notes.map((n) => `<div class="advisory info">${esc(n)}</div>`).join('')}
 </div>
 
 <h2 class="sec">The tax</h2>
+
+${plain ? `<div class="plain">
+  <span class="plain-tag">In plain words</span>
+  <p>${esc(plain)}</p>
+  <p class="plain-note">Written from the figures below, which were worked out by
+  FileClear rather than by the words. If the two ever disagree, the figures are
+  the ones that count.</p>
+</div>` : ''}
 <div class="sheet">
   <div class="sheet-head"><span>Part I and Ontario</span><span>T2 page 8</span></div>
   <div class="frow"><span class="d">360</span><span class="t">Taxable income</span>
@@ -1399,7 +1418,8 @@ ${preview.problems.length ? `<div class="advisory info">
         <span class="sub">${dollars(Math.abs(r.signed))} ${r.signed < 0 ? 'out' : 'in'}${
           r.hst ? ` &middot; ${dollars(r.amount)} plus ${dollars(r.hst)} HST` : ''}${
           r.reason === 'direction' ? ' &middot; guessed from the direction only' : ''}${
-          r.reason === 'remembered' ? ' &middot; remembered' : ''}</span></span>
+          r.reason === 'remembered' ? ' &middot; remembered' : ''}${
+          r.reason === 'suggested' ? ' &middot; suggested, worth a look' : ''}</span></span>
       <span class="f">
         <select name="account-${i}" aria-label="Account">${options(r.accountId)}</select>
       </span>

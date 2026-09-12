@@ -33,7 +33,8 @@ import {
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
   compensationPage, slipsPage, billingPage, forgotPage, resetPage,
-  importPage, importPreviewPage, shell, html,
+  importPage, importPreviewPage, onboardingStepPage, ONBOARDING_STEPS,
+  shell, html,
   type HstPeriodOption, type Chrome,
 } from './views';
 import { fiscalYears, statementsFor, shareholderLoans } from './rules/yearend';
@@ -121,6 +122,61 @@ function hstPeriods(fye: { month: number; day: number }, todayIso: string): HstP
     });
   }
   return out;
+}
+
+/**
+ * Folds one step's answers into what is already known.
+ *
+ * Merging rather than rebuilding is the whole reason the set-up can be split
+ * up. A step posts three fields; rebuilding from a blank profile would quietly
+ * reset the other thirty, so the second screen would undo the first.
+ */
+function mergeStep(
+  existing: CompanyProfile, step: number, form: FormData,
+): { profile: CompanyProfile; error?: string } {
+  const p: CompanyProfile = { ...existing };
+
+  if (step === 1) {
+    p.legalName = String(form.get('legalName') ?? '').trim();
+    p.jurisdiction = String(form.get('jurisdiction') ?? 'ON') as Jurisdiction;
+    p.incorporationDate = String(form.get('incorporationDate') ?? '').trim();
+    p.fiscalYearEnd = {
+      month: Math.min(12, Math.max(1, num(form.get('fyeMonth'), 12))),
+      day: Math.min(31, Math.max(1, num(form.get('fyeDay'), 31))),
+    };
+    if (!p.legalName) return { profile: p, error: 'The corporation needs a legal name.' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.incorporationDate)) {
+      return { profile: p, error: 'Enter the date of incorporation, as it appears on the certificate.' };
+    }
+    if (p.incorporationDate > today()) {
+      return { profile: p, error: 'That date of incorporation is in the future.' };
+    }
+    // Nothing has been asked yet about where it operates, so it starts where it
+    // was incorporated and step three offers the chance to widen it.
+    if (!p.permanentEstablishments.length) {
+      p.permanentEstablishments = [p.jurisdiction === 'CBCA' ? 'ON' : p.jurisdiction];
+    }
+  }
+
+  if (step === 2) {
+    p.hst = {
+      ...p.hst,
+      registered: on(form.get('hstRegistered')),
+      period: String(form.get('hstPeriod') ?? 'annual') as CompanyProfile['hst']['period'],
+      method: String(form.get('hstMethod') ?? 'regular') as CompanyProfile['hst']['method'],
+    };
+  }
+
+  if (step === 3) {
+    p.payroll = { ...p.payroll, hasAccount: on(form.get('payrollAccount')) };
+    p.paysDividends = on(form.get('paysDividends'));
+    const chosen = form.getAll('pe').map((v) => String(v) as Jurisdiction);
+    p.permanentEstablishments = chosen.length
+      ? chosen
+      : [p.jurisdiction === 'CBCA' ? 'ON' : p.jurisdiction];
+  }
+
+  return { profile: p };
 }
 
 function profileFromForm(form: FormData): { profile: CompanyProfile; error?: string } {
@@ -456,26 +512,64 @@ export default {
     }
 
     if (path === '/onboarding' && account) {
-      // ?new=1 adds a corporation rather than editing the current one. A second
-      // company is a thing that happens to people, and it should not mean a
-      // second account.
       const adding = url.searchParams.get('new') === '1';
       const existing = adding ? null : company;
 
+      // The step parameter is what says a set-up is in progress, not whether a
+      // corporation exists. It exists from step one onward, because each step
+      // saves, so keying off it would drop somebody into the full edit form the
+      // moment they answered the first four questions.
+      const setup = url.searchParams.has('step') || !existing;
+      const step = Math.min(ONBOARDING_STEPS.length,
+        Math.max(1, Number(url.searchParams.get('step') ?? 1) || 1));
+      const welcomed = url.searchParams.get('welcome') === '1';
+
       if (request.method === 'GET') {
-        return html(onboardingPage(account.email, existing?.profile ?? blankProfile(),
-          undefined, url.searchParams.get('welcome') === '1', adding, chrome));
+        if (setup && !url.searchParams.has('step')) {
+          const qs = new URLSearchParams({ step: '1' });
+          if (adding) qs.set('new', '1');
+          if (welcomed) qs.set('welcome', '1');
+          return redirect(`/onboarding?${qs}`);
+        }
+        if (setup) {
+          // Answers from earlier steps are already saved, so a half finished
+          // set-up survives a closed tab.
+          const partial = adding ? null : await activeCompanyFor(env.DB, account.id);
+          return html(onboardingStepPage(account.email, step,
+            partial?.profile ?? blankProfile(), undefined, welcomed, chrome));
+        }
+        return html(onboardingPage(account.email, existing.profile,
+          undefined, welcomed, adding, chrome));
       }
-      const { profile, error } = profileFromForm(await request.formData());
+
+      const form = await request.formData();
+
+      if (setup) {
+        const base = adding ? blankProfile()
+          : (await activeCompanyFor(env.DB, account.id))?.profile ?? blankProfile();
+        const { profile, error } = mergeStep(base, step, form);
+        if (error) {
+          return html(onboardingStepPage(account.email, step, profile, error,
+            false, chrome), 400);
+        }
+
+        // Saved at every step, so the calendar exists from the first one and a
+        // person who stops after it still has something.
+        const current = adding ? null : await activeCompanyFor(env.DB, account.id);
+        const id = current?.id ?? randomId(16);
+        await saveCompany(env.DB, id, account.id, profile);
+        if (!current) await setActiveCompany(env.DB, account.id, id);
+
+        return step < ONBOARDING_STEPS.length
+          ? redirect(`/onboarding?step=${step + 1}`)
+          : redirect('/dashboard');
+      }
+
+      const { profile, error } = profileFromForm(form);
       if (error) {
         return html(onboardingPage(account.email, profile, error, false, adding, chrome), 400);
       }
-
-      const id = existing?.id ?? randomId(16);
-      await saveCompany(env.DB, id, account.id, profile);
-      // A newly added corporation becomes the one being looked at, since that
-      // is why it was just typed in.
-      if (!existing) await setActiveCompany(env.DB, account.id, id);
+      await saveCompany(env.DB, existing.id, account.id, profile);
       return redirect('/dashboard');
     }
 

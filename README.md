@@ -210,6 +210,32 @@ turns the protection into the attack. Counting both means the attacker meets the
 address limit first, and the account limit stays loose enough that a real person
 fumbling never reaches it. A successful sign in forgets the count.
 
+## Being used for the first time
+
+Set-up used to be thirty three fields in six groups on one page, three and a
+half screens long, headed "Step 1 of 1", behind a navigation bar with eight
+links that all went to empty screens. Everything the product knew how to ask was
+asked before it had shown anybody anything, which is the wrong way round: a
+person who has just signed up has no evidence yet that any of the typing is
+worth it.
+
+The questions are now ordered by what they buy. Four answers produce a calendar,
+and each step saves, so the calendar exists from the first one and a half
+finished set-up survives a closed tab. The fields that only matter at year end
+are defaulted and left for the company page, where somebody who already trusts
+the product can find them.
+
+The navigation is hidden while that runs, because until a corporation exists
+every link in it leads somewhere with nothing on it. Eight dead links is a worse
+first impression than none, and it invites wandering off part way through the
+one task that makes the rest work.
+
+Signing in and signing up are two columns rather than a form adrift in a wide
+empty page: the form on the left, and on the right three lines saying what
+happens after the button. What somebody weighs before typing a password into a
+tax product is how much work they are agreeing to, so the answer is on the page,
+and it is deliberately smaller than what the product actually delivers.
+
 ## Where a model is allowed to help
 
 One line, drawn in `src/llm.ts` rather than left to judgement at each call

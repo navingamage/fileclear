@@ -24,6 +24,15 @@ export interface Chrome {
   /** Every corporation on the account, for the switcher. */
   companies?: CompanySummary[];
   activeCompanyId?: string;
+  /**
+   * Hides the section navigation.
+   *
+   * Set during set-up, because until a corporation exists every link in it goes
+   * to a screen with nothing on it. Eight dead links is a worse first impression
+   * than none, and it invites somebody to wander off mid-way through the one
+   * task that makes the rest work.
+   */
+  hideNav?: boolean;
 }
 import type { T4, T5, SlipBox } from './rules/slips';
 import type {
@@ -199,6 +208,53 @@ const CHROME = `<style>
   .plain p { margin: 0; font-size: .99rem; line-height: 1.6; color: var(--ink-2); }
   .plain .plain-note { margin-top: .7rem; font-size: .85rem; color: var(--muted); }
 
+  /* Signing in and signing up. Form on the left, what happens next on the
+     right, rather than a form adrift in a wide empty page. */
+  .auth-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .85fr);
+    gap: clamp(2rem, 6vw, 5rem); align-items: start; max-width: 1000px;
+    margin: clamp(1rem, 4vw, 3rem) auto 0; }
+  @media (max-width: 860px) { .auth-grid { grid-template-columns: 1fr; gap: 2.4rem; } }
+  .auth-form { max-width: 27rem; }
+  .auth-form h1 { font-size: clamp(1.9rem, 3.4vw, 2.5rem); }
+  .btn.wide { width: 100%; margin-top: .4rem; }
+  .auth-alt { margin-top: 1.5rem; font-size: .93rem; color: var(--muted); }
+
+  .auth-aside { border: 1px solid var(--line); background: var(--band);
+    border-radius: 16px; padding: 1.6rem 1.5rem; }
+  .aside-tag { font-family: var(--font-mono); font-size: .68rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--brand); display: block; margin-bottom: 1rem; }
+  .aside-steps { margin: 0; padding-left: 1.1rem; }
+  .aside-steps li { margin-bottom: .9rem; font-size: .94rem; line-height: 1.55;
+    color: var(--ink-2); }
+  .aside-steps li:last-child { margin-bottom: 0; }
+  .aside-steps b { color: var(--ink); font-weight: 600; }
+  .aside-note { margin: 1.1rem 0 0; padding-top: 1rem; border-top: 1px solid var(--line);
+    font-size: .89rem; color: var(--muted); line-height: 1.55; }
+
+  /* Set-up progress. Three states, and the done one is a tick rather than a
+     number, so glancing at it answers "how much is left" without counting. */
+  .steps { display: flex; gap: .5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: .5rem; padding: .45rem .85rem .45rem .5rem;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+  .step-n { width: 1.5rem; height: 1.5rem; border-radius: 50%; flex: none;
+    display: grid; place-items: center; background: var(--sunk); color: var(--muted);
+    font-family: var(--font-mono); font-size: .78rem; }
+  .step-t { font-size: .88rem; color: var(--muted); white-space: nowrap; }
+  .step.now { border-color: var(--ink); }
+  .step.now .step-n { background: var(--ink); color: var(--primary-ink); }
+  .step.now .step-t { color: var(--ink); font-weight: 600; }
+  .step.done .step-n { background: var(--brand); color: var(--brand-ink); }
+  .step.done .step-t { color: var(--ink-2); }
+  @media (max-width: 620px) { .step-t { display: none; } }
+
+  .step-actions { display: flex; align-items: center; gap: .7rem; margin-top: 1.8rem;
+    flex-wrap: wrap; }
+  .step-skip { font-size: .9rem; color: var(--muted); margin-left: auto; }
+  .step-foot { margin-top: 1.6rem; padding-top: 1.2rem; border-top: 1px solid var(--line);
+    font-size: .9rem; color: var(--muted); }
+  .pe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .2rem 1rem; }
+  @media (max-width: 700px) { .pe-grid { grid-template-columns: repeat(2, 1fr); } }
+
   .periods { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
   /* Separates the stages of a long worksheet, so the page reads as steps
      rather than as one wall of figures. */
@@ -256,17 +312,17 @@ ${CHROME}
 export function shell(
   title: string, body: string, email?: string, active = '', chrome: Chrome = {},
 ): string {
-  const { rates, companies, activeCompanyId } = chrome;
+  const { rates, companies, activeCompanyId, hideNav } = chrome;
   const link = (href: string, label: string) =>
     `<a href="${href}"${active === href ? ' class="on"' : ''}>${label}</a>`;
   return `${HEAD(title)}
 <header class="app"><div class="wrap app-in">
   <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="30" height="30">FileClear</a>
-  ${email ? `<nav class="app-nav" aria-label="Sections">
+  ${email && !hideNav ? `<nav class="app-nav" aria-label="Sections">
     ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
     ${link('/year-end', 'Year end')}${link('/compensation', 'Pay')}${link('/slips', 'Slips')}
     ${link('/onboarding', 'Company')}${link('/billing', 'Billing')}</nav>` : ''}
-  ${companies && companies.length > 1 ? `<form method="post" action="/companies" class="switcher">
+  ${!hideNav && companies && companies.length > 1 ? `<form method="post" action="/companies" class="switcher">
     <input type="hidden" name="back" value="${esc(active)}">
     <select name="id" onchange="this.form.submit()" aria-label="Corporation">
       ${companies.map((c) => `<option value="${esc(c.id)}"${
@@ -296,35 +352,75 @@ export function html(body: string, status = 200, extra: HeadersInit = {}): Respo
 
 // --------------------------------------------------------------------- auth
 
+/**
+ * Signing up and signing in.
+ *
+ * Two columns rather than a form adrift in a wide empty page. The left side is
+ * the form and nothing else; the right says what happens after the button, in
+ * three lines, because the thing somebody weighs before typing a password into
+ * a tax product is how much work they are agreeing to.
+ *
+ * The claim on the right is deliberately small and checkable: four questions,
+ * a calendar, free until you file. Promising less than the product delivers is
+ * a better trade here than the reverse.
+ */
 export function authPage(mode: 'in' | 'up', error?: string, email = ''): string {
   const up = mode === 'up';
+
+  const aside = up
+    ? `<span class="aside-tag">What happens next</span>
+       <ol class="aside-steps">
+         <li><b>Four questions</b> about how your corporation is set up. Where you
+           incorporated, when your year ends, and whether you are registered for HST.</li>
+         <li><b>Your calendar appears.</b> Every filing you owe, with the form, the
+           authority, and what it costs to be late.</li>
+         <li><b>Reminders arrive</b> in the morning, before a window closes rather
+           than after it.</li>
+       </ol>
+       <p class="aside-note">Free until you file from it. No card to begin.</p>`
+    : `<span class="aside-tag">Your calendar is where you left it</span>
+       <p class="aside-note">Nothing about what you owe is stored: it is worked out
+       from your corporation's own set-up each time you look, so a corrected rule
+       reaches you the next morning rather than the next time you sign up.</p>`;
+
   return shell(up ? 'Create an account' : 'Sign in', `
-<div class="narrow">
-  <span class="label">${up ? 'New account' : 'Sign in'}</span>
-  <h1>${up ? 'Set up your filing calendar' : 'Welcome back'}</h1>
-  <p class="hint">${up
-    ? 'One account can hold more than one corporation.'
-    : 'Enter the email you signed up with.'}</p>
-  ${error ? `<div class="err">${esc(error)}</div>` : ''}
-  <form method="post" action="${up ? '/signup' : '/signin'}">
-    <div class="field">
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" autocomplete="email" required value="${esc(email)}">
-    </div>
-    <div class="field">
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" required
-        autocomplete="${up ? 'new-password' : 'current-password'}"
-        ${up ? 'minlength="10"' : ''}>
-      ${up ? '<span class="sub">At least 10 characters. Length is the only rule.</span>' : ''}
-    </div>
-    <button class="btn primary" type="submit">${up ? 'Create account' : 'Sign in'}</button>
-  </form>
-  ${mode === "in" ? '<p class="hint" style="margin-top:1.1rem"><a href="/forgot">Forgotten your password?</a></p>' : ''}
-  <p class="hint" style="margin-top:1.6rem">
-    ${up ? 'Already have an account? <a href="/signin">Sign in</a>.'
-         : 'No account yet? <a href="/signup">Create one</a>.'}
-  </p>
+<div class="auth-grid">
+  <div class="auth-form">
+    <span class="label">${up ? 'New account' : 'Sign in'}</span>
+    <h1>${up ? 'Never miss a filing again.' : 'Welcome back.'}</h1>
+    <p class="hint">${up
+      ? 'One account holds every corporation you own.'
+      : 'Enter the email you signed up with.'}</p>
+
+    ${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+    <form method="post" action="${up ? '/signup' : '/signin'}">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required
+          value="${esc(email)}" placeholder="you@yourcompany.ca">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required
+          autocomplete="${up ? 'new-password' : 'current-password'}"
+          ${up ? 'minlength="10" placeholder="At least 10 characters"' : ''}>
+        ${up ? '<span class="sub">Ten characters or more. Length is the only rule, '
+             + 'so a short sentence beats a mangled word.</span>' : ''}
+      </div>
+      <button class="btn primary wide" type="submit">${
+        up ? 'Create account' : 'Sign in'}</button>
+    </form>
+
+    <p class="auth-alt">
+      ${up
+        ? 'Already have an account? <a href="/signin">Sign in</a>.'
+        : 'No account yet? <a href="/signup">Create one</a>. '
+          + 'Forgotten your password? <a href="/forgot">Reset it</a>.'}
+    </p>
+  </div>
+
+  <aside class="auth-aside">${aside}</aside>
 </div>`);
 }
 
@@ -1429,4 +1525,184 @@ ${preview.problems.length ? `<div class="advisory info">
   <a class="btn" href="/books/import">Start again</a>
 </form>
 `, email, '/books', chrome);
+}
+
+// ------------------------------------------------------------- onboarding
+
+/**
+ * Setting a corporation up, a few questions at a time.
+ *
+ * It used to be thirty three fields in six groups on one page, three and a half
+ * screens long, headed "Step 1 of 1". Everything the product knows how to ask
+ * was asked before it had shown anybody anything, which is the wrong way round:
+ * a person who has just signed up has no evidence yet that any of it is worth
+ * the typing.
+ *
+ * So the questions are ordered by what they buy. Four answers produce a
+ * calendar, and the calendar is visible before the next question is asked.
+ * Nothing here is skipped, it is sequenced, and the fields that only matter at
+ * year end are defaulted and left for the company page.
+ */
+export interface Step { n: number; title: string; blurb: string; }
+
+export const ONBOARDING_STEPS: Step[] = [
+  { n: 1, title: 'The corporation',
+    blurb: 'Where it was incorporated and when its year ends. These four answers '
+      + 'are enough to build your calendar.' },
+  { n: 2, title: 'HST',
+    blurb: 'Whether you are registered, and how often you file. This decides which '
+      + 'returns appear and when.' },
+  { n: 3, title: 'How you take money out',
+    blurb: 'Salary, dividends, or neither yet. Payroll adds a remittance every '
+      + 'month and a slip every February.' },
+];
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December'];
+
+const PROVINCE_NAMES: [string, string][] = [
+  ['ON', 'Ontario'], ['BC', 'British Columbia'], ['AB', 'Alberta'],
+  ['SK', 'Saskatchewan'], ['MB', 'Manitoba'], ['QC', 'Quebec'],
+  ['NB', 'New Brunswick'], ['NS', 'Nova Scotia'], ['PE', 'Prince Edward Island'],
+  ['NL', 'Newfoundland and Labrador'], ['YT', 'Yukon'],
+  ['NT', 'Northwest Territories'], ['NU', 'Nunavut'],
+];
+
+function progress(step: number): string {
+  return `<div class="steps">
+    ${ONBOARDING_STEPS.map((s) => `<div class="step${
+      s.n < step ? ' done' : s.n === step ? ' now' : ''}">
+      <span class="step-n">${s.n < step ? '&check;' : s.n}</span>
+      <span class="step-t">${esc(s.title)}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
+export function onboardingStepPage(
+  email: string, step: number, p: CompanyProfile, error?: string,
+  welcomed = false, chrome: Chrome = {},
+): string {
+  const here = ONBOARDING_STEPS.find((s) => s.n === step) ?? ONBOARDING_STEPS[0]!;
+  const sel = (v: boolean) => (v ? ' checked' : '');
+
+  const body = step === 1 ? `
+    <div class="field">
+      <label for="legalName">Legal name</label>
+      <input id="legalName" name="legalName" type="text" required autofocus
+        value="${esc(p.legalName)}" placeholder="Antipode Technologies Inc.">
+      <span class="sub">Exactly as it appears on your certificate of incorporation.</span>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="jurisdiction">Where incorporated</label>
+        <select id="jurisdiction" name="jurisdiction">
+          <option value="CBCA"${p.jurisdiction === 'CBCA' ? ' selected' : ''}>Federal (Canada)</option>
+          ${PROVINCE_NAMES.map(([c, n]) => `<option value="${c}"${
+            p.jurisdiction === c ? ' selected' : ''}>${n}</option>`).join('')}
+        </select>
+        <span class="sub">Federal corporations file an annual return 60 days after
+        their incorporation anniversary. Provincial ones file on the fiscal year.</span>
+      </div>
+      <div class="field">
+        <label for="incorporationDate">Date of incorporation</label>
+        <input id="incorporationDate" name="incorporationDate" type="date" required
+          value="${esc(p.incorporationDate)}">
+        <span class="sub">On the certificate. It sets your first tax year.</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="fyeMonth">Fiscal year end</label>
+      <div class="row2">
+        <select id="fyeMonth" name="fyeMonth">
+          ${MONTH_NAMES.map((m, i) => `<option value="${i + 1}"${
+            p.fiscalYearEnd.month === i + 1 ? ' selected' : ''}>${m}</option>`).join('')}
+        </select>
+        <input name="fyeDay" type="number" min="1" max="31" required
+          value="${p.fiscalYearEnd.day}" aria-label="Day of the month">
+      </div>
+      <span class="sub">Not necessarily 31 December. Whatever you chose when you
+      filed your first return is the one that counts.</span>
+    </div>`
+    : step === 2 ? `
+    <div class="check">
+      <input id="hstRegistered" name="hstRegistered" type="checkbox"${sel(p.hst.registered)}>
+      <label for="hstRegistered">The corporation has an HST number</label>
+    </div>
+    <p class="hint">Registration is required once taxable supplies pass $30,000 in
+    four consecutive quarters. Below that it is optional, and often still worth it
+    because it lets you claim the HST you pay.</p>
+    <div class="field">
+      <label for="hstPeriod">How often you file</label>
+      <select id="hstPeriod" name="hstPeriod">
+        <option value="annual"${p.hst.period === 'annual' ? ' selected' : ''}>Once a year</option>
+        <option value="quarterly"${p.hst.period === 'quarterly' ? ' selected' : ''}>Every quarter</option>
+        <option value="monthly"${p.hst.period === 'monthly' ? ' selected' : ''}>Every month</option>
+      </select>
+      <span class="sub">CRA assigns this from your taxable supplies. Annual up to
+      $1.5M, quarterly to $6M, monthly above that. It is on your registration letter.</span>
+    </div>
+    <div class="field">
+      <label for="hstMethod">How you work the return out</label>
+      <select id="hstMethod" name="hstMethod">
+        <option value="regular"${p.hst.method === 'regular' ? ' selected' : ''}>Regular, claiming what you paid</option>
+        <option value="quick"${p.hst.method === 'quick' ? ' selected' : ''}>Quick Method, a flat rate</option>
+      </select>
+      <span class="sub">Not sure? Leave it on regular. FileClear computes both ways
+      every time and shows you which would have cost less.</span>
+    </div>`
+    : `
+    <div class="check">
+      <input id="payrollAccount" name="payrollAccount" type="checkbox"${sel(p.payroll.hasAccount)}>
+      <label for="payrollAccount">Somebody is paid a salary, including you</label>
+    </div>
+    <p class="hint">A salary means an RP account with CRA, a remittance every month,
+    and a T4 each February. If you only take dividends, leave this unticked.</p>
+    <div class="check">
+      <input id="paysDividends" name="paysDividends" type="checkbox"${sel(p.paysDividends)}>
+      <label for="paysDividends">Dividends are paid to shareholders</label>
+    </div>
+    <p class="hint">Dividends produce a T5 by the last day of February. Nothing is
+    withheld during the year.</p>
+    <fieldset>
+      <legend>Where you have a permanent establishment</legend>
+      <p class="hint">An office, a warehouse, somewhere you actually operate from.
+      It decides which province taxes you, and usually it is just the one.</p>
+      <div class="pe-grid">
+        ${PROVINCE_NAMES.map(([c, n]) => `<div class="check">
+          <input id="pe-${c}" name="pe" type="checkbox" value="${c}"${
+            p.permanentEstablishments.includes(c as never) ? ' checked' : ''}>
+          <label for="pe-${c}">${n}</label></div>`).join('')}
+      </div>
+    </fieldset>`;
+
+  return shell(`Set up, step ${step}`, `
+<div class="narrow">
+  ${welcomed ? `<div class="ok"><b>Account created.</b> A confirmation is on its way to
+    ${esc(email)}. If it does not arrive, check the address is right before you rely
+    on reminders, because that is where they will go.</div>` : ''}
+
+  ${progress(step)}
+
+  <h1>${esc(here.title)}</h1>
+  <p class="hint">${esc(here.blurb)}</p>
+
+  ${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+  <form method="post" action="/onboarding?step=${step}">
+    ${body}
+    <div class="step-actions">
+      <button class="btn primary" type="submit">${
+        step === ONBOARDING_STEPS.length ? 'Build my calendar' : 'Continue'}</button>
+      ${step > 1
+        ? `<a class="btn" href="/onboarding?step=${step - 1}">Back</a>`
+        : ''}
+      ${step > 1
+        ? '<a class="step-skip" href="/dashboard">Finish later</a>'
+        : ''}
+    </div>
+  </form>
+
+  ${step === 1 ? '<p class="step-foot">Four answers and your calendar exists. '
+    + 'Everything else can wait, and none of it is needed to see what you owe.</p>' : ''}
+</div>`, email, '', { ...chrome, hideNav: true });
 }

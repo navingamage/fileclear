@@ -97,6 +97,20 @@ export const SCHEDULED_CHANGES: ScheduledChange[] = [
       + 'corporations/corporation-tax-rates.html',
     leadDays: 60,
   },
+  {
+    effective: '2026-12-15',
+    authority: 'CRA',
+    what: 'fileclear.ca DMARC is still at p=none, which reports forgery without '
+      + 'stopping it. That was right while nothing had sent yet. By now the '
+      + 'Cloudflare DMARC dashboard should show real reminder traffic: if every '
+      + 'source on it is ZeptoMail and every message passes, move to '
+      + 'p=quarantine, then to p=reject a month later. Tightening before the '
+      + 'reports show what actually sends is how a legitimate sender gets '
+      + 'silently filed as spam.',
+    where: 'the _dmarc.fileclear.ca TXT record, not the code',
+    url: 'https://developers.cloudflare.com/dmarc-management/',
+    leadDays: 14,
+  },
 ];
 
 // ---------------------------------------------------------- watched pages

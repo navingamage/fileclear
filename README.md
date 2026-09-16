@@ -257,6 +257,25 @@ The empty state offers the fastest way in rather than saying "nothing recorded
 yet" and leaving it there, because the quickest first ledger is a bank export
 rather than a typed row.
 
+## The mail, confirmed
+
+Confirmed end to end on 15 September 2026 rather than assumed: a message sent
+from `reminders@fileclear.ca` to `hello@fileclear.ca` arrived, and its headers
+carried `dkim=pass`, `spf=pass` and `dmarc=pass`. Both directions work and all
+three authentication checks agree with the From address.
+
+That is worth recording because the failure it rules out is the quiet one. Mail
+that sends without error and lands in a spam folder looks identical to mail that
+works, and a product whose value is a reminder arriving on the right morning
+cannot find that out from a customer months later.
+
+DMARC stays at `p=none` for now, which reports forgery without stopping it. That
+is the right setting while the domain has almost no history: tightening before
+the aggregate reports show what actually sends is how a legitimate sender gets
+silently filed as spam. The move to `p=quarantine` and then `p=reject` is in
+`SCHEDULED_CHANGES` for December, so the weekly watch raises it rather than
+relying on anybody remembering.
+
 ## Notices, and telling them apart
 
 The slips screen carried eleven advisory boxes, all styled the same. Eleven

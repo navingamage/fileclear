@@ -87,6 +87,12 @@ FC_PUBLIC_ORIGIN = "https://fileclear.ca"
 # reminders@ is a send-only name and nobody should write to it, so replies are
 # aimed at the mailbox instead. Both are Zoho aliases on one user rather than
 # separate accounts, which is how peaberry.ca carries hello@ and orders@.
+#
+# Confirmed end to end on 15 September 2026, by sending from reminders@ to
+# hello@ and reading the headers on what arrived: dkim=pass, spf=pass,
+# dmarc=pass. Both directions work. That is worth writing down because the
+# failure it rules out is the quiet one, where mail sends fine and lands in a
+# spam folder for months before anybody notices.
 FC_MAIL_FROM = "FileClear <reminders@fileclear.ca>"
 FC_MAIL_REPLY_TO = "FileClear <hello@fileclear.ca>"
 

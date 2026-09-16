@@ -107,11 +107,24 @@ function quarterEnds(fye: MonthDay, yearEndIso: string): string[] {
   return [9, 6, 3, 0].map((back) => addMonths(yearEndIso, -back));
 }
 
+/**
+ * One occurrence of an obligation.
+ *
+ * `coversUpTo` is the last day of the period the filing reports on, and it is
+ * what decides whether the filing exists at all. A corporation cannot owe a
+ * return for a period that ended before it was incorporated, and checking that
+ * by year number is not enough: a 31 July year end and an 11 August
+ * incorporation fall in the same calendar year, and a year-number check let
+ * that corporation be told it owed a T2 for a year ending eleven days before
+ * it existed.
+ */
+interface Occurrence { due: string; period: string; coversUpTo: string }
+
 function occurrencesFor(
   ob: Obligation,
   p: CompanyProfile,
   fiscalYear: number,
-): { due: string; period: string }[] {
+): Occurrence[] {
   const yearEnd = yearEndFor(p.fiscalYearEnd, fiscalYear);
 
   switch (ob.schedule.kind) {
@@ -119,14 +132,28 @@ function occurrencesFor(
       return [{
         due: addMonths(yearEnd, ob.schedule.months),
         period: `FY${fiscalYear}`,
+        coversUpTo: yearEnd,
       }];
 
     case 'afterIncorporationAnniversary': {
-      const [, im, id] = p.incorporationDate.split('-').map(Number) as [number, number, number];
+      const [iy, im, id] = p.incorporationDate.split('-').map(Number) as [number, number, number];
+
+      /**
+       * Nothing is due in the year of incorporation.
+       *
+       * Corporations Canada is explicit about this: "you do not file for the
+       * year the corporation was incorporated", and "if you file the annual
+       * return before the anniversary date, it will not be accepted". So the
+       * first return follows the first anniversary, and a calendar that asked
+       * for one earlier was asking for a filing the registry would refuse.
+       */
+      if (fiscalYear <= iy) return [];
+
       const anniversary = iso(fiscalYear, im, id);
       return [{
         due: addDays(anniversary, ob.schedule.days),
         period: `${fiscalYear}`,
+        coversUpTo: anniversary,
       }];
     }
 
@@ -134,12 +161,15 @@ function occurrencesFor(
       return [{
         due: iso(fiscalYear, ob.schedule.month, ob.schedule.day),
         period: `${fiscalYear - 1}`,
+        // A slip reports the calendar year before the one it is filed in.
+        coversUpTo: iso(fiscalYear - 1, 12, 31),
       }];
 
     case 'lastDayOf':
       return [{
         due: iso(fiscalYear, ob.schedule.month, daysInMonth(fiscalYear, ob.schedule.month)),
         period: `${fiscalYear - 1}`,
+        coversUpTo: iso(fiscalYear - 1, 12, 31),
       }];
 
     case 'monthlyAfter':
@@ -151,6 +181,7 @@ function occurrencesFor(
           due: iso(dueYear, dueMonth, ob.schedule.kind === 'monthlyAfter'
             ? ob.schedule.dayOfNextMonth : 15),
           period: `${fiscalYear}-${String(payMonth).padStart(2, '0')}`,
+          coversUpTo: iso(fiscalYear, payMonth, daysInMonth(fiscalYear, payMonth)),
         };
       });
 
@@ -159,6 +190,7 @@ function occurrencesFor(
       return quarterEnds(p.fiscalYearEnd, yearEnd).map((qEnd, i) => ({
         due: addMonths(qEnd, months),
         period: `FY${fiscalYear} Q${i + 1}`,
+        coversUpTo: qEnd,
       }));
     }
   }
@@ -183,12 +215,16 @@ export function filingsFor(
   return rules
     .filter((ob) => ob.applies(p))
     .flatMap((ob) => {
-      // A corporation owes nothing for a year it did not exist in, and is not
-      // required to pay tax instalments in its first tax year.
-      if (fiscalYear < incorporationYear) return [];
+      // A corporation is not required to pay tax instalments in its first year.
       if (ob.id === 't2-instalments' && fiscalYear === incorporationYear) return [];
 
-      return occurrencesFor(ob, p, fiscalYear).map((occ) => ({
+      return occurrencesFor(ob, p, fiscalYear)
+        // Nothing is owed for a period that closed before the corporation
+        // existed. This replaces a comparison of year numbers, which could not
+        // tell 2026-07-31 from 2026-08-11 and so produced a T2 for a year that
+        // ended before incorporation.
+        .filter((occ) => !p.incorporationDate || occ.coversUpTo >= p.incorporationDate)
+        .map((occ) => ({
         id: `${ob.id}|${occ.period}|${occ.due}`,
         obligationId: ob.id,
         title: ob.title,

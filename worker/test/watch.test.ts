@@ -130,12 +130,24 @@ describe('staleness, the check that cannot fail', () => {
 });
 
 describe('announced changes', () => {
-  it('every entry names the file that has to be edited', () => {
+  /**
+   * The point of `where` is that somebody reading the alert does not have to go
+   * looking. It asserted a src/ path, which assumed every change is a code
+   * edit; tightening DMARC is a DNS record, so the assertion has to be that it
+   * names somewhere specific rather than that it names a file.
+   */
+  it('every entry names somewhere specific to change', () => {
     for (const c of SCHEDULED_CHANGES) {
-      expect(c.where).toMatch(/src\//);
-      expect(c.url).toMatch(/^https:\/\//);
-      expect(c.leadDays).toBeGreaterThan(0);
+      expect(c.where, c.effective).toMatch(/src\/|record|DNS/i);
+      expect(c.where.length, c.effective).toBeGreaterThan(12);
+      expect(c.url, c.effective).toMatch(/^https:\/\//);
+      expect(c.leadDays, c.effective).toBeGreaterThan(0);
     }
+  });
+
+  it('points most of them at a file, since most are code', () => {
+    const inCode = SCHEDULED_CHANGES.filter((c) => /src\//.test(c.where));
+    expect(inCode.length).toBeGreaterThan(SCHEDULED_CHANGES.length / 2);
   });
 
   it('warns before the change rather than after', () => {

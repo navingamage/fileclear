@@ -257,6 +257,30 @@ The empty state offers the fastest way in rather than saying "nothing recorded
 yet" and leaving it there, because the quickest first ledger is a bank export
 rather than a typed row.
 
+## The year a corporation was incorporated in
+
+Two bugs lived here, reported from a real set-up: federally incorporated on
+11 August 2026, quarterly HST, a 31 July year end. Both came from treating the
+year of incorporation as a year in which obligations had already accrued.
+
+The federal annual return was being asked for 60 days after the incorporation
+date rather than 60 days after the first anniversary. Corporations Canada is
+explicit that "you do not file for the year the corporation was incorporated",
+and that a return filed before the anniversary date "will not be accepted", so
+the calendar was asking for a filing the registry would have refused.
+
+The subtler one: a 31 July year end and an 11 August incorporation fall in the
+same calendar year, so a guard comparing year numbers passed, and the engine
+produced a T2 and a tax balance for a year that ended eleven days before the
+corporation existed.
+
+The fix is that every occurrence now carries the last day of the period it
+reports on, and an occurrence whose period closed before incorporation does not
+exist. That replaces the year-number comparison, which could not tell 31 July
+from 11 August, and it covers the cases nobody had reached yet: a payroll
+remittance for a month before incorporation, a T4 for the calendar year before
+it. The HST quarters, which were already correct, are unchanged.
+
 ## The mail, confirmed
 
 Confirmed end to end on 15 September 2026 rather than assumed: a message sent

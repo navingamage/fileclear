@@ -74,11 +74,61 @@ describe('the year a corporation was incorporated in', () => {
     expect(dueDates('hst-quarterly')).not.toContain('2026-08-31');
   });
 
-  it('shows nothing at all in the first two months', () => {
-    // Between incorporating and the first quarter end there is genuinely
-    // nothing to do, and saying so is more useful than inventing something.
+  /**
+   * This assertion used to read "shows nothing at all", and it was wrong in the
+   * same direction as the bug it was written alongside. A newly incorporated
+   * federal corporation operating in Ontario does owe something in its first
+   * two months: it has to register with the province. FileClear did not know
+   * that, so the absence looked correct and got written down as a test.
+   */
+  it('shows only the Ontario registration in the first two months', () => {
     const early = filingsBetween(reported(), '2026-08-11', '2026-10-31');
-    expect(early).toEqual([]);
+    expect(early.map((f) => f.obligationId)).toEqual(['initial-return-on']);
+    expect(early[0]!.due).toBe('2026-10-10');
+  });
+
+  it('has no tax or HST filing that early', () => {
+    const early = filingsBetween(reported(), '2026-08-11', '2026-10-31');
+    expect(early.some((f) => ['t2-return', 'hst-quarterly', 'annual-return-federal']
+      .includes(f.obligationId))).toBe(false);
+  });
+});
+
+/**
+ * A federal corporation is not automatically registered in the province it
+ * operates from, and nothing later in the calendar reminds anybody: there is no
+ * fee and no annual return behind it, so it happens once, early, or not at all.
+ */
+describe('registering a federal corporation in Ontario', () => {
+  it('is due 60 days after incorporation', () => {
+    expect(dueDates('initial-return-on')).toEqual(['2026-10-10']);
+  });
+
+  it('happens once and never repeats', () => {
+    const across = [2026, 2027, 2028, 2029]
+      .flatMap((y) => filingsFor(reported(), y))
+      .filter((f) => f.obligationId === 'initial-return-on');
+    expect(across).toHaveLength(1);
+  });
+
+  it('does not apply to a corporation already incorporated in Ontario', () => {
+    const ontario: CompanyProfile = { ...reported(), jurisdiction: 'ON' };
+    expect(dueDates('initial-return-on', ontario)).toEqual([]);
+  });
+
+  it('does not apply without an Ontario establishment', () => {
+    const elsewhere: CompanyProfile = {
+      ...reported(), permanentEstablishments: ['BC'],
+    };
+    expect(dueDates('initial-return-on', elsewhere)).toEqual([]);
+  });
+
+  /** The clock runs from carrying on business, which FileClear says plainly. */
+  it('says the 60 days are counted from incorporation, and when that is wrong', () => {
+    const f = filingsFor(reported(), 2026)
+      .find((x) => x.obligationId === 'initial-return-on')!;
+    expect(f.detail).toMatch(/counts the 60 days from incorporation/);
+    expect(f.detail).toMatch(/began trading in Ontario later/);
   });
 });
 

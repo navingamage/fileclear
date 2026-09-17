@@ -281,6 +281,29 @@ from 11 August, and it covers the cases nobody had reached yet: a payroll
 remittance for a month before incorporation, a T4 for the calendar year before
 it. The HST quarters, which were already correct, are unchanged.
 
+## Registering a federal corporation with its province
+
+Checking one real account's dates turned up a filing that was missing rather
+than wrong. A federal corporation is not automatically registered in the
+province it operates from: Ontario requires an Initial Return under the
+Corporations Information Act within 60 days of the corporation beginning to
+carry on business there.
+
+It is the easiest obligation in the product to miss, and for a structural
+reason. There is no fee, and no annual return follows it, so it happens once,
+early, and nothing later in the year reminds anybody it was supposed to happen.
+A corporation can have a perfectly filed T2 and not be registered where it
+trades.
+
+The 60 days run from carrying on business, not from incorporation. FileClear
+counts from incorporation, which is right for most corporations and says so
+plainly, along with what to do if trading started later.
+
+The test written beside this is worth keeping in mind. It used to assert that a
+newly incorporated federal corporation owes nothing in its first two months,
+which felt obviously true and was wrong: the absence of a filing FileClear did
+not know about had been written down as correct behaviour.
+
 ## The mail, confirmed
 
 Confirmed end to end on 15 September 2026 rather than assumed: a message sent

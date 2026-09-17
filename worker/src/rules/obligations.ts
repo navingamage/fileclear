@@ -45,7 +45,15 @@ export type Schedule =
   /** Every month, on the given day of the following month. Payroll remittances. */
   | { kind: 'monthlyAfter'; dayOfNextMonth: number }
   /** Each fiscal quarter, N months after the quarter closes. HST and instalments. */
-  | { kind: 'quarterlyAfterQuarterEnd'; months: number };
+  | { kind: 'quarterlyAfterQuarterEnd'; months: number }
+  /**
+   * Once, N days after incorporation, and never again.
+   *
+   * Registering a federal corporation with a province is a one time act, so
+   * this produces a single occurrence rather than one a year. It is the only
+   * schedule here that does.
+   */
+  | { kind: 'onceAfterIncorporation'; days: number };
 
 export interface Obligation {
   id: string;
@@ -145,6 +153,34 @@ export const OBLIGATIONS: Obligation[] = [
 
   // ------------------------------------------------------------- annual returns
 
+  {
+    id: 'initial-return-on',
+    title: 'Register the corporation in Ontario',
+    detail:
+      'A federal corporation is not automatically registered in the province it '
+      + 'operates from. Ontario requires an Initial Return under the Corporations '
+      + 'Information Act within 60 days of the corporation beginning to carry on '
+      + 'business in Ontario, filed through the Ontario Business Registry. There is '
+      + 'no fee and no annual return that follows it, which is part of why it gets '
+      + 'missed: it happens once, early, and nothing later reminds you. '
+      + 'FileClear counts the 60 days from incorporation, which is right if you '
+      + 'started then. If you began trading in Ontario later, the clock starts from '
+      + 'that day instead.',
+    authority: 'Ontario',
+    form: 'Form 2, Initial Return',
+    weight: 'critical',
+    schedule: { kind: 'onceAfterIncorporation', days: 60 },
+    leadDays: 45,
+    penalty:
+      'Failing to file is an offence under the Corporations Information Act, with '
+      + 'fines up to $2,000 for the corporation and up to $2,000 for each director '
+      + 'or officer. In practice the bigger cost is that the corporation is not '
+      + 'properly registered where it operates.',
+    link: { label: 'Ontario Business Registry', url: OBR },
+    // Only for a corporation incorporated somewhere other than Ontario that
+    // nonetheless operates here. An Ontario corporation is already registered.
+    applies: (p) => p.jurisdiction !== 'ON' && p.permanentEstablishments.includes('ON'),
+  },
   {
     id: 'annual-return-on',
     title: 'Ontario annual return',

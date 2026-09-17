@@ -185,6 +185,20 @@ function occurrencesFor(
         };
       });
 
+    case 'onceAfterIncorporation': {
+      // One occurrence, in the year of incorporation, and never again. Every
+      // other schedule here repeats; registering with a province does not.
+      const iy = Number(p.incorporationDate.slice(0, 4));
+      if (fiscalYear !== iy) return [];
+      return [{
+        due: addDays(p.incorporationDate, ob.schedule.days),
+        period: 'once',
+        // The period it covers is the incorporation itself, so it is never
+        // filtered out as predating the corporation.
+        coversUpTo: p.incorporationDate,
+      }];
+    }
+
     case 'quarterlyAfterQuarterEnd': {
       const months = ob.schedule.months;
       return quarterEnds(p.fiscalYearEnd, yearEnd).map((qEnd, i) => ({

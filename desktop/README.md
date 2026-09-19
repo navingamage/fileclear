@@ -148,19 +148,48 @@ Signed in as the Account Holder:
 
 1. Go to
    [developer.apple.com/account/resources/certificates/add](https://developer.apple.com/account/resources/certificates/add)
-2. Choose **Developer ID Application**, and **G2 Sub-CA** if it offers a choice
-3. Upload `~/.config/antipode/devid/fileclear-devid.csr`
-4. Download the `.cer`
+2. Choose **Developer ID Application**, the last entry under Software. Not
+   *Developer ID Installer*, which signs a `.pkg`; this ships a `.dmg`.
+3. **G2 Sub-CA** if it offers a choice
+4. Upload `~/.config/antipode/devid/fileclear-devid.csr`
+5. Continue. There is nothing to download.
 
 Then:
 
 ```
-Scripts/finish-devid.sh ~/Downloads/developerID_application.cer
+Scripts/finish-devid.sh
 ```
 
-That converts it, checks it actually matches the private key here, attaches
-Apple's intermediate so the chain resolves on a machine that has not cached it,
-writes the `.p12`, imports it into the login Keychain and sets `MAC_CERT_P12`.
+With no argument it asks App Store Connect for the certificate and pulls it
+down itself. The API reads certificates perfectly well; it is only *creating* a
+Developer ID certificate that Apple reserves for the Account Holder.
+
+It picks the certificate by matching its public key against the private key
+here rather than by taking the newest Developer ID certificate on the account,
+because with more than one only one of them belongs to this key pair and the
+wrong one imports cleanly and then cannot sign. Then it attaches Apple's
+intermediate so the chain resolves on a machine that has not cached it, writes
+the `.p12` and imports it into the login Keychain.
+
+### The certificate stays on this machine
+
+It is not pushed to GitHub, and that is a decision rather than an omission.
+
+A Developer ID certificate is what tells every Mac in the world that a binary
+came from Antipode Technologies. Apple issues few of them, revoking one
+invalidates apps already signed with it, and it cannot be scoped to a single
+product. In a repository secret, the blast radius of a compromised GitHub
+account grows to include signing anything at all as this company, and the
+repository is public now, which makes that a more attractive thing to attempt.
+
+On this machine it is protected by the Keychain and never leaves.
+`Scripts/release-mac.sh` signs from there, so nothing about shipping needs the
+secret to exist at all.
+
+`Scripts/finish-devid.sh --ci` sets `MAC_CERT_P12` if you decide otherwise. The
+case for it arrives with Windows, whose certificate has the same problem and a
+better answer: Azure Trusted Signing keeps the key in an HSM and lets CI
+authenticate to it, so there is nothing in GitHub to steal.
 
 Xcode's Settings, Accounts, Manage Certificates, + is the other route, and it
 makes its own key pair rather than using this CSR. Either is fine; the CSR

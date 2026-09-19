@@ -1,0 +1,68 @@
+# The worker's tests and types, on every push.
+#
+# There was no such workflow while the repository was private, because a run a
+# minute adds up against a two thousand minute allowance and the tests are
+# cheap to run locally. A public repository gets unlimited standard runner
+# minutes, so the argument for leaving the product's own test suite out of CI
+# has gone.
+#
+# This is the one that matters most of the three. The rules engine is the
+# product: a wrong date here is worse than no software, because a director who
+# trusts it stops keeping their own list.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - run: npm ci
+        working-directory: worker
+
+      - name: Types
+        run: npm run typecheck
+        working-directory: worker
+
+      - name: Tests
+        run: npm test
+        working-directory: worker
+
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - run: npm ci
+        working-directory: desktop
+
+      # The shell has no test suite: it is a window onto a remote origin and
+      # what it does is hard to assert without driving a real browser. What can
+      # be checked without one is that it parses, that its dependencies have no
+      # known advisories, and that the icon the build needs is actually there.
+      - name: Parses
+        run: node --check src/main.js && node --check src/preload.js
+        working-directory: desktop
+
+      - name: No known advisories
+        run: npm audit --audit-level=high
+        working-directory: desktop
+
+      - name: The icon the build needs exists
+        run: test -f build/icon.png
+        working-directory: desktop

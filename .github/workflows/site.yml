@@ -8,12 +8,27 @@
 # So regeneration happens here, where Python is available, and the job fails if
 # anything moved. Same shape as the layout job in TradeClear: the half that
 # cannot run where the deploy runs, runs where it can.
+#
+# Scoped to the paths it actually checks. It was running on every push to main,
+# which on a private repository is a minute of the monthly allowance spent to
+# confirm that a change to the Worker did not alter the marketing HTML. Of the
+# eighteen runs before this, most were that.
+#
+# Scripts/release-mac.sh makes the same check before it builds, so this is a
+# second line rather than the only one.
 name: Site
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'Scripts/build-site.py'
+      - 'site/**'
+      - '.github/workflows/site.yml'
   pull_request:
+    paths:
+      - 'Scripts/build-site.py'
+      - 'site/**'
 
 jobs:
   generated-html-is-current:

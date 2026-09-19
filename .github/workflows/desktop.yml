@@ -10,13 +10,25 @@
 # immediately and this workflow only ships the shell: the window, the menu, the
 # updater and whatever Electron's own security fixes require. That is a rare
 # release and a small one.
+#
+# Not wired to the tag at the moment, and that is deliberate rather than
+# forgotten.
+#
+# macOS runners bill at ten times Linux on a private repository, so a five
+# minute Mac build spends fifty minutes of the monthly allowance. Releases are
+# made from the Mac instead, by Scripts/release-mac.sh, which is faster, free,
+# and signs from the Keychain without exporting the certificate as a secret at
+# all.
+#
+# This workflow earns its place again the day Windows has a certificate, since
+# that genuinely cannot be built on a Mac. Until then it runs only when asked,
+# so that a tag push does not start a job that cannot run and mail a failure
+# about it.
 name: Desktop
 
 on:
-  push:
-    tags: ['desktop-v*']
-  # Buildable on demand without publishing, which is how a change to the shell
-  # gets checked before anybody is asked to install it.
+  # Buildable on demand, which is how a change to the shell gets checked
+  # before anybody is asked to install it.
   workflow_dispatch:
     inputs:
       publish:

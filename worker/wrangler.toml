@@ -37,6 +37,22 @@ not_found_handling = "none"
 [observability]
 enabled = true
 
+# The Mac and Windows builds, and the feed the desktop app updates itself from.
+#
+# Served through the Worker at /download/* rather than from a public bucket
+# domain, for two reasons. The repository is private, so electron-updater's
+# GitHub provider would need a token shipped inside every copy of the app, which
+# is a credential handed to everybody who downloads it. And an installer should
+# come from the product's own domain: one fetched from a personal GitHub account
+# is the shape of a thing a person should not run.
+#
+# Nothing in here is secret. These are public files by design, and what protects
+# somebody from a tampered build is the code signature on it rather than an
+# access control on the bucket.
+[[r2_buckets]]
+binding = "DOWNLOADS"
+bucket_name = "fileclear-downloads"
+
 # Company profiles, accounts and what has been ticked off. Filings themselves are
 # not stored: they are computed from the profile on every read, so a corrected
 # rule reaches every company at once rather than only the ones created after it.

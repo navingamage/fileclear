@@ -275,6 +275,7 @@ NAV = """<a class="skip" href="#main">Skip to content</a>
     <a href="/#how">How it works</a>
     <a href="/#different">Why yours differs</a>
     <a href="/#pricing">Pricing</a>
+    <a href="/download">Download</a>
     <a href="/support">Support</a>
   </nav>
   <a class="nav-signin" href="/signin">Sign in</a>
@@ -296,6 +297,7 @@ FOOT = """<footer><div class="wrap">
         <ul>
           <li><a href="/#how">How it works</a></li>
           <li><a href="/#different">Why yours differs</a></li>
+          <li><a href="/download">Mac and Windows</a></li>
           <li><a href="/support">Support</a></li>
         </ul>
       </div>
@@ -565,6 +567,86 @@ TERMS = """<section><div class="wrap narrow prose">
   <p><!--email_off--><a href="mailto:hello@fileclear.ca?subject=Terms">hello@fileclear.ca</a><!--/email_off--></p>
 </div></section>"""
 
+DOWNLOAD = """<section><div class="wrap narrow prose">
+  <span class="eyebrow">Mac and Windows</span>
+  <h1 style="font-size:clamp(2.2rem,5vw,3.2rem)">FileClear on your desktop</h1>
+  <p class="lead">An icon that is always there, the outstanding count on it, and the
+  same calendar you already have.</p>
+
+  <div class="cta-row" id="get">
+    <a class="btn primary" id="dl-mac" href="#" rel="nofollow">Download for Mac</a>
+    <a class="btn" id="dl-win" href="#" rel="nofollow">Download for Windows</a>
+  </div>
+  <p class="fine" id="dl-note">Checking for the current version&hellip;</p>
+
+  <h2>What it adds, and what it does not</h2>
+  <p>The dock or taskbar icon carries what is outstanding, so the number is in front of
+  you without opening anything. The sections have keyboard shortcuts. Links out to CRA
+  and to the registries open in your own browser, where the address bar is visible.</p>
+  <p>What it does not add is a second copy of the rules. Every rate and every deadline
+  in FileClear is a claim about the outside world that was true on the day it was typed,
+  and rates move every January. The whole design of the web application exists so that
+  a correction reaches everybody the next morning rather than only the people who happen
+  to update. A desktop build carrying its own copy of the rules would hand that back:
+  somebody still running last spring&rsquo;s version would be quietly wrong about a rate
+  that changed, with nothing on screen to say so.</p>
+  <p>So the arithmetic stays on the server and the app is a window onto it. Every change
+  we make reaches your desktop the moment it is deployed, with nothing to install. The
+  app itself updates separately and rarely, in the background, and installs when you
+  quit rather than interrupting a return.</p>
+
+  <h2>Without a connection</h2>
+  <p>It says so, plainly, and explains that the deadlines are worked out when you look
+  rather than stored. Your email reminders are unaffected either way: they are sent from
+  the server on its own schedule and do not need this app to be open, or installed.</p>
+
+  <h2>Requirements</h2>
+  <p>macOS 12 or later, on Apple silicon or Intel. Windows 10 or later, 64-bit. The
+  Windows installer does not need an administrator, so it works on a managed laptop.</p>
+
+  <h2>Prefer the browser?</h2>
+  <p>Then use the browser. <a href="https://fileclear.ca/signin">fileclear.ca</a> is the
+  same product and always the current version. The desktop app exists because some people
+  would rather have an icon than a tab, not because the web version is second best.</p>
+</div></section>
+<script>
+/* The version is read rather than written into this page.
+   A page with "version 1.2.0" typed into it is a page somebody has to remember
+   to edit on every release, and forgetting is silent: the link still works and
+   points at something older than the product. */
+(function () {
+  var mac = document.getElementById('dl-mac');
+  var win = document.getElementById('dl-win');
+  var note = document.getElementById('dl-note');
+  var ua = navigator.userAgent;
+  var arm = /Mac/.test(ua) && (navigator.maxTouchPoints > 1 || /Apple/.test(navigator.vendor));
+
+  /* Put the platform being used first, rather than making somebody find it.
+     Detection is a convenience: both buttons stay, because a person downloading
+     on one machine for another is an ordinary thing to do. */
+  if (/Win/.test(ua)) { win.className = 'btn primary'; mac.className = 'btn'; }
+
+  fetch('/api/release').then(function (r) {
+    if (!r.ok) throw new Error('none');
+    return r.json();
+  }).then(function (d) {
+    var m = (d.mac && (arm ? d.mac.arm64 : d.mac.x64)) || (d.mac && d.mac.arm64);
+    if (m) mac.href = '/download/' + m;
+    if (d.windows) win.href = '/download/' + d.windows;
+    note.textContent = 'Version ' + d.version + ', released ' + d.releasedOn
+      + '. Signed and notarised.';
+  }).catch(function () {
+    /* Honest about it rather than leaving two buttons that go nowhere. */
+    mac.href = '/signup';
+    win.href = '/signup';
+    mac.textContent = 'Use FileClear in your browser';
+    win.style.display = 'none';
+    note.textContent = 'The desktop builds are not published yet. Everything above is '
+      + 'available now at fileclear.ca, and the app will be the same product in a window.';
+  });
+}());
+</script>"""
+
 NOTFOUND = """<section><div class="wrap narrow center">
   <span class="eyebrow">404</span>
   <h1 style="font-size:clamp(2.4rem,6vw,3.6rem)">That page is not here.</h1>
@@ -589,6 +671,10 @@ PAGES = [
     ("terms.html", "terms", "Terms &middot; FileClear",
      "The terms covering use of FileClear, including what it is and what it "
      "deliberately is not.", TERMS, True),
+    ("download.html", "download", "Download for Mac and Windows &middot; FileClear",
+     "FileClear for macOS and Windows. The same filing calendar in its own window, with "
+     "what is outstanding on the icon, and the rules still coming from the server so a "
+     "corrected rate reaches you without an update.", DOWNLOAD, True),
     ("404.html", "404", "Not found &middot; FileClear",
      "That page could not be found.", NOTFOUND, False),
 ]

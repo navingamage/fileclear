@@ -1,7 +1,10 @@
 # FileClear
 
-Every filing a Canadian corporation owes, worked out from how that corporation
-is actually set up, with the dates and the forms and who to send them to.
+Every filing a Canadian business owes, worked out from how that business is
+actually set up, with the dates and the forms and who to send them to.
+Incorporated or not: a corporation and a sole proprietorship are different
+products wearing one name, and pretending otherwise is how a sole proprietor
+gets told to file a T2.
 
 > To *file clear* is to get to the end of a year with nothing outstanding and
 > nobody waiting on you. It shares a suffix with TradeClear on purpose: both
@@ -49,7 +52,7 @@ the date, and the link is how you check us.
 cd worker && npm test
 ```
 
-39 tests. The ones worth knowing about pin the differences above, plus the date
+594 tests. The ones worth knowing about pin the differences above, plus the date
 arithmetic, which is where the first real bug was: a month end has to stay a
 month end. A 30 June year end plus six months is 31 December, not 30 December.
 Clamping only downward moved every deadline a day early for any corporation
@@ -449,3 +452,190 @@ every other date here.
 Everything above, plus billing. Ahead: password reset and sign in throttling,
 which matter before real customers, and Quebec and Alberta corporate tax, which
 needs their own returns rather than their rates.
+
+
+## Businesses that were never incorporated
+
+FileClear began as a corporation product and a sole proprietor could not be set
+up at all. They now are, and the split runs deeper than a label: a corporation
+is a separate taxpayer with its own return, its own tax and a second decision
+about taking money out, while a sole proprietorship *is* its owner. There is no
+second taxpayer, no annual return to any registry, no dividend, and the
+business's profit lands on a personal return that was already going to be
+filed.
+
+Each rule says which kinds of business owe it. The handful that are shared,
+payroll and GST/HST and the construction return, are shared because CRA
+genuinely treats them the same way rather than because it was convenient.
+
+The pair worth knowing is a split that catches almost everybody. A self-employed
+person files by 15 June and pays by 30 April, and an annual HST filer on a
+December year end is on exactly the same two dates. The filing deadline was
+extended for self-employed people and the payment deadline was not, so anybody
+who waits until June to work out what they owe has been paying interest on it
+since 1 May. Both dates appear, separately, in that order.
+
+`normalise` enforces what a business without shares cannot be: not a CCPC, not
+claiming the small business deduction, paying no dividend, and on a calendar
+fiscal year. Without it a stale answer left over from the corporate form
+produces a T5 for a business with no shareholders.
+
+Set-up now asks one question on its own before anything else, because
+everything downstream turns on the answer and so does the wording of the steps
+after it. It used to open with the legal name and the date of incorporation
+together, which assumed the answer: a sole proprietor met "Date of
+incorporation" as the second field and had already been told the product was
+not built for them.
+
+CPP is the difference people underestimate. An employee pays 5.95% and their
+employer pays the matching 5.95%; self-employed, you are both, so the rate is
+11.9% and the maximum is $9,292.90 rather than $4,230.45. It arrives as one
+bill in April rather than in twenty six pieces. The split into a deduction and
+a credit is not the contribution halved: the employer half and all of the
+enhancement come off income, and only the employee's base share is a credit.
+Treating the whole thing as deductible understates tax by a few hundred dollars
+at the ceiling, which is small enough to go unnoticed.
+
+Extracting the bracket arithmetic out of `personalTax` was how self-employment
+income ended up on exactly the same brackets, basic personal amount, surtax and
+health premium as a salary. All 526 tests that existed at the time passed
+unchanged through that refactor, which is the evidence it moved nothing.
+
+## Business use of home
+
+The deduction most often got wrong, in both directions. Too little, because
+people share the utilities and forget the rent or the mortgage interest, which
+is usually the largest number on the page. Too much, because a space that is
+also lived in is prorated by time as well as by area and the hours get left
+out: a dining table used eight hours a day is 8/24 of its floor area, not one
+whole room.
+
+Only mortgage interest is deductible, never the principal, so the two are asked
+for separately rather than as one housing cost somebody enters a whole payment
+into. Capital cost allowance on a home is left out on purpose: claiming it can
+cost part of the principal residence exemption when the house is sold, which is
+almost always a larger number than the deduction it buys.
+
+The inputs are stored rather than the claim, so a figure can be rebuilt and
+explained years later if CRA asks how it was arrived at. Storing the computed
+claim would freeze the arithmetic at whatever the code did on the day it was
+saved, which is the same failure this product avoids by recomputing filings
+from the profile.
+
+It is also the one expense that cannot create or deepen a loss, which is why it
+sits below the net income line rather than among the expenses. What will not
+fit this year carries forward indefinitely against the same business, so the
+unused part is reported rather than discarded.
+
+## Whether to incorporate
+
+The question that decides which half of the product somebody belongs to, and it
+is answered almost everywhere with folklore. "Incorporate once you hit a
+hundred thousand" is the usual number, repeated without a calculation behind
+it.
+
+The arithmetic says the threshold is not about income at all. A sole proprietor
+is taxed on the whole profit whether or not they spend it; a corporation is
+taxed at the small business rate on what stays inside, and the rest is taxed
+again when it comes out. So incorporating is a **deferral** on the part of the
+profit left in the company rather than a discount on tax. Draw every dollar out
+to live on and the two routes land within a few thousand of each other and the
+fees are a straight cost.
+
+That is why the draw is a control on the screen rather than an assumption, and
+why the headline figure is reported beside the tax still waiting on the
+retained profit. A number that reads as a saving when most of it is a delay is
+the most misleading thing this product could print.
+
+No recommendation, for the same reason as the salary and dividend comparison.
+Limited liability, a contract that requires a corporation, a partner joining
+and the lifetime capital gains exemption on a sale are each capable of deciding
+it on their own, and none of them are things tax arithmetic can see.
+
+## The gaps a profile could reach and the calendar could not
+
+Five settings the set-up form accepted produced no filing at all, which is the
+worst shape for this product to be wrong in: an absent deadline reads as
+nothing owing, and nothing about a blank month announces that a rule was never
+written.
+
+A monthly HST filer had no return. Both accelerated payroll remitters had no
+remittance. A quarterly remitter's dates were counted back from the fiscal year
+end, but CRA's payroll accounts run on the calendar, so a corporation with a
+June year end saw four dates in the wrong months. Instalments were quarterly for
+everybody, when quarterly is a concession an eligible CCPC earns and monthly is
+the default, which understated a general rate corporation by eight payments a
+year.
+
+Annual returns now cover British Columbia and Alberta as well as federal and
+Ontario. A corporation incorporated anywhere else is told plainly that its
+registry's date is not computed here, rather than shown an empty calendar,
+because inventing a date for a registry nobody checked is the failure this
+product exists to prevent. Alberta and Quebec assess their own corporate tax,
+which `provinces.ts` already knew and the calendar did not, so an AT1 and a
+CO-17 appear for a corporation with an establishment there.
+
+`test/gaps.test.ts` closes with the check that would have caught three of these
+before a customer did: every value the form can produce has to reach at least
+one rule.
+
+## Deadlines on days nobody is open
+
+CRA, Corporations Canada and the Ontario Business Registry all treat a filing
+as on time if it arrives on the next business day when the statutory date falls
+on a weekend or a public holiday. FileClear computed the statutory date and
+stopped, which is right about the statute and wrong about the deadline: a
+balance falling on Sunday 30 June was shown as due on the Sunday, so somebody
+who paid on the Monday believed they were late and somebody who wanted the
+weekend thought they could not have it.
+
+Both dates are kept. The statutory one identifies the filing, because filing
+ids are stored and shifting them would have unticked everything anybody had
+ticked off, once, on the day the weekend rule shipped. The effective one is
+what every screen shows and what the reminder sweep counts from, and the
+difference is explained where it appears rather than left to be noticed.
+
+Good Friday moves, so Easter is computed rather than tabulated. Accelerated
+threshold 2 remittances are due three *working* days after each period closes,
+which over a long weekend is five or six calendar days, and CRA means working
+days.
+
+## Mac and Windows
+
+`desktop/` is an Electron shell around fileclear.ca, and that is the design
+rather than a shortcut. Every rate in this product is a claim about the outside
+world that was true the day it was typed, and the whole architecture exists so
+a correction reaches everybody the next morning rather than only the people who
+happen to update. A desktop build carrying its own copy of the rules would hand
+that back: somebody on last spring's version would be quietly wrong about a
+rate that changed, with nothing on screen to say so.
+
+So the arithmetic stays on the server and the app is a window onto it. A deploy
+reaches every desktop immediately, with nothing to install. The shell updates
+separately and rarely, through electron-updater, and installs on quit rather
+than interrupting a return.
+
+What it adds over a browser tab: the outstanding count on the dock or taskbar
+icon, native menus and shortcuts, links to CRA and the registries opening in
+the user's own browser where the address bar is visible, and an offline screen
+that says what is actually true rather than offering to check the cables.
+
+Updates come from `fileclear.ca/download/`, served by the Worker out of R2, not
+from GitHub releases. The repository is private, so electron-updater's GitHub
+provider would need a token shipped inside every copy of the app, which is a
+credential handed to everybody who downloads it. And an installer should come
+from the product's own domain: one fetched from a personal GitHub account is
+the shape of a thing a person should not run.
+
+The caching rule that matters is the one that is easy to invert. The manifests
+are the feed and are held to five minutes; cache them hard and an app keeps
+offering a superseded version for as long as the cache lives. The installers
+are immutable, because a released version number never points at different
+bytes than it did yesterday.
+
+`desktop/README.md` has the signing story, and it is not finished: macOS needs
+a Developer ID Application certificate, which costs nothing beyond the Apple
+Developer membership already held, and Windows needs a code signing certificate
+that has to be bought. Unsigned builds are produced and are labelled as
+unsigned in the run summary, because a build that fails outright at the last
+step is what tempts somebody into shipping one anyway.

@@ -1,0 +1,88 @@
+# How the Mac and Windows builds are made.
+#
+# The update feed is the product's own domain rather than a GitHub release. The
+# repository is private, so electron-updater's GitHub provider would want a
+# token inside every installed copy, which is a credential handed to everybody
+# who downloads the app. The generic provider needs nothing: it reads a manifest
+# over plain HTTPS, and what protects somebody from a tampered build is the code
+# signature on it rather than an access control on the file.
+
+appId: ca.fileclear.desktop
+productName: FileClear
+copyright: © Antipode Technologies Inc.
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - src/**/*
+  - package.json
+  - '!**/*.map'
+
+# One PNG becomes the .icns and the .ico. Rendered from site/brand/mark.svg by
+# Scripts/render-icons.py, so the desktop icon cannot drift away from the one on
+# the site the way a hand exported file does.
+icon: build/icon.png
+
+publish:
+  provider: generic
+  url: https://fileclear.ca/download
+  # electron-updater refuses to move a user from a signed build to an unsigned
+  # one on Windows, which is what should happen: an unsigned update is
+  # indistinguishable from somebody else's.
+  channel: latest
+
+mac:
+  category: public.app-category.finance
+  # Both architectures. A Rosetta build on an M-series Mac is slower to start
+  # and is the kind of thing a user notices without being able to name.
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    # The zip is not for people, it is what electron-updater downloads. Without
+    # it macOS auto-updates do not work at all, and the failure is silent: the
+    # feed is read, the version is found, and nothing installs.
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Notarisation runs when the workflow has the Apple credentials and is skipped
+  # when it does not, so a build can be produced without them and is honestly
+  # labelled as unsigned rather than quietly shipped as though it were signed.
+  notarize: false
+
+dmg:
+  # The one window everybody understands: the app, an arrow, Applications.
+  contents:
+    - x: 140
+      y: 190
+      type: file
+    - x: 400
+      y: 190
+      type: link
+      path: /Applications
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+
+nsis:
+  # Per user, so installing does not need an administrator. An accounting tool
+  # that asks for elevation on a work laptop is a tool that does not get
+  # installed.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: FileClear
+
+linux:
+  # Not published, but it is what makes `npm start` and a CI smoke test work on
+  # an ordinary Linux runner without a special case.
+  target: [AppImage]
+  category: Office

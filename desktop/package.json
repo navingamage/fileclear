@@ -1,0 +1,23 @@
+{
+  "name": "fileclear-desktop",
+  "productName": "FileClear",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Every filing a Canadian business owes, on your desktop.",
+  "author": "Antipode Technologies Inc. <hello@antipodetech.com>",
+  "homepage": "https://fileclear.ca",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:win": "electron-builder --win --publish never",
+    "build": "electron-builder --mac --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}

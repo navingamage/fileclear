@@ -41,6 +41,7 @@ import {
   type HstPeriodOption, type Chrome,
   t2125Page, incorporatePage,
 } from './views';
+import { serveDownload, releaseInfo, type DownloadsEnv } from './downloads';
 import { homeOffice, type HomeOfficeInput } from './rules/homeoffice';
 import { statement, selfEmployedYear } from './rules/selfemployed';
 import { compareIncorporation, crossoverTable } from './rules/incorporate';
@@ -53,7 +54,7 @@ import {
   deductionsFor, remitterAdvice, payrollRun, ontarioEht, type PayFrequency,
 } from './rules/payroll';
 
-export interface Env extends CronEnv, StripeEnv {
+export interface Env extends CronEnv, StripeEnv, DownloadsEnv {
   DB: D1Database;
   ASSETS: Fetcher;
 }
@@ -70,6 +71,11 @@ const TRIAL_DAYS = 30;
  * screens that compute money are the ones behind the paywall.
  */
 const PAID_PATHS = ['/hst', '/year-end', '/compensation', '/slips'];
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+});
 
 const redirect = (to: string, extra: HeadersInit = {}) =>
   new Response(null, { status: 303, headers: { Location: to, ...extra } });
@@ -323,6 +329,18 @@ export default {
     if (url.hostname.startsWith('www.')) {
       return Response.redirect(`https://fileclear.ca${url.pathname}${url.search}`, 301);
     }
+
+    /**
+     * The desktop builds and the feed the desktop app updates from.
+     *
+     * Before session handling, because electron-updater sends no cookie and
+     * these are public files: the protection against a tampered build is the
+     * code signature on it, not an access control on the bucket.
+     */
+    if (path.startsWith('/download/')) {
+      return serveDownload(request, env, path.slice('/download/'.length));
+    }
+    if (path === '/api/release') return releaseInfo(env);
 
     // Stripe's webhook, before any session handling: it arrives with no cookie
     // and proves itself with a signature instead.
@@ -1167,6 +1185,38 @@ export default {
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.
+    /**
+     * What the desktop app puts on its dock icon.
+     *
+     * Small and cheap on purpose: the app asks for it every half hour, and a
+     * badge is worth having only if getting it costs less than opening the
+     * screen would. It carries no filing detail, because a number on an icon
+     * is a prompt to look rather than an answer.
+     *
+     * Unauthenticated gets a 401 rather than a zero. A signed out app showing
+     * a clean badge would be reporting that nothing is due, which it cannot
+     * know, and that is exactly the wrong thing for a deadline product to
+     * imply.
+     */
+    if (path === '/api/summary') {
+      if (!account || !company) {
+        return json({ signedIn: false }, 401);
+      }
+      const from = today();
+      const filings = filingsBetween(company.profile, from, addDays(from, 30));
+      const states = await filingStates(env.DB, company.id);
+      const open = filings.filter((f) => states.get(f.id) !== 'done');
+      const overdue = open.filter((f) => f.effectiveDue < from);
+      const next = open.find((f) => f.effectiveDue >= from);
+      return json({
+        signedIn: true,
+        business: company.profile.legalName,
+        overdue: overdue.length,
+        dueWithin30Days: open.length - overdue.length,
+        next: next ? { title: next.title, form: next.form, due: next.effectiveDue } : null,
+      });
+    }
+
     if (path === '/' && account) return redirect('/dashboard');
 
     // ------------------------------------------------------------- assets

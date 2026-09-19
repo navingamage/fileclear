@@ -1,0 +1,244 @@
+# The Mac and Windows builds.
+#
+# Runs on a tag, because a release is a deliberate act rather than a
+# consequence of pushing. The tag is the version: desktop-v1.2.0 builds 1.2.0
+# and nothing else decides it, so the number in package.json, the number in the
+# update feed and the number a user sees are the same number by construction.
+#
+# Nothing here touches the web application. The screens and the rules come from
+# fileclear.ca every time the window loads, so a deploy reaches every desktop
+# immediately and this workflow only ships the shell: the window, the menu, the
+# updater and whatever Electron's own security fixes require. That is a rare
+# release and a small one.
+name: Desktop
+
+on:
+  push:
+    tags: ['desktop-v*']
+  # Buildable on demand without publishing, which is how a change to the shell
+  # gets checked before anybody is asked to install it.
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Upload to R2 and move the update feed'
+        type: boolean
+        default: false
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      # One platform failing should not throw away the other's artefacts. A
+      # Windows build is an hour of nobody's time to redo; a Mac build
+      # cancelled mid-notarisation is worse.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: mac
+          - os: windows-latest
+            platform: win
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install
+        working-directory: desktop
+        run: npm ci
+
+      # The version comes from the tag, so there is one place it can be wrong
+      # and it is visible in the release itself.
+      - name: Take the version from the tag
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: bash
+        working-directory: desktop
+        run: |
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+          echo "Building $VERSION"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      # Notarisation goes through an App Store Connect API key rather than an
+      # Apple ID and an app specific password, because the key already exists
+      # for the iOS work and because a password in a secret is a password that
+      # has to be rotated by hand.
+      - name: Write the notarisation key
+        if: matrix.platform == 'mac' && secrets.ASC_KEY_P8 != ''
+        shell: bash
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          printf '%s' "$ASC_KEY" | base64 --decode > "$RUNNER_TEMP/asc.p8"
+          echo "APPLE_API_KEY=$RUNNER_TEMP/asc.p8" >> "$GITHUB_ENV"
+
+      - name: Build for macOS
+        if: matrix.platform == 'mac'
+        working-directory: desktop
+        shell: bash
+        env:
+          # electron-builder imports CSC_LINK into a throwaway keychain itself.
+          # Doing it by hand as well is two ways for the same step to go wrong.
+          #
+          # When the secret is empty it signs nothing and produces an unsigned
+          # build, which is deliberate: a build without credentials should
+          # still be produced and plainly labelled rather than failing after
+          # everything else succeeded, which is what tempts somebody into
+          # shipping it as though it were signed.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          # Notarising without a key fails the build at the very end, after the
+          # slowest part has already succeeded, so it is asked for only when
+          # there is a key to do it with. electron-builder's config is static,
+          # hence the override on the command line rather than in the yml.
+          if [ -n "${APPLE_API_KEY:-}" ]; then
+            echo "Signing and notarising."
+            npx electron-builder --mac --publish never --config.mac.notarize=true
+          else
+            echo "No notarisation key. Building unsigned."
+            npx electron-builder --mac --publish never
+          fi
+
+      - name: Build for Windows
+        if: matrix.platform == 'win'
+        working-directory: desktop
+        shell: bash
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: npx electron-builder --win --publish never
+
+      - name: Say what was actually produced
+        shell: bash
+        working-directory: desktop
+        env:
+          MAC_SIGNED: ${{ secrets.MAC_CERT_P12 != '' }}
+          WIN_SIGNED: ${{ secrets.WIN_CERT_PFX != '' }}
+        run: |
+          {
+            echo "### ${{ matrix.platform }}"
+            echo ''
+            ls dist/ | grep -E '\.(dmg|zip|exe|yml|blockmap)$' || echo 'nothing matched'
+            echo ''
+            if [ "${{ matrix.platform }}" = mac ] && [ "$MAC_SIGNED" != true ]; then
+              echo '**Unsigned.** Gatekeeper refuses this on any Mac but the one that built it. See desktop/README.md.'
+            fi
+            if [ "${{ matrix.platform }}" = win ] && [ "$WIN_SIGNED" != true ]; then
+              echo '**Unsigned.** SmartScreen warns on download and on first run. See desktop/README.md.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fileclear-${{ matrix.platform }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/latest*.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  # ------------------------------------------------------------- publishing
+  #
+  # Separate, and last, so the update feed only moves once both platforms have
+  # produced something. Publishing per platform would leave a window where
+  # latest.yml offers a new Windows build and latest-mac.yml still points at
+  # the version before it.
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/desktop-v') || inputs.publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Describe the release
+        working-directory: artifacts
+        shell: bash
+        env:
+          SIGNED: ${{ secrets.MAC_CERT_P12 != '' && secrets.WIN_CERT_PFX != '' }}
+        run: |
+          set -euo pipefail
+          ls -la
+
+          # Read the names electron-builder produced rather than guessing them.
+          # A filename written into this file by hand is a download button that
+          # points at nothing the first time a naming convention changes.
+          export FC_VERSION="${GITHUB_REF_NAME#desktop-v}"
+          export FC_MAC_ARM="$(ls *arm64*.dmg 2>/dev/null | head -1 || true)"
+          export FC_MAC_X64="$(ls *.dmg 2>/dev/null | grep -v arm64 | head -1 || true)"
+          export FC_WIN="$(ls *.exe 2>/dev/null | head -1 || true)"
+          export FC_SIGNED="$SIGNED"
+
+          node -e '
+            const out = {
+              version: process.env.FC_VERSION,
+              releasedOn: new Date().toISOString().slice(0, 10),
+              signed: process.env.FC_SIGNED === "true",
+              mac: {
+                arm64: process.env.FC_MAC_ARM || null,
+                x64: process.env.FC_MAC_X64 || null,
+              },
+              windows: process.env.FC_WIN || null,
+            };
+            if (!out.mac.arm64 && !out.mac.x64 && !out.windows) {
+              // Better to fail here than to publish a manifest whose every
+              // link is null and leave the download page offering nothing.
+              console.error("no installers in the artefacts");
+              process.exit(1);
+            }
+            require("fs").writeFileSync("release.json", JSON.stringify(out, null, 2) + "\n");
+            console.log(JSON.stringify(out, null, 2));
+          '
+
+      - name: Upload to R2
+        working-directory: artifacts
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          put() { npx --yes wrangler@4 r2 object put "fileclear-downloads/$1" --file "$1" --remote; }
+
+          # The installers first and the feed last. An app that reads a
+          # manifest naming a file which has not finished uploading fails its
+          # update, and on Windows can leave a half written install behind.
+          for f in *.dmg *.zip *.exe *.blockmap; do
+            [ -e "$f" ] || continue
+            echo "uploading $f"
+            put "$f"
+          done
+
+          put release.json
+
+          for f in latest*.yml; do
+            [ -e "$f" ] || continue
+            echo "moving the feed: $f"
+            put "$f"
+          done
+
+      - name: Say where it went
+        run: |
+          {
+            echo "Published to https://fileclear.ca/download/"
+            echo ""
+            echo "The download page reads /api/release, so it is already current."
+          } >> "$GITHUB_STEP_SUMMARY"

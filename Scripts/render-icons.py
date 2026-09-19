@@ -21,6 +21,7 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BRAND = ROOT / "site" / "brand"
+DESKTOP = ROOT / "desktop" / "build"
 CHROME = pathlib.Path(
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 )
@@ -32,6 +33,11 @@ TARGETS = [
     ("mark.svg", BRAND / "icon-192.png", 192),
     ("mark.svg", BRAND / "icon-512.png", 512),
     ("mark-square.svg", BRAND / "icon-180.png", 180),
+    # The Mac and Windows applications. electron-builder converts one PNG of
+    # this size into the .icns and .ico each platform wants, so the mark stays
+    # the single source for the desktop builds too rather than being exported
+    # by hand and drifting.
+    ("mark.svg", DESKTOP / "icon.png", 1024),
 ]
 
 # What goes inside favicon.ico. 48 is there for Windows shortcuts and for the
@@ -103,6 +109,7 @@ def main():
     if not CHROME.exists():
         raise SystemExit(f"Chrome not found at {CHROME}")
 
+    DESKTOP.mkdir(parents=True, exist_ok=True)
     print("rendering:")
     with tempfile.TemporaryDirectory() as tmp:
         work = pathlib.Path(tmp)

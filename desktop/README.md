@@ -43,11 +43,15 @@ the product's own icon on it.
 
 ```
 npm run build:mac
-npm run build:win
 ```
 
 `dist/` gets the installers, the zips electron-updater downloads, and the
-`latest*.yml` manifests that are the update feed.
+`latest-mac.yml` manifest that is the update feed. For a real release use
+`Scripts/release-mac.sh` instead, which does this and everything around it.
+
+`npm run build:win` exists and works, but Windows is parked until there is a
+certificate for it: an unsigned installer meets "Windows protected your PC",
+which is a poor first screen for a tax product.
 
 The icon comes from `build/icon.png`, which `Scripts/render-icons.py` renders
 from `site/brand/mark.svg` along with every icon the website uses. Do not edit
@@ -56,23 +60,44 @@ script.
 
 ## Releasing
 
-Tag it. `.github/workflows/desktop.yml` builds both platforms and uploads to R2.
+From this Mac, with one command:
 
 ```
-cd desktop && npm version 1.1.0 --no-git-tag-version
-git commit -am "Desktop 1.1.0" && git tag desktop-v1.1.0
-git push && git push --tags
+Scripts/release-mac.sh 1.0.0
+Scripts/release-mac.sh 1.0.0 --dry-run     # build and check, publish nothing
 ```
 
-The tag is the version. Nothing else decides it, so the number in
-`package.json`, the number in the feed and the number a user sees are the same
-number by construction.
+It refuses to start on a dirty tree, regenerates the site and fails if the
+committed HTML has fallen behind its generator, and runs the Worker's tests,
+all before spending two minutes on a build. Then it signs, notarises, and asks
+**Gatekeeper** what a user's Mac will make of the result rather than asking
+`codesign` whether a signature exists, which are different questions. It
+uploads the installers before the manifest, because an app that reads a
+manifest naming a file which has not finished uploading fails its update. Then
+it reads the live feed back, because "published" is a claim about what a user
+will get and only the user's own path can answer it.
 
-Publishing is a separate job that runs after both platforms have built, so the
-feed never moves for one platform while the other is still building. Within
-that job the installers upload before the manifests, because an app that reads
-a manifest naming a file that has not finished uploading fails its update, and
-on Windows can leave a half written install behind.
+Afterwards, tag it so the release is a commit you can point at:
+
+```
+git tag desktop-v1.0.0 && git push --tags
+```
+
+### Why this is not a GitHub workflow
+
+It was, and the workflow is still in `.github/workflows/desktop.yml`, but it
+does not run on a tag any more.
+
+macOS runners bill at **ten times** the Linux rate on a private repository, so
+a five minute Mac build spends fifty of the two thousand free minutes in a
+month. Three or four releases is most of the budget for something this machine
+does in ninety seconds, for nothing, with the signing certificate already in
+its Keychain and no base64 export of it needed at all.
+
+The workflow earns its place back the day Windows has a certificate, because
+that genuinely cannot be built on a Mac. Until then it runs only when asked, so
+that a tag push does not start a job which cannot run and then mail a failure
+about it.
 
 ## Where updates come from
 

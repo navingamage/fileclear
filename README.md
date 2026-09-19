@@ -633,9 +633,22 @@ offering a superseded version for as long as the cache lives. The installers
 are immutable, because a released version number never points at different
 bytes than it did yesterday.
 
-`desktop/README.md` has the signing story, and it is not finished: macOS needs
-a Developer ID Application certificate, which costs nothing beyond the Apple
-Developer membership already held, and Windows needs a code signing certificate
-that has to be bought. Unsigned builds are produced and are labelled as
-unsigned in the run summary, because a build that fails outright at the last
-step is what tempts somebody into shipping one anyway.
+Releases are made from the Mac by `Scripts/release-mac.sh` rather than in CI.
+macOS runners bill at ten times the Linux rate on a private repository, so a
+five minute build spends fifty of the two thousand free minutes in a month,
+which is most of the budget for something this machine does in ninety seconds
+with the certificate already in its Keychain. The workflow is still there and
+earns its place back the day Windows has a certificate, because that genuinely
+cannot be built on a Mac.
+
+The script checks the tree is clean, that the generated site has not fallen
+behind its generator, and that the tests pass, all before spending two minutes
+on a build. Then it asks Gatekeeper what a user's Mac will make of the result,
+rather than asking codesign whether a signature exists, and reads the live feed
+back afterwards rather than trusting the upload.
+
+`desktop/README.md` has the signing story. macOS needs a Developer ID
+Application certificate, which costs nothing beyond the Apple Developer
+membership already held and is the one step Apple reserves for the Account
+Holder: an App Store Connect API key is refused whatever role it holds. Windows
+needs a certificate that has to be bought, and is parked until then.

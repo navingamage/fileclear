@@ -673,7 +673,7 @@ NOTFOUND = """<section><div class="wrap narrow center">
 </div></section>"""
 
 PAGES = [
-    ("index.html", "", "FileClear: never miss a corporate filing",
+    ("index.html", "", "FileClear: never miss a business filing",
      "FileClear reads how your Canadian business is set up, incorporated or not, and "
      "builds the filing calendar that follows from it, with the form, the date and "
      "the authority for each.",

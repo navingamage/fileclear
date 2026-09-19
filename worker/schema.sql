@@ -341,3 +341,27 @@ CREATE TABLE IF NOT EXISTS import_rules (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (company_id, pattern)
 );
+
+-- ------------------------------------------- businesses that are not companies
+
+-- Incorporated, or not.
+--
+-- FileClear was a corporation product, so every row that existed before this
+-- column did was a corporation and the default says so. That is a statement
+-- about history rather than a safe fallback.
+--
+-- The obligations are almost entirely different. A sole proprietorship files no
+-- T2 and no annual return to any registry; its profit goes on form T2125 inside
+-- the owner's personal return, which is due 15 June while the money is due
+-- 30 April. Only payroll, GST/HST and the construction return are genuinely
+-- shared, and they are shared because CRA treats them the same way.
+ALTER TABLE companies ADD COLUMN entity_type TEXT NOT NULL DEFAULT 'corporation';
+
+-- Whether the business trades under a name other than the owner's own.
+--
+-- Only meaningful for a sole proprietorship, and only because an Ontario
+-- business name registration expires five years after it is made. Nothing
+-- chases it: no return depends on it and no authority writes, so it is usually
+-- discovered at a bank.
+ALTER TABLE companies ADD COLUMN registered_business_name INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE companies ADD COLUMN business_name_registered_on TEXT NOT NULL DEFAULT '';

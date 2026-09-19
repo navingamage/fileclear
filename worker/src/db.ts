@@ -1,4 +1,7 @@
-import type { CompanyProfile, Jurisdiction, HstPeriod, HstMethod, RemitterType } from './rules/profile';
+import type {
+  CompanyProfile, Jurisdiction, HstPeriod, HstMethod, RemitterType, EntityType,
+} from './rules/profile';
+import { normalise } from './rules/profile';
 
 /**
  * Between a companies row and a CompanyProfile.
@@ -12,6 +15,11 @@ export interface CompanyRow {
   id: string;
   account_id: string;
   legal_name: string;
+  /** Optional, because every row written before sole proprietors existed has
+   *  no value here and every one of those was a corporation. */
+  entity_type?: string;
+  registered_business_name?: number;
+  business_name_registered_on?: string | null;
   jurisdiction: string;
   incorporation_date: string;
   fye_month: number;
@@ -39,6 +47,7 @@ const JURISDICTIONS: Jurisdiction[] = [
 const PERIODS: HstPeriod[] = ['annual', 'quarterly', 'monthly'];
 const METHODS: HstMethod[] = ['regular', 'quick'];
 const REMITTERS: RemitterType[] = ['quarterly', 'regular', 'accelerated1', 'accelerated2'];
+const ENTITIES: EntityType[] = ['corporation', 'soleProprietorship'];
 
 /** Falls back rather than throwing: a bad value should not lock a company out
  *  of its own dashboard, and the safest fallback is the commonest case. */
@@ -47,8 +56,13 @@ function oneOf<T extends string>(value: string, allowed: T[], fallback: T): T {
 }
 
 export function rowToProfile(row: CompanyRow, provinces: string[]): CompanyProfile {
-  return {
+  return normalise({
     legalName: row.legal_name,
+    // Falling back to 'corporation' is the right default rather than a safe
+    // one: every row that predates this column was a corporation.
+    entityType: oneOf(row.entity_type ?? 'corporation', ENTITIES, 'corporation'),
+    registeredBusinessName: !!row.registered_business_name,
+    businessNameRegisteredOn: row.business_name_registered_on || undefined,
     jurisdiction: oneOf(row.jurisdiction, JURISDICTIONS, 'ON'),
     incorporationDate: row.incorporation_date,
     fiscalYearEnd: { month: row.fye_month, day: row.fye_day },
@@ -76,13 +90,16 @@ export function rowToProfile(row: CompanyRow, provinces: string[]): CompanyProfi
       email: row.remind_email === undefined ? true : !!row.remind_email,
       leadDays: Math.max(1, Math.min(90, row.remind_lead_days || 14)),
     },
-  };
+  });
 }
 
 /** The column list and values for an insert or update, in one place. */
 export function profileToColumns(p: CompanyProfile): Record<string, string | number> {
   return {
     legal_name: p.legalName,
+    entity_type: p.entityType,
+    registered_business_name: p.registeredBusinessName ? 1 : 0,
+    business_name_registered_on: p.businessNameRegisteredOn ?? '',
     jurisdiction: p.jurisdiction,
     incorporation_date: p.incorporationDate,
     fye_month: p.fiscalYearEnd.month,

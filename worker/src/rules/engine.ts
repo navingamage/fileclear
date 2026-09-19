@@ -331,6 +331,33 @@ function occurrencesFor(
       }];
     }
 
+    /**
+     * Fixed dates, whatever the business does. Personal instalments do not move
+     * for a fiscal year end because an individual does not have one.
+     */
+    case 'personalInstalments':
+      return [3, 6, 9, 12].map((m, i) => ({
+        due: iso(fiscalYear, m, 15),
+        period: `${fiscalYear} Q${i + 1}`,
+        coversUpTo: iso(fiscalYear, m, 15),
+      }));
+
+    case 'everyNYearsFrom': {
+      const from = ob.schedule.kind === 'everyNYearsFrom'
+        ? ob.schedule.from(p) : p.incorporationDate;
+      const years = ob.schedule.kind === 'everyNYearsFrom' ? ob.schedule.years : 5;
+      if (!from) return [];
+      const startYear = Number(from.slice(0, 4));
+      // Only in the years the renewal actually falls due, so a five year cycle
+      // produces one occurrence every fifth year rather than one a year.
+      if ((fiscalYear - startYear) % years !== 0 || fiscalYear <= startYear) return [];
+      return [{
+        due: iso(fiscalYear, Number(from.slice(5, 7)), Number(from.slice(8, 10))),
+        period: `${fiscalYear}`,
+        coversUpTo: from,
+      }];
+    }
+
     case 'onceAfterIncorporation': {
       // One occurrence, in the year of incorporation, and never again. Every
       // other schedule here repeats; registering with a province does not.
@@ -373,6 +400,10 @@ export function filingsFor(
     : fiscalYear;
 
   return rules
+    // A sole proprietor should never be shown a T2, and a corporation should
+    // never be shown a T2125. Filtering on the entity before the predicate
+    // keeps each rule's `applies` about the thing it is actually testing.
+    .filter((ob) => !ob.entities || ob.entities.includes(p.entityType))
     .filter((ob) => ob.applies(p))
     .flatMap((ob) => {
       // A corporation is not required to pay tax instalments in its first year.

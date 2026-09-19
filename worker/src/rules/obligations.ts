@@ -1,4 +1,4 @@
-import type { CompanyProfile } from './profile';
+import type { CompanyProfile, EntityType } from './profile';
 
 /**
  * Everything a Canadian corporation can owe, as data rather than as code paths.
@@ -90,7 +90,15 @@ export type Schedule =
    * this produces a single occurrence rather than one a year. It is the only
    * schedule here that does.
    */
-  | { kind: 'onceAfterIncorporation'; days: number };
+  | { kind: 'onceAfterIncorporation'; days: number }
+  /**
+   * Every N years from a fixed start date. Ontario business name
+   * registrations, which expire after five years and then simply stop
+   * existing.
+   */
+  | { kind: 'everyNYearsFrom'; years: number; from: (p: CompanyProfile) => string }
+  /** 15 March, June, September and December. Personal tax instalments. */
+  | { kind: 'personalInstalments' };
 
 export interface Obligation {
   id: string;
@@ -107,6 +115,18 @@ export interface Obligation {
   penalty: string;
   link: { label: string; url: string };
   applies: (p: CompanyProfile) => boolean;
+  /**
+   * Which kinds of business owe this at all.
+   *
+   * Most rules belong to exactly one. A sole proprietor filing a T2 and a
+   * corporation filing a T2125 are both nonsense, and the shared ones, payroll
+   * and HST and the construction return, are shared because CRA genuinely
+   * treats them the same way. Kept here rather than folded into `applies` so
+   * that the split is visible in the rule instead of hidden in a predicate.
+   *
+   * Omitted means both, which is only true of the handful that really are.
+   */
+  entities?: EntityType[];
   /**
    * True for an obligation a corporation does not owe in the year it was
    * incorporated. Only instalments, so far.
@@ -126,6 +146,8 @@ const CRA_PAYROLL = 'https://www.canada.ca/en/revenue-agency/services/tax/busine
 const OBR = 'https://www.ontario.ca/page/ontario-business-registry';
 const CORPORATIONS_CANADA = 'https://ised-isde.canada.ca/site/corporations-canada/en';
 const ON_EHT = 'https://www.ontario.ca/document/employer-health-tax-eht';
+const CRA_SELF_EMPLOYED = 'https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income.html';
+const CRA_INSTALMENTS = 'https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-instalments.html';
 const BC_REGISTRY = 'https://www2.gov.bc.ca/gov/content/employment-business/business/managing-a-business/permits-licences/businesses-incorporated-companies/bc-companies';
 const AB_REGISTRY = 'https://www.alberta.ca/annual-returns-for-alberta-corporations';
 const AB_TRA = 'https://www.alberta.ca/corporate-income-tax';
@@ -136,6 +158,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 't2-return',
+    entities: ['corporation'],
     title: 'Corporate income tax return',
     detail:
       'Every corporation resident in Canada files a T2 for every tax year, including '
@@ -154,6 +177,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 't2-balance-ccpc',
+    entities: ['corporation'],
     title: 'Corporate tax balance owing',
     detail:
       'A CCPC claiming the small business deduction gets three months to pay the '
@@ -171,6 +195,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 't2-balance-general',
+    entities: ['corporation'],
     title: 'Corporate tax balance owing',
     detail:
       'Two months after the year end. The three month extension belongs only to a '
@@ -198,6 +223,7 @@ export const OBLIGATIONS: Obligation[] = [
    */
   {
     id: 't2-instalments',
+    entities: ['corporation'],
     title: 'Corporate tax instalment',
     detail:
       'An eligible CCPC pays its tax in four instalments rather than twelve, each '
@@ -221,6 +247,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 't2-instalments-monthly',
+    entities: ['corporation'],
     title: 'Corporate tax instalment',
     detail:
       'A corporation whose tax payable was over $3,000 in either of the last two '
@@ -245,6 +272,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 'initial-return-on',
+    entities: ['corporation'],
     title: 'Register the corporation in Ontario',
     detail:
       'A federal corporation is not automatically registered in the province it '
@@ -273,6 +301,7 @@ export const OBLIGATIONS: Obligation[] = [
   },
   {
     id: 'annual-return-on',
+    entities: ['corporation'],
     title: 'Ontario annual return',
     detail:
       'Filed with the province through the Ontario Business Registry, not with the '
@@ -292,6 +321,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 'annual-return-federal',
+    entities: ['corporation'],
     title: 'Federal annual return',
     detail:
       'A corporation incorporated federally files its annual return with Corporations '
@@ -311,6 +341,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 'annual-return-bc',
+    entities: ['corporation'],
     title: 'British Columbia annual report',
     detail:
       'A company incorporated in British Columbia files an annual report with BC '
@@ -329,6 +360,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 'annual-return-ab',
+    entities: ['corporation'],
     title: 'Alberta annual return',
     detail:
       'An Alberta corporation files its annual return by the end of the month after '
@@ -356,6 +388,7 @@ export const OBLIGATIONS: Obligation[] = [
    */
   {
     id: 'at1-alberta',
+    entities: ['corporation'],
     title: 'Alberta corporate income tax return',
     detail:
       'A corporation with a permanent establishment in Alberta files an AT1 with '
@@ -375,6 +408,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 'co17-quebec',
+    entities: ['corporation'],
     title: 'Quebec corporation income tax return',
     detail:
       'A corporation with an establishment in Quebec files a CO-17 with Revenu Quebec, '
@@ -395,6 +429,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 'hst-annual',
+    entities: ['corporation'],
     title: 'HST return and payment',
     detail:
       'An annual filer that is a corporation files and pays three months after the '
@@ -568,6 +603,7 @@ export const OBLIGATIONS: Obligation[] = [
 
   {
     id: 't5-slips',
+    entities: ['corporation'],
     title: 'T5 slips and summary',
     detail:
       'Dividends paid to shareholders are reported on a T5 by the last day of '
@@ -601,6 +637,173 @@ export const OBLIGATIONS: Obligation[] = [
     link: { label: 'Employer health tax', url: ON_EHT },
     applies: (p) =>
       p.payroll.hasAccount && p.permanentEstablishments.includes('ON'),
+  },
+
+  // ------------------------------------------------- unincorporated business
+
+  /**
+   * The split that catches almost everybody, and it is two dates rather than
+   * one confusing date.
+   *
+   * A self-employed person, or their spouse, has until 15 June to file. The
+   * balance is still due 30 April, and interest runs from 1 May. So the filing
+   * extension is real and the payment extension does not exist, which means
+   * anyone who waits for June and owes money has been paying interest for six
+   * weeks. FileClear shows both, separately, in that order.
+   */
+  {
+    id: 't1-balance',
+    entities: ['soleProprietorship'],
+    title: 'Personal tax balance owing',
+    detail:
+      'The 15 June filing deadline for self-employed people is a filing deadline '
+      + 'only. Any balance owing is due 30 April and interest runs from 1 May, so '
+      + 'waiting until June to work out what you owe means paying interest on it for '
+      + 'six weeks. If you cannot finish the return by April, estimate the balance and '
+      + 'pay it, then file in June.',
+    authority: 'CRA',
+    form: 'payment',
+    weight: 'critical',
+    schedule: { kind: 'calendar', month: 4, day: 30 },
+    leadDays: 45,
+    penalty: 'Interest from 1 May, compounded daily at the prescribed rate.',
+    link: { label: 'Self-employed: dates and deadlines', url: CRA_SELF_EMPLOYED },
+    applies: () => true,
+  },
+
+  {
+    id: 't1-return',
+    entities: ['soleProprietorship'],
+    title: 'Personal income tax return',
+    detail:
+      'A person who carried on a business has until 15 June to file, and so does '
+      + 'their spouse or common-law partner, whether or not the spouse had any '
+      + 'business income. The business itself does not file anything: its profit is '
+      + 'reported on form T2125 inside this return. That is the whole difference '
+      + 'between an unincorporated business and a corporation, and it is why there is '
+      + 'no T2 on your calendar.',
+    authority: 'CRA',
+    form: 'T1 with T2125',
+    weight: 'critical',
+    schedule: { kind: 'calendar', month: 6, day: 15 },
+    leadDays: 45,
+    penalty:
+      '5% of the balance owing, plus 1% for each full month late, up to 12 months. '
+      + 'A return with nothing owing is not penalised, but it can hold up benefit '
+      + 'payments that are calculated from it.',
+    link: { label: 'Self-employed: dates and deadlines', url: CRA_SELF_EMPLOYED },
+    applies: () => true,
+  },
+
+  /**
+   * Personal instalments are quarterly and on fixed dates, which is the one
+   * thing about them that is simpler than the corporate version. What is not
+   * simpler: the threshold is net tax owing over $3,000 in the current year and
+   * in either of the two before it, so a first profitable year does not trigger
+   * them and the second one does.
+   */
+  {
+    id: 't1-instalments',
+    entities: ['soleProprietorship'],
+    title: 'Personal tax instalment',
+    detail:
+      'Required when net tax owing is over $3,000 in the current year and in either '
+      + 'of the two years before it. The dates are fixed: 15 March, 15 June, '
+      + '15 September and 15 December, whatever the business does. CRA sends '
+      + 'instalment reminders, and following those reminder amounts exactly is a safe '
+      + 'harbour, so paying what the reminder says protects you from instalment '
+      + 'interest even if the year turns out bigger.',
+    authority: 'CRA',
+    form: 'instalment',
+    weight: 'important',
+    schedule: { kind: 'personalInstalments' },
+    leadDays: 14,
+    penalty: 'Instalment interest, and a further penalty once that interest passes $1,000.',
+    link: { label: 'Paying by instalments', url: CRA_INSTALMENTS },
+    notInFirstYear: true,
+    applies: (p) => p.lastYearTaxPayable > 3000,
+  },
+
+  /**
+   * The same 30 April and 15 June split again, in a different tax.
+   *
+   * An individual who is an annual GST/HST filer on a December year end files
+   * by 15 June and pays by 30 April. This is the deadline the corporate rule
+   * above says does not apply to corporations, and here is where it does apply.
+   * A non-December year end puts the filer back on the ordinary three months,
+   * which is why the fiscal period matters.
+   */
+  {
+    id: 'hst-annual-individual-payment',
+    entities: ['soleProprietorship'],
+    title: 'HST payment',
+    detail:
+      'An individual who files GST/HST annually with a 31 December year end pays by '
+      + '30 April, six weeks before the return itself is due. It is the same split as '
+      + 'the personal return, and for the same reason: the filing date was extended '
+      + 'for self-employed people and the payment date was not.',
+    authority: 'CRA',
+    form: 'payment',
+    weight: 'critical',
+    schedule: { kind: 'calendar', month: 4, day: 30 },
+    leadDays: 30,
+    penalty: 'Interest on the balance from 1 May.',
+    link: { label: 'GST/HST for businesses', url: CRA_HST },
+    applies: (p) => p.hst.registered && p.hst.period === 'annual'
+      && p.fiscalYearEnd.month === 12 && p.fiscalYearEnd.day === 31,
+  },
+
+  {
+    id: 'hst-annual-individual-return',
+    entities: ['soleProprietorship'],
+    title: 'HST return',
+    detail:
+      'The return itself is due 15 June, matching the personal return it sits '
+      + 'beside. The money was due on 30 April.',
+    authority: 'CRA',
+    form: 'GST34',
+    weight: 'critical',
+    schedule: { kind: 'calendar', month: 6, day: 15 },
+    leadDays: 30,
+    penalty: 'A penalty based on the balance owing, plus interest.',
+    link: { label: 'GST/HST for businesses', url: CRA_HST },
+    applies: (p) => p.hst.registered && p.hst.period === 'annual'
+      && p.fiscalYearEnd.month === 12 && p.fiscalYearEnd.day === 31,
+  },
+
+  /**
+   * An Ontario business name registration lasts five years and then stops
+   * existing. Nothing chases it: no return depends on it, no authority writes,
+   * and the usual way it is discovered is a bank refusing to deposit a cheque
+   * made out to a name that is no longer registered.
+   *
+   * Only for a business trading under something other than the owner's own
+   * name, because a sole proprietor using their own legal name does not have to
+   * register at all.
+   */
+  {
+    id: 'business-name-renewal',
+    entities: ['soleProprietorship'],
+    title: 'Renew the business name registration',
+    detail:
+      'An Ontario business name registration expires five years after it is made and '
+      + 'has to be renewed through the Ontario Business Registry. Nothing reminds you: '
+      + 'there is no return attached to it and no penalty for letting it lapse, so it '
+      + 'is usually found out at a bank, when a cheque made out to a name that is no '
+      + 'longer registered cannot be deposited. Renewing is cheaper and faster than '
+      + 'registering again.',
+    authority: 'Ontario',
+    form: 'Business name renewal',
+    weight: 'important',
+    schedule: { kind: 'everyNYearsFrom', years: 5,
+      from: (p) => p.businessNameRegisteredOn || p.incorporationDate },
+    leadDays: 60,
+    penalty:
+      'No fine, but the registration simply ends. Operating under an unregistered '
+      + 'name is an offence under the Business Names Act, and in practice the cost is '
+      + 'a bank account and contracts in a name that no longer exists on the register.',
+    link: { label: 'Ontario Business Registry', url: OBR },
+    applies: (p) => !!p.registeredBusinessName && p.permanentEstablishments.includes('ON'),
   },
 
   // ---------------------------------------------------------------- information

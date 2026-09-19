@@ -260,14 +260,42 @@ export function personalTax(input: PersonalInput): PersonalTax {
   const ei = eiOnSalary(salary, input.insurable ?? false);
   const grossedUp = Math.round(cash * (1 + d.grossUp));
 
-  // The enhanced part of CPP comes off income; the base part is a credit below.
-  const taxableIncome = Math.max(0, salary + grossedUp - cpp.deductible);
+  return taxOnTaxableIncome({
+    // The enhanced part of CPP comes off income; the base part is a credit.
+    taxableIncome: Math.max(0, salary + grossedUp - cpp.deductible),
+    // EI premiums earn a credit in full, unlike CPP where only the base part does.
+    creditableAmounts: cpp.creditable + ei.employee,
+    grossedUpDividends: grossedUp,
+    dividendKind: kind,
+  });
+}
 
-  // EI premiums earn a credit in full, unlike CPP where only the base part does.
+/**
+ * Tax on an amount of taxable income, given what else earns a credit.
+ *
+ * Extracted so that self-employment income goes through exactly the same
+ * brackets, basic personal amount, surtax and health premium as a salary,
+ * differing only in the two places it genuinely differs: the CPP contribution
+ * is twice as large, and its deductible and creditable halves are split
+ * differently. Computing that by running the salary calculation and then
+ * unpicking its CPP was the alternative, and it was the kind of arithmetic that
+ * is correct until somebody edits either end of it.
+ */
+export function taxOnTaxableIncome(input: {
+  taxableIncome: number;
+  /** Amounts that earn a non-refundable credit at the lowest rate, beyond the BPA. */
+  creditableAmounts?: number;
+  grossedUpDividends?: number;
+  dividendKind?: DividendKind;
+}): PersonalTax {
+  const taxableIncome = Math.max(0, input.taxableIncome);
+  const creditable = input.creditableAmounts ?? 0;
+  const grossedUp = input.grossedUpDividends ?? 0;
+  const d = DIVIDENDS[input.dividendKind ?? 'nonEligible'];
+
   const fedCredits = Math.round(
-    (federalBpa(taxableIncome) + cpp.creditable + ei.employee) * FEDERAL_CREDIT_RATE);
-  const onCredits = Math.round(
-    (ONTARIO_BPA + cpp.creditable + ei.employee) * ONTARIO_CREDIT_RATE);
+    (federalBpa(taxableIncome) + creditable) * FEDERAL_CREDIT_RATE);
+  const onCredits = Math.round((ONTARIO_BPA + creditable) * ONTARIO_CREDIT_RATE);
 
   const fedDtc = Math.round(grossedUp * d.federalCredit);
   const onDtc = Math.round(grossedUp * d.ontarioCredit);

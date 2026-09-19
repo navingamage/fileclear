@@ -14,6 +14,28 @@
  * more deadlines a year than one that pays dividends.
  */
 
+/**
+ * Incorporated, or not.
+ *
+ * The two are different products wearing one name, and pretending otherwise is
+ * how a sole proprietor gets told to file a T2. A corporation is a separate
+ * taxpayer: it files its own return, it pays its own tax, and taking money out
+ * of it is a second decision with its own tax consequences. A sole
+ * proprietorship is its owner. There is no second taxpayer, no annual return to
+ * any registry, no dividend, and the business's profit lands on a personal
+ * return that was already going to be filed.
+ *
+ * Almost every date moves. The pair worth knowing: a self-employed person's T1
+ * is due 15 June but the balance is due 30 April, so the return and the money
+ * are on different days, and an annual HST filer on a December year end is on
+ * exactly the same split. A corporation has neither.
+ *
+ * Partnerships are not here. A two person partnership is a real and common
+ * shape, and it brings a T5013 and an allocation between partners that this
+ * would have to do properly rather than approximately.
+ */
+export type EntityType = 'corporation' | 'soleProprietorship';
+
 /** Where the corporation is incorporated, which decides who gets the annual return. */
 export type Jurisdiction =
   | 'CBCA' // Federal, Canada Business Corporations Act
@@ -50,11 +72,27 @@ export interface MonthDay {
 export interface CompanyProfile {
   legalName: string;
 
-  /** Where it was incorporated, not where it operates. */
+  /**
+   * Incorporated or not. Everything downstream turns on this, so it is asked
+   * first and it is not optional.
+   *
+   * Defaults to 'corporation' when read from a row written before this field
+   * existed, which is right: every company in the database at that point was
+   * one.
+   */
+  entityType: EntityType;
+
+  /**
+   * Where it was incorporated, not where it operates.
+   *
+   * For a sole proprietorship there is nothing to incorporate, so this is where
+   * the business operates from and it decides which province's rules apply.
+   */
   jurisdiction: Jurisdiction;
 
   /**
-   * Date of incorporation, ISO yyyy-mm-dd.
+   * Date of incorporation, ISO yyyy-mm-dd. For a sole proprietorship, the date
+   * the business started, which is what the first T2125 reports from.
    *
    * Load bearing for federal corporations: the Corporations Canada annual
    * return is due within 60 days of the anniversary of this date, which has
@@ -63,7 +101,15 @@ export interface CompanyProfile {
    */
   incorporationDate: string;
 
-  /** The chosen fiscal year end. Not necessarily 31 December. */
+  /**
+   * The chosen fiscal year end. Not necessarily 31 December.
+   *
+   * A corporation picks one. A sole proprietorship does not: an unincorporated
+   * business has a calendar year fiscal period unless it has elected an
+   * alternative method, which is rare and brings an adjustment every year.
+   * `normalise` enforces that rather than letting the form offer a choice that
+   * does not exist.
+   */
   fiscalYearEnd: MonthDay;
 
   /**
@@ -115,8 +161,28 @@ export interface CompanyProfile {
   /** Construction. Payments to subcontractors produce a T5018 information return. */
   isConstruction: boolean;
 
-  /** Whether corporate tax instalments are required, i.e. tax payable over $3,000. */
+  /**
+   * Tax payable last year, which decides instalments. Over $3,000 and they are
+   * required, for a corporation and for a self-employed individual alike,
+   * though on different dates.
+   */
   lastYearTaxPayable: number;
+
+  /**
+   * Sole proprietorships only: whether the business trades under a name other
+   * than the owner's own legal name.
+   *
+   * It matters because a registered business name in Ontario expires after five
+   * years. Nothing chases it, no return depends on it, and a lapsed
+   * registration is usually discovered at a bank.
+   */
+  registeredBusinessName?: boolean;
+
+  /**
+   * Sole proprietorships only: when the business name was registered, so the
+   * five year renewal can be dated. Defaults to the business start date.
+   */
+  businessNameRegisteredOn?: string;
 
   /** Email before a window closes, and how far ahead to start. */
   reminders: { email: boolean; leadDays: number };
@@ -130,6 +196,7 @@ export interface CompanyProfile {
 export function blankProfile(): CompanyProfile {
   return {
     legalName: '',
+    entityType: 'corporation',
     jurisdiction: 'ON',
     incorporationDate: '',
     fiscalYearEnd: { month: 12, day: 31 },
@@ -144,4 +211,45 @@ export function blankProfile(): CompanyProfile {
     lastYearTaxPayable: 0,
     reminders: { email: true, leadDays: 14 },
   };
+}
+
+
+/**
+ * The facts a profile cannot be wrong about, applied after the form is read.
+ *
+ * A sole proprietorship has no share capital, so it is not a CCPC, cannot claim
+ * the small business deduction and cannot pay a dividend. Its fiscal period is
+ * the calendar year. Leaving any of those as whatever the form last held
+ * produces a plan that contradicts itself: a T5 slip for a business with no
+ * shareholders, or a September year end on a return that only knows December.
+ *
+ * Enforced here rather than in the view, so that an import, a test fixture and
+ * a form all land in the same place.
+ */
+export function normalise(p: CompanyProfile): CompanyProfile {
+  if (p.entityType !== 'soleProprietorship') return p;
+  return {
+    ...p,
+    fiscalYearEnd: { month: 12, day: 31 },
+    isCCPC: false,
+    claimsSmallBusinessDeduction: false,
+    paysDividends: false,
+  };
+}
+
+/**
+ * What to call the date the business began, and the entity, on screen.
+ *
+ * One place rather than a conditional at every label. "Date of incorporation"
+ * on a sole proprietor's set-up form is the kind of small wrongness that tells
+ * somebody the product was not built for them.
+ */
+export function words(t: EntityType): {
+  entity: string; entityPlural: string; started: string; nameLabel: string;
+} {
+  return t === 'soleProprietorship'
+    ? { entity: 'business', entityPlural: 'businesses', started: 'Date the business started',
+        nameLabel: 'Business name' }
+    : { entity: 'corporation', entityPlural: 'corporations', started: 'Date of incorporation',
+        nameLabel: 'Legal name' };
 }

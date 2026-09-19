@@ -140,26 +140,67 @@ if [ -n "$IDENTITY" ]; then
   }
 fi
 
-# The app inside carries its notarisation ticket, but the disk image is what a
-# person downloads and double clicks, and a dmg without its own ticket has to
-# be checked against Apple over the network. On a machine that is offline, or
-# behind something that blocks Apple, Gatekeeper then refuses it. Stapling is
-# what makes the check work without a connection, and electron-builder does not
-# always do it for the dmg.
-if [ -n "$IDENTITY" ]; then
-  say "Stapling the disk images"
+# The disk image has to be notarised in its own right.
+#
+# electron-builder notarises the .app, by zipping it and submitting that, and
+# then builds a dmg around the result. The app inside is therefore stapled and
+# the image is not, and stapling cannot fix that on its own: the ticket is
+# looked up by the hash of the thing being stapled, so a dmg that was never
+# submitted answers "Record not found".
+#
+# It is not cosmetic. spctl on an unnotarised image reports
+# "rejected, source=no usable signature", and that image is exactly what a
+# person downloads and double clicks. Verified rather than assumed, because
+# the app inside passing made it look finished.
+if [ -n "$IDENTITY" ] && $NOTARIZE; then
+  say "Notarising the disk images"
+  pids=()
   for dmg in *.dmg; do
     [ -e "$dmg" ] || continue
     if xcrun stapler validate "$dmg" > /dev/null 2>&1; then
       echo "  $dmg already stapled"
-    else
-      xcrun stapler staple "$dmg" > /dev/null 2>&1 \
-        && echo "  $dmg stapled" \
-        || { echo "  could not staple $dmg. Not publishing an image that needs" >&2
-             echo "  a network round trip to open." >&2; exit 1; }
+      continue
     fi
+    # In parallel: each is a round trip to Apple measured in tens of minutes,
+    # and they do not depend on each other.
+    (
+      xcrun notarytool submit "$dmg" \
+        --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" \
+        --issuer "$APPLE_API_ISSUER" --wait --timeout 45m \
+        > "$dmg.notarise.log" 2>&1
+      grep -q 'status: Accepted' "$dmg.notarise.log" \
+        && xcrun stapler staple "$dmg" > /dev/null 2>&1
+    ) &
+    pids+=($!)
+    echo "  $dmg submitted"
+  done
+  for pid in "${pids[@]:-}"; do [ -n "$pid" ] && wait "$pid"; done
+
+  for dmg in *.dmg; do
+    [ -e "$dmg" ] || continue
     xcrun stapler validate "$dmg" > /dev/null 2>&1 \
-      || { echo "  $dmg still has no ticket" >&2; exit 1; }
+      || { echo "  $dmg has no ticket. Not publishing an image a user's Mac" >&2
+           echo "  will refuse. See $dmg.notarise.log" >&2; exit 1; }
+    echo "  $dmg stapled"
+  done
+  rm -f ./*.notarise.log
+fi
+
+# Ask Gatekeeper about the image itself, not only about the app inside it.
+# The app passing is what made this look finished when it was not.
+if [ -n "$IDENTITY" ]; then
+  say "Checking the disk image the way a download is checked"
+  for dmg in *.dmg; do
+    [ -e "$dmg" ] || continue
+    if spctl --assess --type open --context context:primary-signature "$dmg" 2>&1 \
+       | grep -q accepted; then
+      echo "  $dmg accepted"
+    else
+      echo "  $dmg rejected by Gatekeeper. Not publishing it." >&2
+      spctl --assess --type open --context context:primary-signature -v "$dmg" 2>&1 \
+        | sed 's/^/    /' >&2
+      exit 1
+    fi
   done
 fi
 

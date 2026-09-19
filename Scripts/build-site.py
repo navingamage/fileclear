@@ -332,10 +332,11 @@ def page(slug: str, title: str, desc: str, body: str, canonical: bool = True) ->
 
 INDEX = """<section class="hero"><div class="wrap hero-grid">
   <div>
-    <span class="eyebrow">Canadian corporate filings</span>
+    <span class="eyebrow">Canadian business filings</span>
     <h1>Never miss a filing again.</h1>
-    <p class="lead">FileClear reads how your corporation is set up and builds the exact
-    calendar that follows from it. Every date, every form, every authority.</p>
+    <p class="lead">FileClear reads how your business is set up and builds the exact
+    calendar that follows from it. Every date, every form, every authority.
+    Incorporated or not.</p>
     <div class="cta-row">
       <a class="btn primary" href="/signup">Start free</a>
       <a class="btn ghost" href="#how">See how it works</a>
@@ -363,15 +364,16 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
 <section class="on-dark"><div class="wrap">
   <div class="sec-head">
     <span class="eyebrow">The problem</span>
-    <h2>Six obligations. Four clocks. Two governments.</h2>
+    <h2>Several obligations. Different clocks. Two governments.</h2>
     <p class="lead">No single place tells you which of them are yours, which is why
     the deadline people miss is usually one they never knew existed.</p>
   </div>
   <div class="figures">
+    <div class="figure"><b>30 April</b><span>when a self-employed person&rsquo;s balance
+      is due, six weeks before the return itself. The filing date was extended and the
+      payment date was not.</span></div>
     <div class="figure"><b>60 days</b><span>after your incorporation anniversary, if you
       are federal. Nothing else you owe runs on that clock.</span></div>
-    <div class="figure"><b>3 months</b><span>to pay, but only if you are a CCPC actually
-      claiming the small business deduction. Otherwise two.</span></div>
     <div class="figure"><b>2021</b><span>when the Ontario annual return moved to the
       provincial registry and stopped riding along with the T2.</span></div>
   </div>
@@ -380,16 +382,16 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
 <section id="how"><div class="wrap">
   <div class="sec-head">
     <span class="eyebrow">How it works</span>
-    <h2>Answer eight questions once.</h2>
+    <h2>Answer a few questions once.</h2>
     <p class="lead">All of it comes off documents you already have. Nothing needs an
     accountant to fill in.</p>
   </div>
   <div class="cards">
     <div class="card">
       <span class="num">01</span>
-      <h3>Describe the corporation</h3>
-      <p>Where you incorporated and when, your year end, your HST registration,
-      whether you run payroll.</p>
+      <h3>Describe the business</h3>
+      <p>Incorporated or not, where and when it started, your HST registration,
+      whether anybody is on payroll.</p>
     </div>
     <div class="card">
       <span class="num">02</span>
@@ -400,8 +402,8 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
     <div class="card">
       <span class="num">03</span>
       <h3>File with the numbers</h3>
-      <p>HST returns worked out both ways, year end figures, the amounts each form
-      asks for.</p>
+      <p>HST returns worked out both ways, year end figures, and the amounts each
+      form asks for, on a T2 or a T2125.</p>
     </div>
   </div>
 </div></section>
@@ -409,27 +411,28 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
 <section class="band" id="different"><div class="wrap">
   <div class="sec-head">
     <span class="eyebrow">Why yours differs</span>
-    <h2>Two corporations, two completely different years.</h2>
-    <p class="lead">Same revenue, same city. One answer during setup, and almost
-    nothing about their calendars matches.</p>
+    <h2>Two businesses, two completely different years.</h2>
+    <p class="lead">Same revenue, same city, same work. The first question during
+    setup, and almost nothing about their calendars matches.</p>
   </div>
   <div class="split">
     <div class="card">
-      <h3>Incorporated in Ontario</h3>
-      <span class="who">31 Dec year end &middot; salary &middot; annual HST</span>
+      <h3>A sole proprietorship</h3>
+      <span class="who">calendar year &middot; no employees &middot; annual HST</span>
       <ul>
-        <li>Annual return to the <b>province</b>, six months after year end</li>
-        <li>Twelve payroll remittances, the 15th of each month</li>
-        <li>T4 slips by the end of February</li>
-        <li>Employer health tax return in March</li>
+        <li>The balance due <b>30 April</b>, and the return itself <b>15 June</b></li>
+        <li>HST on exactly the same two dates, for exactly the same reason</li>
+        <li>No T2, and no annual return to any registry</li>
+        <li>A registered business name that expires after <b>five years</b> with
+        nothing to chase it</li>
       </ul>
     </div>
     <div class="card">
-      <h3>Incorporated federally</h3>
+      <h3>A federal corporation</h3>
       <span class="who">30 Jun year end &middot; dividends &middot; quarterly HST</span>
       <ul>
         <li>Annual return to <b>Corporations Canada</b>, 60 days after the incorporation anniversary</li>
-        <li>No payroll remittances at all</li>
+        <li>T2 six months after year end, tax payable two or three months after it</li>
         <li>T5 slips by the end of February</li>
         <li>Four HST returns, counted back from a June year end</li>
       </ul>
@@ -465,13 +468,15 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
     <div class="plan">
       <span class="plan-name">Both include</span>
       <ul>
-        <li>Every filing your corporation owes, on one calendar</li>
+        <li>Every filing your business owes, on one calendar</li>
         <li>Reminders before a window closes, not after</li>
         <li>HST computed both ways, with the difference</li>
-        <li>Year end: schedules 100, 125, 8 and 1</li>
+        <li>Year end: the T2 schedules, or a T2125 with the home office worked out</li>
         <li>Salary against dividends, both columns</li>
+        <li>Whether incorporating is worth it, with the arithmetic</li>
         <li>T4 and T5 figures, box by box</li>
-        <li>As many corporations as you own</li>
+        <li>Mac and Windows as well as the browser</li>
+        <li>As many businesses as you run</li>
       </ul>
     </div>
   </div>
@@ -485,9 +490,9 @@ INDEX = """<section class="hero"><div class="wrap hero-grid">
 <section class="on-dark"><div class="wrap">
   <div class="sec-head">
     <span class="eyebrow">Start</span>
-    <h2>Tell it your year end.</h2>
-    <p class="lead">Eight questions about how your corporation is set up, and the
-    calendar that follows from them. Free until you rely on it, and no card to begin.</p>
+    <h2>Tell it how you are set up.</h2>
+    <p class="lead">A few questions about the business, and the calendar that follows
+    from them. Free until you rely on it, and no card to begin.</p>
   </div>
   <div class="cta-row">
     <a class="btn primary" href="/signup">Create an account</a>
@@ -509,9 +514,19 @@ SUPPORT = """<section><div class="wrap narrow prose">
   <h3>Is this tax advice?</h3>
   <p>No. Where a decision is a judgement, FileClear shows the arithmetic for each option
   and the rule behind it, and stops there.</p>
-  <h3>Which corporations does it cover?</h3>
-  <p>Canadian corporations, federal or provincial. The rules are most complete for
-  Ontario, which is where it is being built and tested first.</p>
+  <h3>Which businesses does it cover?</h3>
+  <p>Canadian corporations, federal or provincial, and sole proprietorships. The rules
+  are most complete for Ontario, which is where it is being built and tested first.
+  Partnerships are not covered: a T5013 and an allocation between partners is work
+  worth doing properly rather than approximately.</p>
+  <h3>I am a sole proprietor. Is this not just for corporations?</h3>
+  <p>It was. It is not now. The two are different enough that almost no filing is
+  shared, which is exactly why one calendar built from the right answer is worth
+  having: the 15 June filing deadline that people hear about is a filing deadline
+  only, and the money is due 30 April.</p>
+  <h3>Is there a Mac or Windows app?</h3>
+  <p>Yes. <a href="/download">Download it here.</a> The rules stay on the server, so
+  a corrected rate reaches the app without you updating anything.</p>
   <h3>Where do the dates come from?</h3>
   <p>Every obligation links to the CRA, Corporations Canada or Ontario page that
   publishes it. FileClear tells you a date is coming. It is not the authority on the
@@ -659,8 +674,9 @@ NOTFOUND = """<section><div class="wrap narrow center">
 
 PAGES = [
     ("index.html", "", "FileClear: never miss a corporate filing",
-     "FileClear reads how your Canadian corporation is set up and builds the filing "
-     "calendar that follows from it, with the form, the date and the authority for each.",
+     "FileClear reads how your Canadian business is set up, incorporated or not, and "
+     "builds the filing calendar that follows from it, with the form, the date and "
+     "the authority for each.",
      INDEX, True),
     ("support.html", "support", "Support &middot; FileClear",
      "How to get help with FileClear, and answers to the questions asked most often.",

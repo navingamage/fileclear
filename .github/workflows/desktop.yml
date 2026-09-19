@@ -54,9 +54,9 @@ jobs:
       HAS_ASC_KEY: ${{ secrets.ASC_KEY_P8 != '' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -95,19 +95,36 @@ jobs:
         working-directory: desktop
         shell: bash
         env:
-          # electron-builder imports CSC_LINK into a throwaway keychain itself.
-          # Doing it by hand as well is two ways for the same step to go wrong.
+          # Named differently from CSC_LINK on purpose, and exported below only
+          # when there is something in them.
           #
-          # When the secret is empty it signs nothing and produces an unsigned
-          # build, which is deliberate: a build without credentials should
-          # still be produced and plainly labelled rather than failing after
-          # everything else succeeded, which is what tempts somebody into
-          # shipping it as though it were signed.
-          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          # An empty CSC_LINK is not the same as an absent one. electron-builder
+          # treats the variable as defined and tries to read a certificate from
+          # it, which resolves to the working directory and fails with
+          # "<dir> not a file" several minutes into the build. Setting these
+          # straight into env looks obviously correct and is how the first run
+          # of this workflow failed.
+          MAC_CERT: ${{ secrets.MAC_CERT_P12 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
           APPLE_API_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.ASC_ISSUER_ID }}
         run: |
+          if [ -n "$MAC_CERT" ]; then
+            # electron-builder imports this into a throwaway keychain itself.
+            # Doing it by hand as well is two ways for one step to go wrong.
+            export CSC_LINK="$MAC_CERT"
+            export CSC_KEY_PASSWORD="$MAC_CERT_PASSWORD"
+          else
+            # Signs nothing and produces an unsigned build, deliberately. A
+            # build without credentials should still be produced and plainly
+            # labelled rather than failing after everything else succeeded,
+            # which is what tempts somebody into shipping one as though it were
+            # signed. Without this, electron-builder hunts the runner's
+            # keychain for an identity and reports a confusing error when it
+            # finds none.
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+
           # Notarising without a key fails the build at the very end, after the
           # slowest part has already succeeded, so it is asked for only when
           # there is a key to do it with. electron-builder's config is static,
@@ -116,7 +133,7 @@ jobs:
             echo "Signing and notarising."
             npx electron-builder --mac --publish never --config.mac.notarize=true
           else
-            echo "No notarisation key. Building unsigned."
+            echo "Building unsigned."
             npx electron-builder --mac --publish never
           fi
 
@@ -125,9 +142,18 @@ jobs:
         working-directory: desktop
         shell: bash
         env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-        run: npx electron-builder --win --publish never
+          # Exported below rather than set here, for the same reason as macOS:
+          # an empty WIN_CSC_LINK is read as a certificate path and fails.
+          WIN_CERT: ${{ secrets.WIN_CERT_PFX }}
+          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: |
+          if [ -n "$WIN_CERT" ]; then
+            export WIN_CSC_LINK="$WIN_CERT"
+            export WIN_CSC_KEY_PASSWORD="$WIN_CERT_PASSWORD"
+          else
+            echo "Building unsigned. SmartScreen will warn."
+          fi
+          npx electron-builder --win --publish never
 
       - name: Say what was actually produced
         shell: bash
@@ -146,7 +172,7 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: fileclear-${{ matrix.platform }}
           path: |
@@ -172,7 +198,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: artifacts
           merge-multiple: true

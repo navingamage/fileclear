@@ -1,4 +1,6 @@
-import { blankProfile, type CompanyProfile, type Jurisdiction } from './rules/profile';
+import {
+  blankProfile, normalise, type CompanyProfile, type Jurisdiction,
+} from './rules/profile';
 import { filingsBetween, advisoriesFor, addDays, yearEndFor } from './rules/engine';
 import {
   accountForRequest, createSession, endSession, hashPassword, verifyPassword,
@@ -14,6 +16,7 @@ import {
   employeesFor, addEmployee, deleteEmployee,
   subscriptionFor, recordSubscription, startTrial,
   importRules, rememberImportRule, ledgerFingerprints,
+  homeOfficeFor, saveHomeOffice,
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
@@ -36,7 +39,11 @@ import {
   importPage, importPreviewPage, onboardingStepPage, ONBOARDING_STEPS,
   shell, html,
   type HstPeriodOption, type Chrome,
+  t2125Page, incorporatePage,
 } from './views';
+import { homeOffice, type HomeOfficeInput } from './rules/homeoffice';
+import { statement, selfEmployedYear } from './rules/selfemployed';
+import { compareIncorporation, crossoverTable } from './rules/incorporate';
 import { fiscalYears, statementsFor, shareholderLoans } from './rules/yearend';
 import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
 import { schedule1, computeTax } from './rules/t2';
@@ -137,28 +144,49 @@ function mergeStep(
   const p: CompanyProfile = { ...existing };
 
   if (step === 1) {
+    // Asked on its own, before anything else, because everything downstream
+    // turns on it and because the wording of the next three steps does too.
+    const kind = String(form.get('entityType') ?? 'corporation');
+    p.entityType = kind === 'soleProprietorship' ? 'soleProprietorship' : 'corporation';
     p.legalName = String(form.get('legalName') ?? '').trim();
+    if (!p.legalName) {
+      return { profile: p, error: p.entityType === 'soleProprietorship'
+        ? 'The business needs a name, even if it is your own.'
+        : 'The corporation needs a legal name.' };
+    }
+  }
+
+  if (step === 2) {
     p.jurisdiction = String(form.get('jurisdiction') ?? 'ON') as Jurisdiction;
     p.incorporationDate = String(form.get('incorporationDate') ?? '').trim();
-    p.fiscalYearEnd = {
-      month: Math.min(12, Math.max(1, num(form.get('fyeMonth'), 12))),
-      day: Math.min(31, Math.max(1, num(form.get('fyeDay'), 31))),
-    };
-    if (!p.legalName) return { profile: p, error: 'The corporation needs a legal name.' };
+    if (p.entityType === 'soleProprietorship') {
+      p.registeredBusinessName = on(form.get('registeredBusinessName'));
+      if (p.registeredBusinessName && !p.businessNameRegisteredOn) {
+        p.businessNameRegisteredOn = p.incorporationDate;
+      }
+    } else {
+      p.fiscalYearEnd = {
+        month: Math.min(12, Math.max(1, num(form.get('fyeMonth'), 12))),
+        day: Math.min(31, Math.max(1, num(form.get('fyeDay'), 31))),
+      };
+    }
+    const dateLabel = p.entityType === 'soleProprietorship'
+      ? 'Enter the date the business started.'
+      : 'Enter the date of incorporation, as it appears on the certificate.';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.incorporationDate)) {
-      return { profile: p, error: 'Enter the date of incorporation, as it appears on the certificate.' };
+      return { profile: p, error: dateLabel };
     }
     if (p.incorporationDate > today()) {
-      return { profile: p, error: 'That date of incorporation is in the future.' };
+      return { profile: p, error: 'That date is in the future.' };
     }
     // Nothing has been asked yet about where it operates, so it starts where it
-    // was incorporated and step three offers the chance to widen it.
+    // was incorporated and the last step offers the chance to widen it.
     if (!p.permanentEstablishments.length) {
       p.permanentEstablishments = [p.jurisdiction === 'CBCA' ? 'ON' : p.jurisdiction];
     }
   }
 
-  if (step === 2) {
+  if (step === 3) {
     p.hst = {
       ...p.hst,
       registered: on(form.get('hstRegistered')),
@@ -167,7 +195,7 @@ function mergeStep(
     };
   }
 
-  if (step === 3) {
+  if (step === 4) {
     p.payroll = { ...p.payroll, hasAccount: on(form.get('payrollAccount')) };
     p.paysDividends = on(form.get('paysDividends'));
     const chosen = form.getAll('pe').map((v) => String(v) as Jurisdiction);
@@ -176,11 +204,21 @@ function mergeStep(
       : [p.jurisdiction === 'CBCA' ? 'ON' : p.jurisdiction];
   }
 
-  return { profile: p };
+  // A business without shares cannot be a CCPC or pay a dividend, and it does
+  // not choose a fiscal year end. Applied on every step rather than only on the
+  // one that asks, so a person who goes back and changes the answer at step one
+  // does not keep an answer that no longer exists.
+  return { profile: normalise(p) };
 }
 
 function profileFromForm(form: FormData): { profile: CompanyProfile; error?: string } {
   const p = blankProfile();
+  const kind = String(form.get('entityType') ?? 'corporation');
+  p.entityType = kind === 'soleProprietorship' ? 'soleProprietorship' : 'corporation';
+  p.registeredBusinessName = on(form.get('registeredBusinessName'));
+  const registeredOn = String(form.get('businessNameRegisteredOn') ?? '').trim();
+  p.businessNameRegisteredOn = /^\d{4}-\d{2}-\d{2}$/.test(registeredOn)
+    ? registeredOn : undefined;
   p.legalName = String(form.get('legalName') ?? '').trim();
   p.jurisdiction = String(form.get('jurisdiction') ?? 'ON') as Jurisdiction;
   p.incorporationDate = String(form.get('incorporationDate') ?? '').trim();
@@ -219,17 +257,25 @@ function profileFromForm(form: FormData): { profile: CompanyProfile; error?: str
     leadDays: Math.max(1, Math.min(90, num(form.get('remindLeadDays'), 14))),
   };
 
-  if (!p.legalName) return { profile: p, error: 'The corporation needs a legal name.' };
+  const sole = p.entityType === 'soleProprietorship';
+  if (!p.legalName) {
+    return { profile: p, error: sole
+      ? 'The business needs a name, even if it is your own.'
+      : 'The corporation needs a legal name.' };
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(p.incorporationDate)) {
-    return { profile: p, error: 'Enter the date of incorporation.' };
+    return { profile: p, error: sole
+      ? 'Enter the date the business started.' : 'Enter the date of incorporation.' };
   }
   if (p.incorporationDate > today()) {
-    return { profile: p, error: 'The date of incorporation is in the future.' };
+    return { profile: p, error: 'That date is in the future.' };
   }
   // A CCPC flag off with the deduction claimed is contradictory, and the
   // deduction is the half that decides the payment deadline, so it loses.
   if (!p.isCCPC) p.claimsSmallBusinessDeduction = false;
-  return { profile: p };
+  // And normalise has the last word, because a sole proprietorship cannot be a
+  // CCPC at all whatever the form said.
+  return { profile: normalise(p) };
 }
 
 // -------------------------------------------------------------------- routes
@@ -461,6 +507,7 @@ export default {
         rates: staleness(today()),
         companies: await companiesFor(env.DB, account.id),
         activeCompanyId: company?.id,
+        entityType: company?.profile.entityType,
       }
       : {};
 
@@ -804,15 +851,18 @@ export default {
     if ((path === '/year-end' || path === '/assets' || path === '/assets/delete') && account) {
       if (!company) return redirect('/onboarding');
 
-      if (path === '/assets/delete' && request.method === 'POST') {
-        const form = await request.formData();
+      // Read once. Three paths land here and a request body can only be
+      // consumed once, so a second formData() on the same request returns
+      // nothing and the failure looks like an empty form rather than a bug.
+      const form = request.method === 'POST' ? await request.formData() : null;
+
+      if (path === '/assets/delete' && form) {
         await deleteAsset(env.DB, company.id, String(form.get('id') ?? ''));
         return redirect('/year-end');
       }
 
       let problem: string | null = null;
-      if (path === '/assets' && request.method === 'POST') {
-        const form = await request.formData();
+      if (path === '/assets' && form) {
         const date = String(form.get('date') ?? '').trim();
         const classNumber = Number(form.get('class'));
         const cost = money(form.get('cost'));
@@ -853,6 +903,80 @@ export default {
       const isCurrent = (id: string) => ACCOUNT_BY_ID.get(id)?.current !== false;
       const statements = statementsFor(ledger, active, isCurrent);
       const s8 = schedule8(assets, chain, claims);
+
+      /**
+       * An unincorporated business stops somewhere else entirely.
+       *
+       * The statements and the capital cost allowance above are the same
+       * arithmetic, so they are shared. What cannot be shared is everything
+       * after: there is no corporate tax, no Schedule 1 reconciliation and no
+       * second taxpayer, and the only figure that answers "what do I owe" is a
+       * personal one.
+       */
+      if (company.profile.entityType === 'soleProprietorship') {
+        if (path === '/year-end' && form?.get('what') === 'home') {
+          const area = (k: string) => Math.max(0, Number(form!.get(k)) || 0);
+          const hours = String(form!.get('hoursPerWeek') ?? '').trim();
+          const input: HomeOfficeInput = {
+            homeArea: area('homeArea'),
+            workArea: area('workArea'),
+            // Empty means a room used only for the business, which is not
+            // prorated by time at all. Zero would mean it is never used.
+            hoursPerWeek: hours === '' ? undefined : Math.max(0, Math.min(168, Number(hours) || 0)),
+            rent: money(form!.get('rent')) ?? 0,
+            mortgageInterest: money(form!.get('mortgageInterest')) ?? 0,
+            propertyTax: money(form!.get('propertyTax')) ?? 0,
+            homeInsurance: money(form!.get('homeInsurance')) ?? 0,
+            utilities: money(form!.get('utilities')) ?? 0,
+            maintenance: money(form!.get('maintenance')) ?? 0,
+          };
+          if (input.homeArea <= 0 || input.workArea <= 0) {
+            problem = 'Enter the area of the home and the area used for the business.';
+          } else if (input.workArea > input.homeArea) {
+            problem = 'The work space cannot be larger than the home.';
+          } else {
+            await saveHomeOffice(env.DB, company.id, active.to, input);
+            return redirect(`/year-end?year=${encodeURIComponent(active.id)}`);
+          }
+        }
+
+        const homeInput = await homeOfficeFor(env.DB, company.id, active.to);
+        const home = homeInput ? homeOffice(homeInput) : null;
+
+        const st = statement({
+          grossRevenue: statements.income.totalRevenue,
+          expenses: statements.income.totalExpenses,
+          cca: s8.totalCca,
+          homeOfficeClaim: home?.claim ?? 0,
+        });
+        const year = selfEmployedYear(st.netIncome);
+
+        const facts = [
+          `Fiscal year: ${active.from} to ${active.to}.`,
+          `Gross business income: ${factFigure(st.grossRevenue)}.`,
+          `Total expenses: ${factFigure(st.expenses)}.`,
+          `Business use of home claimed: ${factFigure(st.businessUseOfHome)}.`,
+          `Net business income: ${factFigure(st.netIncome)}.`,
+          `Taxable income: ${factFigure(year.tax.taxableIncome)}.`,
+          `Income tax: ${factFigure(year.tax.total)}.`,
+          `CPP on self-employment: ${factFigure(year.cpp.total)}.`,
+          `Total due on 30 April: ${factFigure(year.totalDue)}.`,
+        ].join(' ');
+
+        const said = st.netIncome > 0
+          ? await explain(env,
+            'Explain in plain words what this sole proprietor owes for the year, and '
+            + 'that CPP is a pension contribution rather than tax.', facts)
+          : { text: null as string | null, reason: undefined as string | undefined };
+        if (said.reason) console.log(`T2125 explanation unavailable: ${said.reason}`);
+
+        return html(t2125Page(
+          account.email, company.profile.legalName, years, active,
+          statements, s8, st, year, home, homeInput,
+          problem ?? undefined, chrome, said.text ?? undefined,
+        ), problem ? 400 : 200);
+      }
+
       const s1 = schedule1(statements, ledger, active, s8);
       const tax = computeTax(company.profile, active, s1, ledger);
 
@@ -886,8 +1010,56 @@ export default {
       ), problem ? 400 : 200);
     }
 
+    /**
+     * Whether to incorporate, which is the sole proprietor's version of the
+     * salary and dividend question: the decision that sits one level above
+     * everything else the product computes.
+     *
+     * Open to a corporation too, because somebody who already incorporated is
+     * entitled to see whether it was worth it, and because an owner whose
+     * income has fallen may be asking the question in the other direction.
+     */
+    if (path === '/incorporate' && account) {
+      if (!company) return redirect('/onboarding');
+
+      // Defaults to what the books actually show rather than to a round number,
+      // the same way the compensation screen does.
+      const years = fiscalYears(company.profile, today());
+      const active = years.find((y) => y.ended) ?? years[0];
+      let profit = 100_000_00;
+      if (active) {
+        const rows = await transactionsFor(env.DB, company.id, active.from, active.to);
+        const statements = statementsFor(toLedger(rows), active,
+          (id) => ACCOUNT_BY_ID.get(id)?.current !== false);
+        if (statements.income.netBeforeTax > 0) profit = statements.income.netBeforeTax;
+      }
+
+      const askedProfit = money(url.searchParams.get('profit'));
+      if (askedProfit !== null && askedProfit > 0) profit = askedProfit;
+      profit = Math.min(profit, 100_000_000_00);
+
+      // The draw is what actually decides the answer, so it is a control rather
+      // than an assumption. Defaulting it to the whole profit would make
+      // incorporating look pointless at every level, which is the case where it
+      // genuinely is and not the case most people are in.
+      const askedDraw = money(url.searchParams.get('draw'));
+      const draw = askedDraw !== null && askedDraw >= 0
+        ? Math.min(askedDraw, profit)
+        : Math.min(profit, 80_000_00);
+
+      const year = Number(today().slice(0, 4));
+      const comparison = compareIncorporation(profit, draw, year);
+      return html(incorporatePage(
+        account.email, company.profile.legalName, comparison,
+        crossoverTable(draw, year), chrome));
+    }
+
     if (path === '/compensation' && account) {
       if (!company) return redirect('/onboarding');
+      // A sole proprietor has no salary or dividend to choose between: there is
+      // no second taxpayer to pay one. The question one level up is the one
+      // they are actually asking.
+      if (company.profile.entityType === 'soleProprietorship') return redirect('/incorporate');
 
       // Defaults to what the year actually produced, so the first view is about
       // this corporation rather than a round number.

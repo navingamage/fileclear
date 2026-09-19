@@ -365,3 +365,34 @@ ALTER TABLE companies ADD COLUMN entity_type TEXT NOT NULL DEFAULT 'corporation'
 -- discovered at a bank.
 ALTER TABLE companies ADD COLUMN registered_business_name INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE companies ADD COLUMN business_name_registered_on TEXT NOT NULL DEFAULT '';
+
+-- ---------------------------------------------------- business use of home
+
+-- What the home costs, and how much of it is the business's.
+--
+-- One row per business per fiscal year, because the numbers change every year
+-- and because a claim has to be reconstructable years later if CRA asks how it
+-- was arrived at. Storing the computed claim instead of its inputs would make
+-- that impossible, and it would freeze the arithmetic at whatever the code did
+-- on the day it was saved.
+--
+-- hours_per_week is null for a room used only for the business. That is not the
+-- same as zero, and the distinction is the whole difference between a claim
+-- prorated by time and one that is not.
+CREATE TABLE IF NOT EXISTS home_office (
+  company_id           TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  year_end             TEXT NOT NULL,          -- yyyy-mm-dd, identifies the year
+  home_area            REAL NOT NULL,
+  work_area            REAL NOT NULL,
+  hours_per_week       REAL,
+  rent_cents           INTEGER NOT NULL DEFAULT 0,
+  -- Interest only. The principal is not deductible, which is why this is not a
+  -- single "mortgage" column somebody would put their whole payment in.
+  mortgage_interest_cents INTEGER NOT NULL DEFAULT 0,
+  property_tax_cents   INTEGER NOT NULL DEFAULT 0,
+  insurance_cents      INTEGER NOT NULL DEFAULT 0,
+  utilities_cents      INTEGER NOT NULL DEFAULT 0,
+  maintenance_cents    INTEGER NOT NULL DEFAULT 0,
+  updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (company_id, year_end)
+);

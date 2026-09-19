@@ -1,4 +1,4 @@
-import type { CompanyProfile } from './rules/profile';
+import { words, type CompanyProfile, type EntityType } from './rules/profile';
 import type { Filing, Advisory } from './rules/engine';
 import { DEFAULT_COUNTER } from './rules/postings';
 import type { FiscalYear, GifiStatements, StatementLine } from './rules/yearend';
@@ -33,6 +33,16 @@ export interface Chrome {
    * task that makes the rest work.
    */
   hideNav?: boolean;
+  /**
+   * What the active company is, so the navigation matches it.
+   *
+   * A sole proprietor has no compensation question to answer and no T2 to
+   * work towards, and a corporation is not deciding whether to incorporate.
+   * Showing every link to everybody would put four screens in front of each
+   * that say "this does not apply to you", which is the shape of a product
+   * that was extended rather than built for both.
+   */
+  entityType?: EntityType;
 }
 import type { T4, T5, SlipBox } from './rules/slips';
 import type {
@@ -123,6 +133,12 @@ const CHROME = `<style>
   .check { display: flex; gap: .65rem; align-items: flex-start; margin-bottom: .85rem; }
   .check input { margin-top: .35rem; flex: none; }
   .check label { font-size: .95rem; }
+  /* The explanation under a checkbox was running on from its own label, so
+     "I trade under a name that is not my own" and the sentence explaining why
+     it matters read as one ungrammatical line. Only .field .sub was styled, and
+     every checkbox on the company page carries one. */
+  .check .sub { display: block; color: var(--muted); font-size: .85rem;
+    font-weight: 400; margin-top: .2rem; line-height: 1.45; }
 
   .btn { display: inline-flex; align-items: center; justify-content: center;
     padding: .68rem 1.25rem; font: inherit; font-weight: 600; font-size: .95rem;
@@ -383,6 +399,21 @@ const CHROME = `<style>
   .frow .now { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .08em;
     text-transform: uppercase; color: var(--brand); }
 
+  /* Two choices, each big enough to read before choosing. A radio button with
+     a label beside it makes the more consequential question on the form look
+     like the least consequential thing on the screen. */
+  .pick { display: grid; gap: .9rem; margin-bottom: 1.8rem; }
+  @media (min-width: 720px) { .pick { grid-template-columns: 1fr 1fr; } }
+  .pick-card { display: block; cursor: pointer; padding: 1.15rem 1.25rem;
+    border: 1px solid var(--line); border-radius: 16px; background: var(--band); }
+  .pick-card.on, .pick-card:has(input:checked) {
+    border-color: var(--brand); box-shadow: var(--shadow-lg); }
+  .pick-card:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .pick-card input { margin-right: .5rem; }
+  .pick-card b { font-size: 1.02rem; }
+  .pick-card span { display: block; margin-top: .4rem; color: var(--muted);
+    font-size: .89rem; line-height: 1.5; }
+
   .steps-bar { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
     text-transform: uppercase; color: var(--muted); margin-bottom: 1.6rem; }
   .steps-bar b { color: var(--brand); }
@@ -418,11 +449,15 @@ export function shell(
   <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="30" height="30">FileClear</a>
   ${email && !hideNav ? `<nav class="app-nav" aria-label="Sections">
     ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
-    ${link('/year-end', 'Year end')}${link('/compensation', 'Pay')}${link('/slips', 'Slips')}
-    ${link('/onboarding', 'Company')}${link('/billing', 'Billing')}</nav>` : ''}
+    ${chrome.entityType === 'soleProprietorship'
+      ? `${link('/year-end', 'Year end')}${link('/incorporate', 'Incorporate?')}`
+      : `${link('/year-end', 'Year end')}${link('/compensation', 'Pay')}`}
+    ${link('/slips', 'Slips')}
+    ${link('/onboarding', chrome.entityType === 'soleProprietorship' ? 'Business' : 'Company')}
+    ${link('/billing', 'Billing')}</nav>` : ''}
   ${!hideNav && companies && companies.length > 1 ? `<form method="post" action="/companies" class="switcher">
     <input type="hidden" name="back" value="${esc(active)}">
-    <select name="id" onchange="this.form.submit()" aria-label="Corporation">
+    <select name="id" onchange="this.form.submit()" aria-label="Business">
       ${companies.map((c) => `<option value="${esc(c.id)}"${
         c.id === activeCompanyId ? ' selected' : ''}>${esc(c.legalName || 'Unnamed')}</option>`).join('')}
     </select>
@@ -468,8 +503,8 @@ export function authPage(mode: 'in' | 'up', error?: string, email = ''): string 
   const aside = up
     ? `<span class="aside-tag">What happens next</span>
        <ol class="aside-steps">
-         <li><b>Four questions</b> about how your corporation is set up. Where you
-           incorporated, when your year ends, and whether you are registered for HST.</li>
+         <li><b>A few questions</b> about how the business is set up. Whether it is
+           incorporated, where and when it started, and how you file HST.</li>
          <li><b>Your calendar appears.</b> Every filing you owe, with the form, the
            authority, and what it costs to be late.</li>
          <li><b>Reminders arrive</b> in the morning, before a window closes rather
@@ -478,8 +513,8 @@ export function authPage(mode: 'in' | 'up', error?: string, email = ''): string 
        <p class="aside-note">Free until you file from it. No card to begin.</p>`
     : `<span class="aside-tag">Your calendar is where you left it</span>
        <p class="aside-note">Nothing about what you owe is stored: it is worked out
-       from your corporation's own set-up each time you look, so a corrected rule
-       reaches you the next morning rather than the next time you sign up.</p>`;
+       from the business's own set-up each time you look, so a corrected rule
+       reaches you the next morning rather than the next time you sign in.</p>`;
 
   return shell(up ? 'Create an account' : 'Sign in', `
 <div class="auth-grid">
@@ -487,7 +522,7 @@ export function authPage(mode: 'in' | 'up', error?: string, email = ''): string 
     <span class="label">${up ? 'New account' : 'Sign in'}</span>
     <h1>${up ? 'Never miss a filing again.' : 'Welcome back.'}</h1>
     <p class="hint">${up
-      ? 'One account holds every corporation you own.'
+      ? 'Incorporated or not. One account holds every business you run.'
       : 'Enter the email you signed up with.'}</p>
 
     ${error ? `<div class="err">${esc(error)}</div>` : ''}
@@ -540,14 +575,19 @@ export function onboardingPage(
   adding = false, chrome: Chrome = {},
 ): string {
   const sel = (v: boolean) => (v ? ' checked' : '');
-  return shell('Your corporation', `
+  const sole = p.entityType === 'soleProprietorship';
+  const w = words(p.entityType);
+  return shell(sole ? 'Your business' : 'Your corporation', `
 <div class="narrow">
-  <div class="steps-bar"><b>${adding ? 'Adding a corporation' : 'Step 1 of 1'}</b>
-    &middot; about the corporation</div>
-  <h1>${adding ? 'Tell us about the new one.' : 'Tell us about the corporation.'}</h1>
+  <div class="steps-bar"><b>${adding ? `Adding a ${w.entity}` : 'Step 1 of 1'}</b>
+    &middot; about the ${esc(w.entity)}</div>
+  <h1>${adding ? 'Tell us about the new one.'
+    : `Tell us about the ${esc(w.entity)}.`}</h1>
   <p class="hint">Every answer changes which filings exist for you, so none of this
-  is a formality. All of it comes off your incorporation documents and your last
-  return.</p>
+  is a formality. ${sole
+    ? 'The fields that only apply to a corporation are not shown, because they do '
+      + 'not apply to you.'
+    : 'All of it comes off your incorporation documents and your last return.'}</p>
   ${welcomed ? `<div class="ok"><b>Account created.</b> A confirmation is on its way to
     ${esc(email)}. If it does not arrive, check the address is right before you rely on
     reminders, because that is where they will go.</div>` : ''}
@@ -555,29 +595,66 @@ export function onboardingPage(
 
   <form method="post" action="/onboarding">
     <fieldset>
-      <legend>The company</legend>
-      <div class="field">
-        <label for="legalName">Legal name</label>
-        <input id="legalName" name="legalName" type="text" required
-          value="${esc(p.legalName)}" placeholder="Antipode Technologies Inc.">
+      <legend>What kind of business</legend>
+      <div class="pick">
+        <label class="pick-card">
+          <input type="radio" name="entityType" value="corporation"${sole ? '' : ' checked'}>
+          <b>A corporation</b>
+          <span>A separate taxpayer, with its own T2 and an annual return to a
+          registry.</span>
+        </label>
+        <label class="pick-card">
+          <input type="radio" name="entityType" value="soleProprietorship"${
+            sole ? ' checked' : ''}>
+          <b>A sole proprietorship</b>
+          <span>Unincorporated. The profit goes on your own return on form
+          T2125.</span>
+        </label>
       </div>
+      <p class="hint">Changing this rebuilds your whole calendar, because almost no
+      filing is shared between the two. Anything you have ticked off under the old
+      answer stays ticked and simply stops appearing.</p>
+      <div class="field">
+        <label for="legalName">${esc(w.nameLabel)}</label>
+        <input id="legalName" name="legalName" type="text" required
+          value="${esc(p.legalName)}" placeholder="${sole
+            ? 'Jane Doe Design' : 'Antipode Technologies Inc.'}">
+      </div>
+      ${sole ? `<div class="check">
+        <input id="registeredBusinessName" name="registeredBusinessName" type="checkbox"${
+          sel(!!p.registeredBusinessName)}>
+        <label for="registeredBusinessName">I trade under a name that is not my own
+          <span class="sub">An Ontario registration expires after five years and
+          nothing chases it.</span></label>
+      </div>
+      <div class="field" style="max-width:16rem">
+        <label for="businessNameRegisteredOn">When the name was registered</label>
+        <input id="businessNameRegisteredOn" name="businessNameRegisteredOn" type="date"
+          value="${esc(p.businessNameRegisteredOn ?? '')}">
+      </div>` : ''}
       <div class="row2">
         <div class="field">
-          <label for="jurisdiction">Where incorporated
-            <span class="sub">Decides which annual return you owe, and to whom.</span></label>
+          <label for="jurisdiction">${sole ? 'Where you operate from' : 'Where incorporated'}
+            <span class="sub">${sole
+              ? 'Which province\'s rules apply to you.'
+              : 'Decides which annual return you owe, and to whom.'}</span></label>
           <select id="jurisdiction" name="jurisdiction">
-            <option value="CBCA"${p.jurisdiction === 'CBCA' ? ' selected' : ''}>Federal (CBCA)</option>
+            ${sole ? '' : `<option value="CBCA"${p.jurisdiction === 'CBCA' ? ' selected' : ''}>Federal (CBCA)</option>`}
             ${PROVINCES.map(([c, n]) =>
               `<option value="${c}"${p.jurisdiction === c ? ' selected' : ''}>${n}</option>`).join('')}
           </select>
         </div>
         <div class="field">
-          <label for="incorporationDate">Date of incorporation
-            <span class="sub">A federal annual return is due 60 days after its anniversary.</span></label>
+          <label for="incorporationDate">${esc(w.started)}
+            <span class="sub">${sole
+              ? 'Nothing is owed for a period that closed before this date.'
+              : 'A federal annual return is due 60 days after its anniversary.'}</span></label>
           <input id="incorporationDate" name="incorporationDate" type="date" required
             value="${esc(p.incorporationDate)}">
         </div>
       </div>
+      ${sole ? `<p class="hint"><b>Your fiscal year is the calendar year.</b> An
+      unincorporated business does not choose one.</p>` : `
       <div class="field">
         <label>Fiscal year end
           <span class="sub">Not necessarily 31 December. Almost every other date follows it.</span></label>
@@ -589,11 +666,14 @@ export function onboardingPage(
           <input name="fyeDay" type="number" min="1" max="31" required
             aria-label="Fiscal year end day" value="${p.fiscalYearEnd.day}">
         </div>
-      </div>
+      </div>`}
     </fieldset>
 
     <fieldset>
       <legend>Income tax</legend>
+      ${sole ? `<p class="hint">A business without shares cannot be a CCPC or claim
+      the small business deduction, so those questions are not here. Your profit is
+      taxed on your own return at personal rates.</p>` : `
       <div class="check">
         <input id="isCCPC" name="isCCPC" type="checkbox"${sel(p.isCCPC)}>
         <label for="isCCPC">Canadian controlled private corporation</label>
@@ -604,7 +684,7 @@ export function onboardingPage(
           <span class="sub">Only a CCPC actually claiming it gets three months to pay
           rather than two. If associated corporations have used up the business limit,
           leave this unticked.</span></label>
-      </div>
+      </div>`}
       <div class="row2">
         <div class="field">
           <label for="grossRevenue">Gross revenue last year</label>
@@ -654,9 +734,14 @@ export function onboardingPage(
       <legend>How you are paid</legend>
       <div class="check">
         <input id="payrollAccount" name="payrollAccount" type="checkbox"${sel(p.payroll.hasAccount)}>
-        <label for="payrollAccount">The corporation runs payroll
-          <span class="sub">Including a salary to yourself. This adds twelve remittances
-          a year and a T4.</span></label>
+        <label for="payrollAccount">${sole ? 'I pay somebody a salary'
+          : 'The corporation runs payroll'}
+          <span class="sub">${sole
+            ? 'An employee, not yourself. A sole proprietor cannot be their own '
+              + 'employee, and what you take out is a draw rather than a wage. This '
+              + 'adds twelve remittances a year and a T4.'
+            : 'Including a salary to yourself. This adds twelve remittances a year '
+              + 'and a T4.'}</span></label>
       </div>
       <div class="row2">
         <div class="field">
@@ -664,6 +749,8 @@ export function onboardingPage(
           <select id="payrollRemitter" name="payrollRemitter">
             <option value="regular"${p.payroll.remitter === 'regular' ? ' selected' : ''}>Regular, monthly</option>
             <option value="quarterly"${p.payroll.remitter === 'quarterly' ? ' selected' : ''}>Quarterly</option>
+            <option value="accelerated1"${p.payroll.remitter === 'accelerated1' ? ' selected' : ''}>Accelerated, threshold 1, twice a month</option>
+            <option value="accelerated2"${p.payroll.remitter === 'accelerated2' ? ' selected' : ''}>Accelerated, threshold 2, four times a month</option>
           </select>
         </div>
         <div class="field">
@@ -672,11 +759,11 @@ export function onboardingPage(
             value="${p.payroll.ontarioRemuneration}">
         </div>
       </div>
-      <div class="check">
+      ${sole ? '' : `<div class="check">
         <input id="paysDividends" name="paysDividends" type="checkbox"${sel(p.paysDividends)}>
         <label for="paysDividends">The corporation pays dividends
           <span class="sub">Adds a T5 by the end of February, and no source deductions.</span></label>
-      </div>
+      </div>`}
       <div class="check">
         <input id="isConstruction" name="isConstruction" type="checkbox"${sel(p.isConstruction)}>
         <label for="isConstruction">Construction is the main activity
@@ -700,7 +787,7 @@ export function onboardingPage(
     </fieldset>
 
     <fieldset>
-      <legend>Where you have a permanent establishment</legend>
+      <legend>${sole ? 'Where you operate' : 'Where you have a permanent establishment'}</legend>
       <p class="hint">Ontario here is what turns on the employer health tax return.</p>
       ${PROVINCES.map(([c, n]) => `<div class="check">
         <input id="pe-${c}" name="pe" type="checkbox" value="${c}"${
@@ -796,7 +883,8 @@ export function dashboardPage(
 <p class="hint">${p.reminders.email
   ? `We will email you ${p.reminders.leadDays} days before each one.`
   : 'Email reminders are off.'}
-<a href="/onboarding">Change the company details</a> and this list changes with them.</p>
+<a href="/onboarding">Change the ${p.entityType === 'soleProprietorship'
+  ? 'business' : 'company'} details</a> and this list changes with them.</p>
 
 ${advisories.map((a) => `<div class="advisory ${a.severity === 'info' ? 'info' : ''}">
   <b>${esc(a.title)}</b>${esc(a.detail)}</div>`).join('')}
@@ -813,6 +901,10 @@ ${months.map((m) => `<div class="sheet">
 
 import { ACCOUNTS, ACCOUNT_BY_ID, type AccountKind } from './rules/gifi';
 import { dollars, type HstReturn } from './rules/hst';
+import type { Statement, SelfEmployedYear } from './rules/selfemployed';
+import { SELF_EMPLOYED_CPP_MAX } from './rules/selfemployed';
+import type { HomeOffice, HomeOfficeInput } from './rules/homeoffice';
+import type { IncorporationComparison, Side } from './rules/incorporate';
 import type { TxnRow } from './db';
 
 const KIND_LABEL: Record<AccountKind, string> = {
@@ -1806,13 +1898,16 @@ ${preview.problems.length ? `<div class="advisory info">
 export interface Step { n: number; title: string; blurb: string; }
 
 export const ONBOARDING_STEPS: Step[] = [
-  { n: 1, title: 'The corporation',
-    blurb: 'Where it was incorporated and when its year ends. These four answers '
-      + 'are enough to build your calendar.' },
-  { n: 2, title: 'HST',
+  { n: 1, title: 'What kind of business',
+    blurb: 'Incorporated or not. Almost every date that follows depends on this '
+      + 'answer, so it is the first thing asked and the only thing on this screen.' },
+  { n: 2, title: 'Where and when',
+    blurb: 'Where it operates and when it started. With the answer above, this is '
+      + 'enough to build your calendar.' },
+  { n: 3, title: 'HST',
     blurb: 'Whether you are registered, and how often you file. This decides which '
       + 'returns appear and when.' },
-  { n: 3, title: 'How you take money out',
+  { n: 4, title: 'How you take money out',
     blurb: 'Salary, dividends, or neither yet. Payroll adds a remittance every '
       + 'month and a slip every February.' },
 ];
@@ -1845,31 +1940,87 @@ export function onboardingStepPage(
   const here = ONBOARDING_STEPS.find((s) => s.n === step) ?? ONBOARDING_STEPS[0]!;
   const sel = (v: boolean) => (v ? ' checked' : '');
 
+  const sole = p.entityType === 'soleProprietorship';
+  const w = words(p.entityType);
+
+  /**
+   * Step one is one question with two answers, and nothing else on the screen.
+   *
+   * It used to be the legal name, the jurisdiction, the date and the fiscal
+   * year end together, which quietly assumed the answer. A sole proprietor met
+   * "Date of incorporation" as the second field and had already been told the
+   * product was not for them.
+   */
   const body = step === 1 ? `
-    <div class="field">
-      <label for="legalName">Legal name</label>
-      <input id="legalName" name="legalName" type="text" required autofocus
-        value="${esc(p.legalName)}" placeholder="Antipode Technologies Inc.">
-      <span class="sub">Exactly as it appears on your certificate of incorporation.</span>
+    <div class="pick">
+      <label class="pick-card${sole ? '' : ' on'}">
+        <input type="radio" name="entityType" value="corporation"${sole ? '' : ' checked'}>
+        <b>A corporation</b>
+        <span>Incorporated federally or with a province. It is a separate taxpayer:
+        it files its own T2, pays its own tax, and an annual return goes to the
+        registry that created it.</span>
+      </label>
+      <label class="pick-card${sole ? ' on' : ''}">
+        <input type="radio" name="entityType" value="soleProprietorship"${sole ? ' checked' : ''}>
+        <b>A sole proprietorship</b>
+        <span>Unincorporated, run by one person. There is no second taxpayer: the
+        profit goes on your own return on form T2125, due 15 June, with the money
+        due 30 April.</span>
+      </label>
     </div>
+    <div class="field">
+      <label for="legalName">${esc(w.nameLabel)}</label>
+      <input id="legalName" name="legalName" type="text" required
+        value="${esc(p.legalName)}" placeholder="${sole
+          ? 'Jane Doe Design' : 'Antipode Technologies Inc.'}">
+      <span class="sub">${sole
+        ? 'The name you trade under. If that is not your own legal name, it has to be '
+          + 'registered, and the registration expires after five years.'
+        : 'Exactly as it appears on your certificate of incorporation.'}</span>
+    </div>
+    <p class="hint">Not sure which? If you have a certificate of incorporation and a
+    business number ending in RC0001, you are a corporation. If you simply started
+    working for yourself, you are a sole proprietor until you incorporate, whether or
+    not you registered a business name.</p>`
+    : step === 2 ? `
     <div class="row2">
       <div class="field">
-        <label for="jurisdiction">Where incorporated</label>
+        <label for="jurisdiction">${sole ? 'Where you operate from' : 'Where incorporated'}</label>
         <select id="jurisdiction" name="jurisdiction">
-          <option value="CBCA"${p.jurisdiction === 'CBCA' ? ' selected' : ''}>Federal (Canada)</option>
+          ${sole ? '' : `<option value="CBCA"${p.jurisdiction === 'CBCA' ? ' selected' : ''}>Federal (Canada)</option>`}
           ${PROVINCE_NAMES.map(([c, n]) => `<option value="${c}"${
             p.jurisdiction === c ? ' selected' : ''}>${n}</option>`).join('')}
         </select>
-        <span class="sub">Federal corporations file an annual return 60 days after
-        their incorporation anniversary. Provincial ones file on the fiscal year.</span>
+        <span class="sub">${sole
+          ? 'The province whose rules apply to you. There is nothing to incorporate, '
+            + 'so this is simply where the business is.'
+          : 'Federal corporations file an annual return 60 days after their '
+            + 'incorporation anniversary. Provincial ones file on the fiscal year.'}</span>
       </div>
       <div class="field">
-        <label for="incorporationDate">Date of incorporation</label>
+        <label for="incorporationDate">${esc(w.started)}</label>
         <input id="incorporationDate" name="incorporationDate" type="date" required
           value="${esc(p.incorporationDate)}">
-        <span class="sub">On the certificate. It sets your first tax year.</span>
+        <span class="sub">${sole
+          ? 'The day you first earned from it. Nothing is owed for a period that '
+            + 'closed before this date.'
+          : 'On the certificate. It sets your first tax year.'}</span>
       </div>
     </div>
+    ${sole ? `
+    <div class="check">
+      <input id="registeredBusinessName" name="registeredBusinessName" type="checkbox"${
+        sel(!!p.registeredBusinessName)}>
+      <label for="registeredBusinessName">I trade under a name that is not my own legal name</label>
+    </div>
+    <p class="hint">A registered business name in Ontario expires five years after it
+    is made. Nothing chases it, no return depends on it, and it is usually discovered
+    at a bank when a cheque cannot be deposited. Tick this and the renewal goes on
+    your calendar.</p>
+    <p class="hint"><b>Your fiscal year is the calendar year.</b> An unincorporated
+    business does not choose one, unlike a corporation, so there is nothing to set
+    here.</p>`
+    : `
     <div class="field">
       <label for="fyeMonth">Fiscal year end</label>
       <div class="row2">
@@ -1882,11 +2033,11 @@ export function onboardingStepPage(
       </div>
       <span class="sub">Not necessarily 31 December. Whatever you chose when you
       filed your first return is the one that counts.</span>
-    </div>`
-    : step === 2 ? `
+    </div>`}`
+    : step === 3 ? `
     <div class="check">
       <input id="hstRegistered" name="hstRegistered" type="checkbox"${sel(p.hst.registered)}>
-      <label for="hstRegistered">The corporation has an HST number</label>
+      <label for="hstRegistered">${sole ? 'I have' : 'The corporation has'} an HST number</label>
     </div>
     <p class="hint">Registration is required once taxable supplies pass $30,000 in
     four consecutive quarters. Below that it is optional, and often still worth it
@@ -1901,6 +2052,9 @@ export function onboardingStepPage(
       <span class="sub">CRA assigns this from your taxable supplies. Annual up to
       $1.5M, quarterly to $6M, monthly above that. It is on your registration letter.</span>
     </div>
+    ${sole ? `<p class="hint"><b>The two dates, again.</b> As an annual filer you pay
+    by 30 April and file by 15 June, the same split as your personal return. It is
+    the one deadline pair in this product that catches people twice.</p>` : ''}
     <div class="field">
       <label for="hstMethod">How you work the return out</label>
       <select id="hstMethod" name="hstMethod">
@@ -1913,20 +2067,29 @@ export function onboardingStepPage(
     : `
     <div class="check">
       <input id="payrollAccount" name="payrollAccount" type="checkbox"${sel(p.payroll.hasAccount)}>
-      <label for="payrollAccount">Somebody is paid a salary, including you</label>
+      <label for="payrollAccount">${sole
+        ? 'I pay somebody a salary'
+        : 'Somebody is paid a salary, including you'}</label>
     </div>
-    <p class="hint">A salary means an RP account with CRA, a remittance every month,
-    and a T4 each February. If you only take dividends, leave this unticked.</p>
+    <p class="hint">${sole
+      ? 'An employee means an RP account with CRA, a remittance every month and a T4 '
+        + 'each February. Paying yourself does not count: a sole proprietor cannot be '
+        + 'their own employee, and money you take out is a draw rather than a wage.'
+      : 'A salary means an RP account with CRA, a remittance every month, and a T4 '
+        + 'each February. If you only take dividends, leave this unticked.'}</p>
+    ${sole ? '' : `
     <div class="check">
       <input id="paysDividends" name="paysDividends" type="checkbox"${sel(p.paysDividends)}>
       <label for="paysDividends">Dividends are paid to shareholders</label>
     </div>
     <p class="hint">Dividends produce a T5 by the last day of February. Nothing is
-    withheld during the year.</p>
+    withheld during the year.</p>`}
     <fieldset>
-      <legend>Where you have a permanent establishment</legend>
-      <p class="hint">An office, a warehouse, somewhere you actually operate from.
-      It decides which province taxes you, and usually it is just the one.</p>
+      <legend>Where you ${sole ? 'operate' : 'have a permanent establishment'}</legend>
+      <p class="hint">${sole
+        ? 'Where the work actually happens. Usually just the one.'
+        : 'An office, a warehouse, somewhere you actually operate from. It decides '
+          + 'which province taxes you, and usually it is just the one.'}</p>
       <div class="pe-grid">
         ${PROVINCE_NAMES.map(([c, n]) => `<div class="check">
           <input id="pe-${c}" name="pe" type="checkbox" value="${c}"${
@@ -1962,7 +2125,338 @@ export function onboardingStepPage(
     </div>
   </form>
 
-  ${step === 1 ? '<p class="step-foot">Four answers and your calendar exists. '
+  ${step <= 2 ? '<p class="step-foot">A few answers and your calendar exists. '
     + 'Everything else can wait, and none of it is needed to see what you owe.</p>' : ''}
 </div>`, email, '', { ...chrome, hideNav: true });
+}
+
+// ------------------------------------------------ the unincorporated year end
+
+/**
+ * Form T2125 and the bill that follows it.
+ *
+ * The corporate year end page works towards a T2 and stops at the corporation's
+ * own tax. This one cannot stop there, because there is no second taxpayer: the
+ * profit is the owner's income on the day it is earned, and the only number
+ * that answers "what do I owe" is a personal one. So the page runs all the way
+ * through to the cheque due on 30 April, with CPP shown beside the tax rather
+ * than inside it.
+ *
+ * Every figure names its line on the form, the same as the corporate
+ * worksheet, because a number with no address has to be looked up twice.
+ */
+export function t2125Page(
+  email: string, businessName: string,
+  years: FiscalYear[], active: FiscalYear,
+  s: GifiStatements, s8: Schedule8,
+  st: Statement & { homeOfficeCarriedForward: number },
+  year: SelfEmployedYear,
+  home: HomeOffice | null, homeInput: HomeOfficeInput | null,
+  error?: string, chrome: Chrome = {}, plain?: string,
+): string {
+  const line = (n: string, label: string, amount: number, strong = false) =>
+    `<div class="frow gifi${strong ? ' total' : ''}"><span class="d">${n}</span>
+     <span class="t">${strong ? `<b>${esc(label)}</b>` : esc(label)}</span>
+     <span class="f num">${strong ? `<b>${dollars(amount)}</b>` : dollars(amount)}</span></div>`;
+
+  const money = (name: string, label: string, value: number, hint = '') => `
+    <div class="field">
+      <label for="${name}">${esc(label)}</label>
+      <input id="${name}" name="${name}" type="number" step="0.01" min="0"
+        value="${value ? (value / 100).toFixed(2) : ''}">
+      ${hint ? `<span class="sub">${hint}</span>` : ''}
+    </div>`;
+
+  return shell(`${businessName} year end`, `
+<span class="label">${esc(businessName)} &middot; ${esc(active.label)}</span>
+<h1>What the business made, and what you owe on it.</h1>
+<p class="hint">${esc(active.from)} to ${esc(active.to)}${active.ended ? '' : ', still open'}.
+An unincorporated business files nothing of its own: these figures go on form
+T2125 inside your personal return. FileClear works them out and does not file them.</p>
+
+<div class="periods">${years.map((y) =>
+  `<a class="btn small${y.id === active.id ? ' primary' : ''}" href="/year-end?year=${y.id}">${
+    esc(y.label)}${y.ended ? '' : ' (open)'}</a>`).join('')}</div>
+
+${summary([
+  { value: dollars(st.netIncome), label: 'net business income, line 9946', strong: true },
+  { value: dollars(year.totalDue), label: 'due 30 April', strong: true },
+  { value: dollars(year.cpp.total), label: 'of that, CPP rather than tax' },
+  { value: dollars(year.afterTax), label: 'left after both' },
+])}
+
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+
+${year.instalmentsLikely ? `<div class="advisory">
+  <b>This puts you over the instalment threshold.</b>
+  Net tax owing above $3,000 in this year and in either of the two before it means
+  CRA will ask for quarterly instalments, on 15 March, June, September and December.
+  They appear on your calendar once the second year passes the threshold.</div>` : ''}
+
+<h2>The statement of business activities</h2>
+<div class="two">
+  <div class="sheet">
+    <h3>Income and expenses</h3>
+    ${line('8299', 'Gross business income', st.grossRevenue, true)}
+    ${st.costOfSales ? line('8518', 'Cost of goods sold', st.costOfSales) : ''}
+    ${st.costOfSales ? line('8519', 'Gross profit', st.grossProfit, true) : ''}
+    ${s.income.expenses.map((l) =>
+      `<div class="frow gifi"><span class="d">${l.gifi}</span>
+       <span class="t">${esc(l.name)}</span>
+       <span class="f num">${dollars(l.amount)}</span></div>`).join('')}
+    ${line('9368', 'Total expenses', st.expenses, true)}
+    ${line('9936', 'Capital cost allowance, from Area A', st.cca)}
+    ${line('9945', 'Business use of home', st.businessUseOfHome)}
+    ${line('9946', 'Net income', st.netIncome, true)}
+  </div>
+
+  <div class="sheet">
+    <h3>What you owe on it</h3>
+    <div class="frow"><span class="t">Net business income</span>
+      <span class="f num">${dollars(year.netBusinessIncome)}</span></div>
+    <div class="frow"><span class="t">Less the deductible half of CPP</span>
+      <span class="f num">${dollars(-year.cpp.deductible)}</span></div>
+    <div class="frow total"><span class="t"><b>Taxable income</b></span>
+      <span class="f num"><b>${dollars(year.tax.taxableIncome)}</b></span></div>
+    <div class="frow"><span class="t">Federal tax</span>
+      <span class="f num">${dollars(year.tax.federal)}</span></div>
+    <div class="frow"><span class="t">Ontario tax</span>
+      <span class="f num">${dollars(year.tax.ontario)}</span></div>
+    ${year.tax.surtax ? `<div class="frow"><span class="t">Ontario surtax</span>
+      <span class="f num">${dollars(year.tax.surtax)}</span></div>` : ''}
+    ${year.tax.healthPremium ? `<div class="frow"><span class="t">Ontario health premium</span>
+      <span class="f num">${dollars(year.tax.healthPremium)}</span></div>` : ''}
+    <div class="frow total"><span class="t"><b>Income tax</b></span>
+      <span class="f num"><b>${dollars(year.tax.total)}</b></span></div>
+    <div class="frow"><span class="t">CPP on self-employment, line 22200 and 31000</span>
+      <span class="f num">${dollars(year.cpp.total)}</span></div>
+    <div class="frow total"><span class="t"><b>Due 30 April</b></span>
+      <span class="f num"><b>${dollars(year.totalDue)}</b></span></div>
+  </div>
+</div>
+
+<details class="why"><summary>Why CPP is so much larger than it was on a payslip</summary>
+  <p>An employee pays 5.95% and their employer pays the matching 5.95%. Self-employed,
+  you are both, so the rate is 11.9% and the maximum for ${year.cpp.atMaximum
+    ? 'the year, which you have reached, is' : 'the year is'}
+  ${dollars(SELF_EMPLOYED_CPP_MAX)} rather than half that. It is the single largest
+  difference between a salary and self-employment income of the same size, and it
+  arrives as one bill in April rather than in twenty six pieces through the year.</p>
+  <p>It is not folded into the tax figure above, on purpose. It leaves on the same
+  day but it buys a pension, and a rate that mixes the two describes neither.</p>
+  <p>The contribution splits three ways rather than in half. The employer share and
+  all of the enhanced portion, ${dollars(year.cpp.deductible)}, come off your income
+  before tax. Only ${dollars(year.cpp.creditable)} is a credit.</p>
+</details>
+
+<h2>Business use of home</h2>
+<p class="hint">The deduction most often understated, because people share the
+utilities and forget the rent or the mortgage interest, which is usually the
+largest number on the page. It is also the one expense that cannot create a loss:
+what will not fit this year carries forward against this business indefinitely.</p>
+
+<form method="post" action="/year-end?year=${esc(active.id)}">
+  <input type="hidden" name="what" value="home">
+  <div class="row2">
+    <div class="field">
+      <label for="homeArea">Total area of the home</label>
+      <input id="homeArea" name="homeArea" type="number" step="1" min="0"
+        value="${homeInput?.homeArea || ''}" placeholder="1200">
+      <span class="sub">Square feet or square metres, as long as both boxes match.</span>
+    </div>
+    <div class="field">
+      <label for="workArea">Area used for the business</label>
+      <input id="workArea" name="workArea" type="number" step="1" min="0"
+        value="${homeInput?.workArea || ''}" placeholder="150">
+    </div>
+  </div>
+  <div class="field">
+    <label for="hoursPerWeek">Hours a week the space is used for the business</label>
+    <input id="hoursPerWeek" name="hoursPerWeek" type="number" step="1" min="0" max="168"
+      value="${homeInput?.hoursPerWeek ?? ''}" placeholder="leave empty if the room is only used for work">
+    <span class="sub">Leave this empty for a room used <b>only</b> for the business.
+    Fill it in for a space you also live in, such as a dining table: that claim is
+    prorated by time as well as by area, and leaving the hours out is the commonest
+    way this deduction is overstated.</span>
+  </div>
+  <div class="row2">
+    ${money('rent', 'Rent for the year', homeInput?.rent ?? 0)}
+    ${money('mortgageInterest', 'Mortgage interest for the year',
+      homeInput?.mortgageInterest ?? 0,
+      'Interest only. The principal is never deductible.')}
+  </div>
+  <div class="row2">
+    ${money('propertyTax', 'Property tax', homeInput?.propertyTax ?? 0)}
+    ${money('homeInsurance', 'Home insurance', homeInput?.homeInsurance ?? 0)}
+  </div>
+  <div class="row2">
+    ${money('utilities', 'Heat, hydro and water', homeInput?.utilities ?? 0)}
+    ${money('maintenance', 'Repairs and maintenance', homeInput?.maintenance ?? 0)}
+  </div>
+  <button class="btn primary" type="submit">Work the claim out</button>
+</form>
+
+${home ? `
+<div class="two" style="margin-top:1.6rem">
+  <div class="sheet">
+    <h3>The claim</h3>
+    <div class="frow"><span class="t">Share of the home</span>
+      <span class="f num">${(home.areaFraction * 100).toFixed(1)}%</span></div>
+    <div class="frow"><span class="t">Share of the week</span>
+      <span class="f num">${home.timeFraction === 1 ? 'all of it'
+        : `${(home.timeFraction * 100).toFixed(1)}%`}</span></div>
+    <div class="frow total"><span class="t"><b>Claimable share</b></span>
+      <span class="f num"><b>${(home.fraction * 100).toFixed(2)}%</b></span></div>
+    <div class="frow"><span class="t">Household costs</span>
+      <span class="f num">${dollars(home.eligibleCosts)}</span></div>
+    <div class="frow total"><span class="t"><b>Claim before the restriction</b></span>
+      <span class="f num"><b>${dollars(home.claim)}</b></span></div>
+    <div class="frow"><span class="t">Claimed this year, line 9945</span>
+      <span class="f num">${dollars(st.businessUseOfHome)}</span></div>
+    ${st.homeOfficeCarriedForward > 0 ? `<div class="frow"><span class="t">Carried forward</span>
+      <span class="f num">${dollars(st.homeOfficeCarriedForward)}</span></div>` : ''}
+  </div>
+  <div class="sheet">
+    <h3>Worth knowing</h3>
+    ${home.notes.map((n) => `<p class="hint">${esc(n)}</p>`).join('')}
+  </div>
+</div>` : ''}
+
+${st.homeOfficeCarriedForward > 0 ? `<div class="advisory">
+  <b>${dollars(st.homeOfficeCarriedForward)} of the home office claim cannot be used
+  this year.</b> Business use of home cannot create or deepen a loss, so it stops at
+  the profit that is left. The rest carries forward indefinitely against this same
+  business, so it is worth recording rather than forgetting.</div>` : ''}
+
+${s8.totalCca > 0 ? `<p class="hint">Capital cost allowance of ${dollars(s8.totalCca)}
+is included above, from the asset register. It is Area A of the T2125 rather than
+Schedule 8, but the arithmetic is the same one.</p>` : ''}
+
+${plain ? `<div class="verdict"><b>In plain words</b>${esc(plain)}</div>` : ''}
+
+${notes([
+  'These figures assume Ontario rates and no other income. Employment income, a '
+  + 'spouse, children, tuition, medical expenses, donations or an RRSP contribution '
+  + 'all move the tax, some of them by a lot, and none of them are here.',
+  'The return itself is due 15 June and the money is due 30 April. If you cannot '
+  + 'finish the return by April, pay the balance you expect and file in June: '
+  + 'interest runs from 1 May either way.',
+])}
+
+${worksheetFooter('Your business number and the industry code go on the T2125 '
+  + 'as well, and FileClear does not hold either.')}
+`, email, '/year-end', chrome);
+}
+
+// ------------------------------------------------------- should I incorporate
+
+/**
+ * Sole proprietor against corporation, with the arithmetic for both.
+ *
+ * The same rule as the salary and dividend comparison: compute both, show the
+ * working, print no recommendation. What makes this page worth having is that
+ * the received answer is a number, "incorporate at a hundred thousand", and the
+ * arithmetic says the threshold is not about income at all. It is about how
+ * much of the profit stays in the business, because that is the only part the
+ * deferral applies to.
+ *
+ * So the draw is a control rather than an assumption, and the table underneath
+ * answers "at what profit" rather than "at this profit".
+ */
+export function incorporatePage(
+  email: string, businessName: string,
+  c: IncorporationComparison, rows: { profit: number; advantage: number }[],
+  chrome: Chrome = {},
+): string {
+  const side = (s: Side, best: boolean) => `
+  <div class="sheet${best ? ' win' : ''}">
+    <h3>${esc(s.label)}</h3>
+    ${s.businessTax ? `<div class="frow"><span class="t">Corporate tax</span>
+      <span class="f num">${dollars(s.businessTax)}</span></div>` : ''}
+    <div class="frow"><span class="t">Personal tax</span>
+      <span class="f num">${dollars(s.personalTax)}</span></div>
+    <div class="frow"><span class="t">CPP</span>
+      <span class="f num">${s.cpp ? dollars(s.cpp) : 'none'}</span></div>
+    ${s.runningCost ? `<div class="frow"><span class="t">Cost of running a corporation</span>
+      <span class="f num">${dollars(s.runningCost)}</span></div>` : ''}
+    <div class="frow total"><span class="t"><b>Everything that leaves</b></span>
+      <span class="f num"><b>${dollars(s.totalOut)}</b></span></div>
+    <div class="frow"><span class="t">Cash in your hands</span>
+      <span class="f num">${dollars(s.cashInHand)}</span></div>
+    <div class="frow"><span class="t">Left inside the business</span>
+      <span class="f num">${s.retained ? dollars(s.retained) : 'nothing to leave'}</span></div>
+    <div class="frow"><span class="t">RRSP room created</span>
+      <span class="f num">${s.rrspRoom ? dollars(s.rrspRoom) : 'none'}</span></div>
+  </div>`;
+
+  const bestCorporate = c.asSalary.cashInHand + c.asSalary.retained
+    >= c.asDividend.cashInHand + c.asDividend.retained ? 'salary' : 'dividend';
+
+  return shell('Should you incorporate?', `
+<span class="label">${esc(businessName)} &middot; ${c.year}</span>
+<h1>Whether incorporating is worth it.</h1>
+
+${summary([
+  { value: `${c.advantageThisYear >= 0 ? '+' : ''}${dollars(c.advantageThisYear)}`,
+    label: 'better off incorporated, this year', strong: true },
+  { value: c.deferredNotSaved ? dollars(c.deferredNotSaved) : 'none',
+    label: 'of that, tax deferred rather than saved', strong: true },
+  { value: dollars(c.drawnOut), label: 'drawn out to live on' },
+  { value: dollars(Math.max(c.asSalary.retained, c.asDividend.retained)),
+    label: 'left inside the corporation' },
+])}
+
+<form method="get" action="/incorporate" class="ask">
+  <div class="row2">
+    <div class="field">
+      <label for="profit">Profit before you take anything</label>
+      <input id="profit" name="profit" type="number" step="100" min="0"
+        value="${(c.profit / 100).toFixed(0)}">
+      <span class="sub">Revenue less expenses, before any tax and before you pay
+      yourself.</span>
+    </div>
+    <div class="field">
+      <label for="draw">How much you need to live on</label>
+      <input id="draw" name="draw" type="number" step="100" min="0"
+        value="${(c.drawnOut / 100).toFixed(0)}">
+      <span class="sub">This is the number that decides the answer, not the profit.
+      Everything you draw is taxed either way.</span>
+    </div>
+  </div>
+  <button class="btn primary" type="submit">Work it out</button>
+</form>
+
+<div class="two">
+  ${side(c.soleProprietor, c.advantageThisYear < 0)}
+  ${side(bestCorporate === 'salary' ? c.asSalary : c.asDividend, c.advantageThisYear >= 0)}
+</div>
+
+<details class="why"><summary>The other corporate route, in full</summary>
+  <div class="two">
+    ${side(c.asSalary, false)}
+    ${side(c.asDividend, false)}
+  </div>
+  <p class="hint">Salary is deductible to the corporation and builds RRSP room and
+  CPP. A dividend is paid out of income already taxed inside the company and carries
+  neither. Which is better is a separate question from this one, and the Pay screen
+  answers it once you have incorporated.</p>
+</details>
+
+<h2>At what profit, rather than at this profit</h2>
+<p class="hint">The same comparison, drawing ${dollars(c.drawnOut)} a year at each
+level. The advantage grows with what is left behind, which is the whole mechanism:
+it is not that higher income is taxed more kindly inside a corporation, it is that
+money you do not need yet can wait.</p>
+<div class="sheet">
+  ${rows.map((r) => `<div class="frow"><span class="t">Profit of ${dollars(r.profit)}</span>
+    <span class="f num">${r.advantage >= 0 ? '+' : ''}${dollars(r.advantage)}</span></div>`).join('')}
+</div>
+
+${c.considerations.map((t) => `<div class="advisory info">${esc(t)}</div>`).join('')}
+
+${notes(c.caveats, 'this comparison')}
+
+${worksheetFooter('Incorporating is a legal decision with a tax consequence rather '
+  + 'than a tax decision, and FileClear does not make it for you.')}
+`, email, '/incorporate', chrome);
 }

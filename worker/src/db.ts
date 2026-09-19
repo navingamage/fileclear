@@ -2,6 +2,7 @@ import type {
   CompanyProfile, Jurisdiction, HstPeriod, HstMethod, RemitterType, EntityType,
 } from './rules/profile';
 import { normalise } from './rules/profile';
+import type { HomeOfficeInput } from './rules/homeoffice';
 
 /**
  * Between a companies row and a CompanyProfile.
@@ -574,4 +575,67 @@ export async function ledgerFingerprints(
     }
   }
   return out;
+}
+
+// -------------------------------------------------- business use of home
+
+/**
+ * The home office inputs for one fiscal year, or nothing if none were saved.
+ *
+ * The inputs are stored rather than the claim, so the figure can be rebuilt and
+ * explained years later. A stored claim would freeze the arithmetic at whatever
+ * the code did on the day it was written, which is the same failure this
+ * product avoids by recomputing filings from the profile.
+ */
+export async function homeOfficeFor(
+  db: D1Database, companyId: string, yearEnd: string,
+): Promise<HomeOfficeInput | null> {
+  const row = await db.prepare(
+    `SELECT home_area, work_area, hours_per_week, rent_cents, mortgage_interest_cents,
+            property_tax_cents, insurance_cents, utilities_cents, maintenance_cents
+       FROM home_office WHERE company_id = ? AND year_end = ?`,
+  ).bind(companyId, yearEnd).first<{
+    home_area: number; work_area: number; hours_per_week: number | null;
+    rent_cents: number; mortgage_interest_cents: number; property_tax_cents: number;
+    insurance_cents: number; utilities_cents: number; maintenance_cents: number;
+  }>();
+  if (!row) return null;
+  return {
+    homeArea: row.home_area,
+    workArea: row.work_area,
+    // Null means a room used only for the business, which is not prorated by
+    // time. Zero would mean it is never used, which is a different claim
+    // entirely, so the distinction survives the round trip.
+    hoursPerWeek: row.hours_per_week === null ? undefined : row.hours_per_week,
+    rent: row.rent_cents,
+    mortgageInterest: row.mortgage_interest_cents,
+    propertyTax: row.property_tax_cents,
+    homeInsurance: row.insurance_cents,
+    utilities: row.utilities_cents,
+    maintenance: row.maintenance_cents,
+  };
+}
+
+export async function saveHomeOffice(
+  db: D1Database, companyId: string, yearEnd: string, input: HomeOfficeInput,
+): Promise<void> {
+  await db.prepare(
+    `INSERT INTO home_office (company_id, year_end, home_area, work_area, hours_per_week,
+        rent_cents, mortgage_interest_cents, property_tax_cents, insurance_cents,
+        utilities_cents, maintenance_cents)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(company_id, year_end) DO UPDATE SET
+       home_area = excluded.home_area, work_area = excluded.work_area,
+       hours_per_week = excluded.hours_per_week, rent_cents = excluded.rent_cents,
+       mortgage_interest_cents = excluded.mortgage_interest_cents,
+       property_tax_cents = excluded.property_tax_cents,
+       insurance_cents = excluded.insurance_cents,
+       utilities_cents = excluded.utilities_cents,
+       maintenance_cents = excluded.maintenance_cents,
+       updated_at = datetime('now')`,
+  ).bind(
+    companyId, yearEnd, input.homeArea, input.workArea, input.hoursPerWeek ?? null,
+    input.rent, input.mortgageInterest, input.propertyTax, input.homeInsurance,
+    input.utilities, input.maintenance,
+  ).run();
 }

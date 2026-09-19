@@ -98,40 +98,52 @@ and again on first run. The workflow still produces unsigned builds and labels
 them as such in the run summary, because a build that fails outright at the
 last step is what tempts somebody into shipping one anyway.
 
-Two things are needed and neither exists yet.
+Two things are needed. The Mac side is one click away; the Windows side has to
+be bought.
 
 ### macOS: a Developer ID Application certificate
 
-Antipode has an Apple Developer Program membership, but the only certificate on
-the build machine is an **Apple Development** one, which signs an app for
-running on your own devices and nothing else. Distribution outside the App
-Store needs a **Developer ID Application** certificate. It costs nothing beyond
-the membership already held.
+Everything except one click is done. The key pair exists at
+`~/.config/antipode/devid/`, the `.p12` password is in the login Keychain as
+`antipode-fileclear-mac-cert-password`, and `ASC_KEY_P8`, `ASC_KEY_ID` and
+`ASC_ISSUER_ID` are already set on the repository, so notarisation will work
+the moment signing does.
 
-Create it in Xcode under Settings, Accounts, Manage Certificates, or at
-developer.apple.com under Certificates. Then export it from Keychain Access as
-a `.p12` with a password, and add both to the repository's Actions secrets:
+What is left is the part Apple will not let a script do. **Creating a Developer
+ID certificate is restricted to the Account Holder**, and that is not a
+permission an App Store Connect API key can hold: keys are granted Admin,
+Developer and similar roles, and none of them is Account Holder. The API
+answers `403 FORBIDDEN_ERROR`, "This operation can only be performed by the
+Account Holder", for `DEVELOPER_ID_APPLICATION` and
+`DEVELOPER_ID_APPLICATION_G2` alike, while happily creating other certificate
+types with the same key. So it is a restriction on the operation rather than on
+the credential.
 
-| Secret | What it is |
-| --- | --- |
-| `MAC_CERT_P12` | the `.p12`, base64 encoded |
-| `MAC_CERT_PASSWORD` | the password set when exporting it |
+Signed in as the Account Holder:
+
+1. Go to
+   [developer.apple.com/account/resources/certificates/add](https://developer.apple.com/account/resources/certificates/add)
+2. Choose **Developer ID Application**, and **G2 Sub-CA** if it offers a choice
+3. Upload `~/.config/antipode/devid/fileclear-devid.csr`
+4. Download the `.cer`
+
+Then:
 
 ```
-base64 -i DeveloperID.p12 | pbcopy
+Scripts/finish-devid.sh ~/Downloads/developerID_application.cer
 ```
 
-Notarisation, which is separate from signing and also required, reuses the App
-Store Connect API key that already exists for the iOS work:
+That converts it, checks it actually matches the private key here, attaches
+Apple's intermediate so the chain resolves on a machine that has not cached it,
+writes the `.p12`, imports it into the login Keychain and sets `MAC_CERT_P12`.
 
-| Secret | Where it comes from |
-| --- | --- |
-| `ASC_KEY_P8` | the `.p8` key file, base64 encoded |
-| `ASC_KEY_ID` | `ASC_KEY_ID` in `load-secrets.sh` |
-| `ASC_ISSUER_ID` | `ASC_ISSUER_ID` in `load-secrets.sh` |
+Xcode's Settings, Accounts, Manage Certificates, + is the other route, and it
+makes its own key pair rather than using this CSR. Either is fine; the CSR
+route keeps the private key in one known place that is easy to back up.
 
-An API key is used rather than an Apple ID and an app specific password,
-because a password in a secret is a password somebody has to rotate by hand.
+**Back up `~/.config/antipode/devid/fileclear-devid.key`.** Apple issues a
+limited number of Developer ID certificates and will not freely reissue them,
+and a certificate without its private key is worth nothing.
 
 ### Windows: a code signing certificate
 
@@ -155,14 +167,23 @@ Until then the Windows build works and users meet "Windows protected your PC"
 with a "More info, Run anyway" underneath. That is a real cost in installs and
 is worth fixing before the app is promoted anywhere.
 
-### Publishing
+### Every secret the workflow reads
 
-| Secret | What it is |
-| --- | --- |
-| `CLOUDFLARE_API_TOKEN` | the `claude-integration` account token |
-| `CLOUDFLARE_ACCOUNT_ID` | the Antipode account id |
+| Secret | Set | What it is |
+| --- | --- | --- |
+| `ASC_KEY_P8` | yes | the App Store Connect key, for notarisation |
+| `ASC_KEY_ID` | yes | |
+| `ASC_ISSUER_ID` | yes | |
+| `MAC_CERT_PASSWORD` | yes | the password on the `.p12` |
+| `CLOUDFLARE_API_TOKEN` | yes | the `claude-integration` account token |
+| `CLOUDFLARE_ACCOUNT_ID` | yes | the Antipode account id |
+| `MAC_CERT_P12` | **no** | written by `Scripts/finish-devid.sh` |
+| `WIN_CERT_PFX` | **no** | needs a certificate that has to be bought |
+| `WIN_CERT_PASSWORD` | **no** | |
 
-Both are in the Keychain: `source ~/.config/antipode/load-secrets.sh`.
+`gh secret list` is the check. The workflow reads each one through a job level
+`env` rather than in a step's `if`, because a step's `if` cannot see the
+`secrets` context and GitHub refuses to parse a workflow that tries.
 
 ## Security posture
 

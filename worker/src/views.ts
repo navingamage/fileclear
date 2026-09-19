@@ -1168,7 +1168,7 @@ export function hstPage(
 <span class="label">${esc(companyName)} &middot; HST</span>
 <h1>Your HST return.</h1>
 <p class="hint">Computed from the ledger, both ways, for
-${esc(r.from)} to ${esc(r.to)}.</p>
+${fmt(r.from)} to ${fmt(r.to)}.</p>
 
 <div class="periods">${periods.map((o) =>
   `<a class="btn small${o.id === active ? ' primary' : ''}" href="/hst?period=${o.id}">${esc(o.label)}</a>`).join('')}</div>
@@ -1297,7 +1297,7 @@ export function yearEndPage(
   return shell(`${companyName} year end`, `
 <span class="label">${esc(companyName)} &middot; year end</span>
 <h1>${esc(active.label)}, and what it owes.</h1>
-<p class="hint">${esc(active.from)} to ${esc(active.to)}${active.ended ? '' : ', still open'}.
+<p class="hint">${fmt(active.from)} to ${fmt(active.to)}${active.ended ? '' : ', still open'}.
 Every figure below names the schedule and line it belongs on. FileClear works
 the numbers out; it does not file them.</p>
 
@@ -1315,7 +1315,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
 ${active.ended ? '' : `<div class="advisory"><b>This year has not finished.</b>
   The figures are correct as far as the ledger goes, but there is no return to
-  file until ${esc(active.to)}.</div>`}
+  file until ${fmt(active.to)}.</div>`}
 
 <div class="two">
   <div class="sheet">
@@ -1328,7 +1328,7 @@ ${active.ended ? '' : `<div class="advisory"><b>This year has not finished.</b>
   </div>
 
   <div class="sheet">
-    <div class="sheet-head"><span>Balance sheet at ${esc(active.to)}</span><span>Schedule 100</span></div>
+    <div class="sheet-head"><span>Balance sheet at ${fmt(active.to)}</span><span>Schedule 100</span></div>
     ${rows(s.balance.currentAssets)}
     ${total(GIFI.totalCurrentAssets, 'Total current assets', s.balance.totalCurrentAssets)}
     ${rows(s.balance.capitalAssets)}
@@ -1599,8 +1599,8 @@ export function slipsPage(
 <h1>What goes on the slips.</h1>
 <p class="hint">Filled in from what the ledger says was paid, so the figures agree
 with the books rather than being typed twice. ${sole
-  ? `The T4 is due ${esc(deadline)}.`
-  : `Both slips are due ${esc(deadline)}.`}</p>
+  ? `The T4 is due ${fmt(deadline)}.`
+  : `Both slips are due ${fmt(deadline)}.`}</p>
 
 <div class="periods">${years.map((y) =>
   `<a class="btn small${y === year ? ' primary' : ''}" href="/slips?year=${y}">${y}</a>`).join('')}</div>
@@ -2282,7 +2282,7 @@ export function t2125Page(
   return shell(`${businessName} year end`, `
 <span class="label">${esc(businessName)} &middot; ${esc(active.label)}</span>
 <h1>What the business made, and what you owe on it.</h1>
-<p class="hint">${esc(active.from)} to ${esc(active.to)}${active.ended ? '' : ', still open'}.
+<p class="hint">${fmt(active.from)} to ${fmt(active.to)}${active.ended ? '' : ', still open'}.
 An unincorporated business files nothing of its own: these figures go on form
 T2125 inside your personal return. FileClear works them out and does not file them.</p>
 

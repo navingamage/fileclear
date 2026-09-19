@@ -83,13 +83,17 @@ export async function sweep(env: CronEnv, todayIso: string): Promise<SweepResult
     // separate passes over the same predicate is how they drift apart.
     const pending = window
       .filter((f) => !sentIds.has(f.id) && !doneIds.has(f.id))
-      .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+      .sort((a, b) => (a.effectiveDue < b.effectiveDue ? -1
+        : a.effectiveDue > b.effectiveDue ? 1 : 0));
 
     if (!pending.length) continue;
 
     const due: ReminderItem[] = pending.map((f) => ({
-      title: f.title, form: f.form, due: f.due,
-      daysAway: daysBetween(todayIso, f.due),
+      // The date in the mail is the one somebody has to act on, not the
+      // statutory one. Telling a director a payment is due on a Sunday is
+      // either a lost weekend or a day of unnecessary worry.
+      title: f.title, form: f.form, due: f.effectiveDue,
+      daysAway: daysBetween(todayIso, f.effectiveDue),
       authority: f.authority, penalty: f.penalty,
     }));
 

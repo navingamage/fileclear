@@ -44,8 +44,45 @@ export type Schedule =
   | { kind: 'lastDayOf'; month: number }
   /** Every month, on the given day of the following month. Payroll remittances. */
   | { kind: 'monthlyAfter'; dayOfNextMonth: number }
+  /**
+   * Every month, N months after the month closes, landing on a month end.
+   *
+   * A monthly HST return is due one month after the reporting period, which is
+   * the last day of the following month rather than a fixed day number.
+   */
+  | { kind: 'monthlyAfterMonthEnd'; months: number }
+  /** The last day of every month. Corporate tax instalments. */
+  | { kind: 'monthlyOnLastDay' }
   /** Each fiscal quarter, N months after the quarter closes. HST and instalments. */
   | { kind: 'quarterlyAfterQuarterEnd'; months: number }
+  /**
+   * Each *calendar* quarter, on the given day of the following month.
+   *
+   * Not the same as the fiscal quarters above, and the difference is a real
+   * bug rather than a nicety. Payroll runs on the calendar: a quarterly
+   * remitter with a 30 June year end still remits for the quarters ending in
+   * March, June, September and December, because CRA's payroll accounts know
+   * nothing about a corporation's fiscal year.
+   */
+  | { kind: 'afterCalendarQuarter'; dayOfNextMonth: number }
+  /**
+   * Twice a month. Accelerated threshold 1 payroll remitters: pay made in the
+   * first half of a month is remitted by the 25th of that month, and pay made
+   * in the second half by the 10th of the next.
+   */
+  | { kind: 'semiMonthly' }
+  /**
+   * Four times a month, three working days after each of the periods ending on
+   * the 7th, 14th, 21st and the last day. Accelerated threshold 2.
+   */
+  | { kind: 'fourTimesMonthly' }
+  /** N months after the anniversary of incorporation. British Columbia. */
+  | { kind: 'monthsAfterIncorporationAnniversary'; months: number }
+  /**
+   * The last day of the month after the anniversary month. Alberta's annual
+   * return, which is on neither of the two clocks anything else here uses.
+   */
+  | { kind: 'endOfMonthAfterAnniversary' }
   /**
    * Once, N days after incorporation, and never again.
    *
@@ -70,6 +107,17 @@ export interface Obligation {
   penalty: string;
   link: { label: string; url: string };
   applies: (p: CompanyProfile) => boolean;
+  /**
+   * True for an obligation a corporation does not owe in the year it was
+   * incorporated. Only instalments, so far.
+   *
+   * This used to be a string comparison against one rule id inside the engine.
+   * Splitting instalments into a monthly and a quarterly rule walked straight
+   * past it, and a new corporation on monthly instalments was shown twelve
+   * payments CRA does not ask a first year corporation for. A rule that is data
+   * should carry its own exceptions rather than leave them in the engine.
+   */
+  notInFirstYear?: boolean;
 }
 
 const CRA_T2 = 'https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations.html';
@@ -78,6 +126,10 @@ const CRA_PAYROLL = 'https://www.canada.ca/en/revenue-agency/services/tax/busine
 const OBR = 'https://www.ontario.ca/page/ontario-business-registry';
 const CORPORATIONS_CANADA = 'https://ised-isde.canada.ca/site/corporations-canada/en';
 const ON_EHT = 'https://www.ontario.ca/document/employer-health-tax-eht';
+const BC_REGISTRY = 'https://www2.gov.bc.ca/gov/content/employment-business/business/managing-a-business/permits-licences/businesses-incorporated-companies/bc-companies';
+const AB_REGISTRY = 'https://www.alberta.ca/annual-returns-for-alberta-corporations';
+const AB_TRA = 'https://www.alberta.ca/corporate-income-tax';
+const REVENU_QUEBEC = 'https://www.revenuquebec.ca/en/businesses/income-tax/corporation-income-tax/';
 
 export const OBLIGATIONS: Obligation[] = [
   // ----------------------------------------------------------------- income tax
@@ -134,13 +186,27 @@ export const OBLIGATIONS: Obligation[] = [
     applies: (p) => !(p.isCCPC && p.claimsSmallBusinessDeduction),
   },
 
+  /**
+   * Instalments come in two shapes and the product only had one of them.
+   *
+   * Monthly is the default for every corporation. Quarterly is a concession to
+   * a small CCPC, and it has to be earned: the corporation claims the small
+   * business deduction, its taxable income is inside the business limit, and
+   * its compliance record over the last twelve months is clean. Showing every
+   * corporation four dates a year understated the obligation by eight, which
+   * is the expensive direction to be wrong in.
+   */
   {
     id: 't2-instalments',
     title: 'Corporate tax instalment',
     detail:
-      'A corporation whose tax payable was over $3,000 in either of the last two '
-      + 'years pays by instalment rather than in one balance. New corporations are '
-      + 'not required to pay instalments in their first tax year.',
+      'An eligible CCPC pays its tax in four instalments rather than twelve, each '
+      + 'due on the last day of a quarter of its tax year. Eligibility is not '
+      + 'automatic: the corporation has to be claiming the small business deduction, '
+      + 'have taxable income within the business limit, and have been on time with '
+      + 'its returns and remittances for the last twelve months. Fall out of any of '
+      + 'those and CRA puts the corporation back on monthly instalments. '
+      + 'New corporations pay no instalments in their first tax year.',
     authority: 'CRA',
     form: 'instalment',
     weight: 'important',
@@ -148,7 +214,31 @@ export const OBLIGATIONS: Obligation[] = [
     leadDays: 14,
     penalty: 'Instalment interest, and a further penalty once that interest passes $1,000.',
     link: { label: 'Corporation instalments', url: CRA_T2 },
-    applies: (p) => p.lastYearTaxPayable > 3000,
+    notInFirstYear: true,
+    applies: (p) =>
+      p.lastYearTaxPayable > 3000 && p.isCCPC && p.claimsSmallBusinessDeduction,
+  },
+
+  {
+    id: 't2-instalments-monthly',
+    title: 'Corporate tax instalment',
+    detail:
+      'A corporation whose tax payable was over $3,000 in either of the last two '
+      + 'years pays monthly, on the last day of each month of its tax year. The '
+      + 'quarterly alternative belongs only to a CCPC claiming the small business '
+      + 'deduction, so a corporation that is not one, or that has used its business '
+      + 'limit up through associated corporations, is on this schedule. '
+      + 'New corporations pay no instalments in their first tax year.',
+    authority: 'CRA',
+    form: 'instalment',
+    weight: 'important',
+    schedule: { kind: 'monthlyOnLastDay' },
+    leadDays: 10,
+    penalty: 'Instalment interest, and a further penalty once that interest passes $1,000.',
+    link: { label: 'Corporation instalments', url: CRA_T2 },
+    notInFirstYear: true,
+    applies: (p) =>
+      p.lastYearTaxPayable > 3000 && !(p.isCCPC && p.claimsSmallBusinessDeduction),
   },
 
   // ------------------------------------------------------------- annual returns
@@ -219,6 +309,88 @@ export const OBLIGATIONS: Obligation[] = [
     applies: (p) => p.jurisdiction === 'CBCA',
   },
 
+  {
+    id: 'annual-return-bc',
+    title: 'British Columbia annual report',
+    detail:
+      'A company incorporated in British Columbia files an annual report with BC '
+      + 'Registries within two months after each anniversary of its date of '
+      + 'incorporation. Like the federal one, it runs off the anniversary rather than '
+      + 'the fiscal year end, so it does not line up with anything else here.',
+    authority: 'Corporations Canada',
+    form: 'BC annual report',
+    weight: 'critical',
+    schedule: { kind: 'monthsAfterIncorporationAnniversary', months: 2 },
+    leadDays: 30,
+    penalty: 'A company two years in arrears can be struck from the register.',
+    link: { label: 'BC Registries', url: BC_REGISTRY },
+    applies: (p) => p.jurisdiction === 'BC',
+  },
+
+  {
+    id: 'annual-return-ab',
+    title: 'Alberta annual return',
+    detail:
+      'An Alberta corporation files its annual return by the end of the month after '
+      + 'its anniversary month, through a registry agent rather than online with the '
+      + 'province. A corporation incorporated in March files by 30 April each year.',
+    authority: 'Corporations Canada',
+    form: 'Alberta annual return',
+    weight: 'critical',
+    schedule: { kind: 'endOfMonthAfterAnniversary' },
+    leadDays: 30,
+    penalty: 'A corporation that misses two consecutive years can be dissolved.',
+    link: { label: 'Alberta annual returns', url: AB_REGISTRY },
+    applies: (p) => p.jurisdiction === 'AB',
+  },
+
+  /**
+   * Alberta and Quebec have no collection agreement with CRA, so their
+   * corporate tax is a separate return rather than a different rate on the T2.
+   * src/rules/provinces.ts already said so; the calendar did not, which meant a
+   * corporation with an Alberta permanent establishment saw a complete set of
+   * federal deadlines and no sign of the return Alberta was waiting for.
+   *
+   * These turn on where the corporation operates, not where it was
+   * incorporated: a federal corporation with an office in Calgary files an AT1.
+   */
+  {
+    id: 'at1-alberta',
+    title: 'Alberta corporate income tax return',
+    detail:
+      'A corporation with a permanent establishment in Alberta files an AT1 with '
+      + 'Alberta Tax and Revenue Administration, six months after its fiscal year end. '
+      + 'Alberta does not ride along with the T2, so filing the federal return leaves '
+      + 'this one outstanding. The balance is payable on the same two or three month '
+      + 'clock as the federal one.',
+    authority: 'CRA',
+    form: 'AT1',
+    weight: 'critical',
+    schedule: { kind: 'afterYearEnd', months: 6 },
+    leadDays: 45,
+    penalty: 'A late filing penalty on the unpaid Alberta tax, plus interest.',
+    link: { label: 'Alberta corporate income tax', url: AB_TRA },
+    applies: (p) => p.permanentEstablishments.includes('AB'),
+  },
+
+  {
+    id: 'co17-quebec',
+    title: 'Quebec corporation income tax return',
+    detail:
+      'A corporation with an establishment in Quebec files a CO-17 with Revenu Quebec, '
+      + 'six months after its fiscal year end. Quebec administers its own corporate '
+      + 'tax, so the T2 does not cover it, and the annual updating declaration for the '
+      + 'enterprise register is normally filed with this return rather than separately.',
+    authority: 'CRA',
+    form: 'CO-17',
+    weight: 'critical',
+    schedule: { kind: 'afterYearEnd', months: 6 },
+    leadDays: 45,
+    penalty: 'A late filing penalty on the unpaid Quebec tax, plus interest.',
+    link: { label: 'Revenu Quebec, corporations', url: REVENU_QUEBEC },
+    applies: (p) => p.permanentEstablishments.includes('QC'),
+  },
+
   // -------------------------------------------------------------------- GST/HST
 
   {
@@ -251,6 +423,24 @@ export const OBLIGATIONS: Obligation[] = [
     penalty: 'A penalty based on the balance owing, plus interest.',
     link: { label: 'GST/HST for businesses', url: CRA_HST },
     applies: (p) => p.hst.registered && p.hst.period === 'quarterly',
+  },
+
+  {
+    id: 'hst-monthly',
+    title: 'HST return and payment',
+    detail:
+      'A monthly filer files and pays one month after each reporting period closes, '
+      + 'so the return for January is due at the end of February. CRA assigns monthly '
+      + 'periods above $6 million in taxable supplies, and a registrant who is '
+      + 'regularly in a refund position can elect them to get the refund sooner.',
+    authority: 'CRA',
+    form: 'GST34',
+    weight: 'critical',
+    schedule: { kind: 'monthlyAfterMonthEnd', months: 1 },
+    leadDays: 10,
+    penalty: 'A penalty based on the balance owing, plus interest.',
+    link: { label: 'GST/HST for businesses', url: CRA_HST },
+    applies: (p) => p.hst.registered && p.hst.period === 'monthly',
   },
 
   {
@@ -303,13 +493,60 @@ export const OBLIGATIONS: Obligation[] = [
     authority: 'CRA',
     form: 'PD7A',
     weight: 'critical',
-    schedule: { kind: 'quarterlyAfterQuarterEnd', months: 1 },
+    schedule: { kind: 'afterCalendarQuarter', dayOfNextMonth: 15 },
     leadDays: 7,
     penalty:
       'Up to 10% of the amount, and directors can be held personally liable for '
       + 'unremitted source deductions.',
     link: { label: 'Remitting source deductions', url: CRA_PAYROLL },
     applies: (p) => p.payroll.hasAccount && p.payroll.remitter === 'quarterly',
+  },
+
+  /**
+   * The two accelerated bands existed in the profile and nowhere else, so an
+   * employer who told FileClear they were on threshold 1 was shown no payroll
+   * remittance at all. An absent deadline reads as nothing owing, which is the
+   * worst way for this product to be wrong.
+   */
+  {
+    id: 'payroll-remittance-accelerated1',
+    title: 'Payroll source deductions',
+    detail:
+      'Accelerated threshold 1, which CRA assigns at an average monthly withholding '
+      + 'of $25,000 or more. Pay made in the first half of a month is remitted by the '
+      + '25th of that month; pay made from the 16th onwards by the 10th of the next. '
+      + 'Twenty four dates a year rather than twelve.',
+    authority: 'CRA',
+    form: 'PD7A',
+    weight: 'critical',
+    schedule: { kind: 'semiMonthly' },
+    leadDays: 5,
+    penalty:
+      'Up to 10% of the amount, and directors can be held personally liable for '
+      + 'unremitted source deductions.',
+    link: { label: 'Remitting source deductions', url: CRA_PAYROLL },
+    applies: (p) => p.payroll.hasAccount && p.payroll.remitter === 'accelerated1',
+  },
+
+  {
+    id: 'payroll-remittance-accelerated2',
+    title: 'Payroll source deductions',
+    detail:
+      'Accelerated threshold 2, at an average monthly withholding of $100,000 or more. '
+      + 'The month is cut into four periods ending on the 7th, 14th, 21st and the last '
+      + 'day, and each is remitted within three working days of its close. Working '
+      + 'days, not calendar days, so a long weekend moves the date. At this size the '
+      + 'payment has to go through a financial institution rather than by mail.',
+    authority: 'CRA',
+    form: 'PD7A',
+    weight: 'critical',
+    schedule: { kind: 'fourTimesMonthly' },
+    leadDays: 3,
+    penalty:
+      'Up to 10% of the amount, and directors can be held personally liable for '
+      + 'unremitted source deductions.',
+    link: { label: 'Remitting source deductions', url: CRA_PAYROLL },
+    applies: (p) => p.payroll.hasAccount && p.payroll.remitter === 'accelerated2',
   },
 
   {

@@ -1,5 +1,6 @@
 import type { CompanyProfile, MonthDay } from './profile';
 import { OBLIGATIONS, type Obligation, type Weight } from './obligations';
+import { nextBusinessDay, reasonForShift, isBusinessDay } from './businessdays';
 
 /**
  * Turns a company profile into dated filings.
@@ -22,8 +23,25 @@ export interface Filing {
   penalty: string;
   linkLabel: string;
   linkUrl: string;
-  /** ISO yyyy-mm-dd. */
+  /**
+   * ISO yyyy-mm-dd. The statutory date, which is what the id is built from.
+   *
+   * Kept separate from the date a person actually has to act by, because the
+   * id is stored: shifting it for a weekend would untick every filing anybody
+   * had ticked off, once, on the day the weekend rule shipped.
+   */
   due: string;
+  /**
+   * ISO yyyy-mm-dd. The day it is really due.
+   *
+   * CRA, Corporations Canada and the Ontario Business Registry all treat a
+   * filing as on time if it arrives on the next business day when the
+   * statutory date is a weekend or a holiday. This is that date, and it is
+   * what every screen shows and what the reminder sweep counts from.
+   */
+  effectiveDue: string;
+  /** Why the two differ, when they do: 'a Saturday', 'Canada Day'. */
+  dueShiftReason?: string;
   /** ISO yyyy-mm-dd. When to start rather than when it is too late. */
   actionableFrom: string;
   /** The fiscal year this filing settles, labelled by the year the period ended. */
@@ -75,6 +93,22 @@ export function addDays(dateIso: string, days: number): string {
   const t = Date.UTC(y, m - 1, d) + days * 86400000;
   const dt = new Date(t);
   return iso(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+}
+
+/**
+ * Move forward by a number of working days, which is not the same as adding
+ * days and then skipping to the next open one. CRA's accelerated remittance
+ * deadlines are stated in working days and three of them across a long weekend
+ * is five or six calendar days.
+ */
+export function addBusinessDays(dateIso: string, days: number): string {
+  let out = dateIso;
+  let moved = 0;
+  while (moved < days) {
+    out = addDays(out, 1);
+    if (isBusinessDay(out)) moved++;
+  }
+  return out;
 }
 
 export function daysBetween(fromIso: string, toIso: string): number {
@@ -185,6 +219,118 @@ function occurrencesFor(
         };
       });
 
+    case 'monthlyAfterMonthEnd':
+      return Array.from({ length: 12 }, (_, i) => {
+        const month = i + 1;
+        const monthEnd = iso(fiscalYear, month, daysInMonth(fiscalYear, month));
+        return {
+          due: addMonths(monthEnd, ob.schedule.kind === 'monthlyAfterMonthEnd'
+            ? ob.schedule.months : 1),
+          period: `${fiscalYear}-${String(month).padStart(2, '0')}`,
+          coversUpTo: monthEnd,
+        };
+      });
+
+    case 'monthlyOnLastDay':
+      return Array.from({ length: 12 }, (_, i) => {
+        const month = i + 1;
+        const monthEnd = iso(fiscalYear, month, daysInMonth(fiscalYear, month));
+        return { due: monthEnd, period: `${fiscalYear}-${String(month).padStart(2, '0')}`,
+          coversUpTo: monthEnd };
+      });
+
+    /**
+     * Calendar quarters, not fiscal ones.
+     *
+     * CRA's payroll accounts run on the calendar year, so a quarterly remitter
+     * with a 30 June year end still remits for the quarters ending in March,
+     * June, September and December. Using the fiscal quarters here put every
+     * such corporation's four payroll dates in the wrong months.
+     */
+    case 'afterCalendarQuarter': {
+      const day = ob.schedule.kind === 'afterCalendarQuarter'
+        ? ob.schedule.dayOfNextMonth : 15;
+      return [3, 6, 9, 12].map((m, i) => {
+        const qEnd = iso(fiscalYear, m, daysInMonth(fiscalYear, m));
+        const dueMonth = m === 12 ? 1 : m + 1;
+        const dueYear = m === 12 ? fiscalYear + 1 : fiscalYear;
+        return {
+          due: iso(dueYear, dueMonth, day),
+          period: `${fiscalYear} Q${i + 1}`,
+          coversUpTo: qEnd,
+        };
+      });
+    }
+
+    /**
+     * Accelerated threshold 1: twice a month.
+     *
+     * Pay made from the 1st to the 15th is remitted by the 25th of the same
+     * month. Pay made from the 16th to the end is remitted by the 10th of the
+     * next. Twenty four dates a year, which is why an employer moved into this
+     * band by a growing payroll notices the change before the letter arrives.
+     */
+    case 'semiMonthly':
+      return Array.from({ length: 12 }, (_, i) => i + 1).flatMap((month) => {
+        const mid = iso(fiscalYear, month, 15);
+        const end = iso(fiscalYear, month, daysInMonth(fiscalYear, month));
+        const nextMonth = month === 12 ? 1 : month + 1;
+        const nextYear = month === 12 ? fiscalYear + 1 : fiscalYear;
+        const mm = String(month).padStart(2, '0');
+        return [
+          { due: iso(fiscalYear, month, 25), period: `${fiscalYear}-${mm}a`, coversUpTo: mid },
+          { due: iso(nextYear, nextMonth, 10), period: `${fiscalYear}-${mm}b`, coversUpTo: end },
+        ];
+      });
+
+    /**
+     * Accelerated threshold 2: four times a month, three working days after
+     * each period closes.
+     *
+     * "Working days" is CRA's own wording and it means business days, so the
+     * count skips weekends and holidays rather than adding three calendar
+     * days. At this size a missed remittance is a percentage of a six figure
+     * amount, so the arithmetic is worth doing properly.
+     */
+    case 'fourTimesMonthly':
+      return Array.from({ length: 12 }, (_, i) => i + 1).flatMap((month) => {
+        const last = daysInMonth(fiscalYear, month);
+        const mm = String(month).padStart(2, '0');
+        return [7, 14, 21, last].map((d, i) => {
+          const close = iso(fiscalYear, month, d);
+          return {
+            due: addBusinessDays(close, 3),
+            period: `${fiscalYear}-${mm}-${i + 1}`,
+            coversUpTo: close,
+          };
+        });
+      });
+
+    case 'monthsAfterIncorporationAnniversary': {
+      const [iy, im, id] = p.incorporationDate.split('-').map(Number) as [number, number, number];
+      if (fiscalYear <= iy) return [];
+      const anniversary = iso(fiscalYear, im, id);
+      return [{
+        due: addMonths(anniversary, ob.schedule.kind === 'monthsAfterIncorporationAnniversary'
+          ? ob.schedule.months : 2),
+        period: `${fiscalYear}`,
+        coversUpTo: anniversary,
+      }];
+    }
+
+    case 'endOfMonthAfterAnniversary': {
+      const [iy, im, id] = p.incorporationDate.split('-').map(Number) as [number, number, number];
+      if (fiscalYear <= iy) return [];
+      const anniversary = iso(fiscalYear, im, id);
+      const dueMonth = im === 12 ? 1 : im + 1;
+      const dueYear = im === 12 ? fiscalYear + 1 : fiscalYear;
+      return [{
+        due: iso(dueYear, dueMonth, daysInMonth(dueYear, dueMonth)),
+        period: `${fiscalYear}`,
+        coversUpTo: anniversary,
+      }];
+    }
+
     case 'onceAfterIncorporation': {
       // One occurrence, in the year of incorporation, and never again. Every
       // other schedule here repeats; registering with a province does not.
@@ -230,7 +376,9 @@ export function filingsFor(
     .filter((ob) => ob.applies(p))
     .flatMap((ob) => {
       // A corporation is not required to pay tax instalments in its first year.
-      if (ob.id === 't2-instalments' && fiscalYear === incorporationYear) return [];
+      // The rule says so itself now: this was a comparison against one rule id,
+      // and splitting instalments into monthly and quarterly walked past it.
+      if (ob.notInFirstYear && fiscalYear === incorporationYear) return [];
 
       return occurrencesFor(ob, p, fiscalYear)
         // Nothing is owed for a period that closed before the corporation
@@ -250,6 +398,8 @@ export function filingsFor(
         linkLabel: ob.link.label,
         linkUrl: ob.link.url,
         due: occ.due,
+        effectiveDue: nextBusinessDay(occ.due),
+        dueShiftReason: reasonForShift(occ.due),
         actionableFrom: addDays(occ.due, -ob.leadDays),
         periodLabel: occ.period,
       }));
@@ -333,6 +483,52 @@ export function advisoriesFor(p: CompanyProfile): Advisory[] {
       detail:
         'The exemption for eligible private employers phases out on higher Ontario '
         + 'payroll. Above the threshold, EHT is payable on the full amount.',
+    });
+  }
+
+  /**
+   * The annual returns FileClear does not compute.
+   *
+   * Four jurisdictions are covered: federal, Ontario, British Columbia and
+   * Alberta. A corporation incorporated anywhere else owes an annual return to
+   * its own registry and would have seen nothing at all, which reads as nothing
+   * owing. Saying "we do not compute this, and here is who does" is the only
+   * honest option, because inventing a date for a registry we have not checked
+   * is the failure this product exists to prevent.
+   */
+  const COMPUTED_REGISTRIES: string[] = ['CBCA', 'ON', 'BC', 'AB'];
+  if (!COMPUTED_REGISTRIES.includes(p.jurisdiction)) {
+    out.push({
+      id: 'annual-return-not-computed',
+      severity: 'warn',
+      title: `FileClear does not compute the ${p.jurisdiction} annual return`,
+      detail:
+        'Your corporation owes an annual return to the registry it was incorporated '
+        + 'with, and that date is not on this calendar. FileClear computes the federal, '
+        + 'Ontario, British Columbia and Alberta returns. Everything else on your '
+        + 'calendar is complete; this one has to be tracked with your registry until '
+        + 'it is added here.',
+    });
+  }
+
+  /**
+   * WSIB arrives from a direction nobody is watching, the same way the Ontario
+   * employer health tax does. It is not CRA, it is not on the T2, and the
+   * registration clock starts from the first hire rather than from anything
+   * FileClear knows, so this is a question rather than a date.
+   */
+  if (p.payroll.hasAccount && p.permanentEstablishments.includes('ON')) {
+    out.push({
+      id: 'wsib-registration',
+      severity: 'info',
+      title: 'WSIB registration may be required',
+      detail:
+        'Most Ontario employers have to register with the Workplace Safety and '
+        + 'Insurance Board within ten days of hiring their first worker, and then '
+        + 'report and pay premiums on their own schedule. A few industries are exempt '
+        + 'and directors of a corporation are not automatically covered by their own '
+        + 'account. FileClear cannot date this one, because the clock starts from a '
+        + 'hire rather than from anything in your profile.',
     });
   }
 

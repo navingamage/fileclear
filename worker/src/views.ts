@@ -736,7 +736,7 @@ export function dashboardPage(
   // month heading is what turns it into something a person can plan against.
   const months: { key: string; label: string; items: Filing[] }[] = [];
   for (const f of filings) {
-    const key = f.due.slice(0, 7);
+    const key = f.effectiveDue.slice(0, 7);
     const [y, m] = key.split('-').map(Number) as [number, number];
     const last = months[months.length - 1];
     if (!last || last.key !== key) {
@@ -749,16 +749,19 @@ export function dashboardPage(
   const row = (f: Filing) => {
     const state = states.get(f.id);
     const done = state === 'done';
-    const overdue = !done && f.due < today;
+    const overdue = !done && f.effectiveDue < today;
     // The lead time is the point: a deadline you learn about on the day is not
     // a deadline you can act on.
     const starting = !done && !overdue && f.actionableFrom <= today;
     return `<div class="frow${done ? ' done' : overdue ? ' overdue' : ''}">
-      <span class="d">${fmt(f.due)}${
+      <span class="d">${fmt(f.effectiveDue)}${
         starting ? '<br><span class="now">start now</span>' : ''}</span>
       <span class="t">${esc(f.title)}
         <details class="why"><summary>Why, and what happens if it slips</summary>
           <p>${esc(f.detail)}</p>
+          ${f.dueShiftReason ? `<p><b>Moved from ${fmt(f.due)}</b>, which is
+          ${esc(f.dueShiftReason)}. A filing or payment due on a weekend or a
+          holiday is on time on the next business day.</p>` : ''}
           <p><b>Start acting</b> ${fmt(f.actionableFrom)}.</p>
           <p><b>If it is late.</b> ${esc(f.penalty)}<br>
           <a href="${esc(f.linkUrl)}" rel="noopener" target="_blank">${esc(f.linkLabel)}</a>,
@@ -776,8 +779,8 @@ export function dashboardPage(
   };
 
   const outstanding = filings.filter((f) => states.get(f.id) !== 'done');
-  const overdue = outstanding.filter((f) => f.due < today).length;
-  const next = outstanding.find((f) => f.due >= today);
+  const overdue = outstanding.filter((f) => f.effectiveDue < today).length;
+  const next = outstanding.find((f) => f.effectiveDue >= today);
 
   return shell(`${p.legalName} filings`, `
 <span class="label">${esc(p.legalName)} &middot; year end ${MONTHS[p.fiscalYearEnd.month - 1]} ${p.fiscalYearEnd.day}</span>
@@ -786,7 +789,7 @@ export function dashboardPage(
 <div class="stats">
   <div class="stat"><b>${outstanding.length}</b><span>outstanding this year</span></div>
   <div class="stat${overdue ? ' bad' : ''}"><b>${overdue}</b><span>overdue</span></div>
-  <div class="stat"><b>${next ? fmt(next.due).replace(/ \d{4}$/, '') : 'None'}</b>
+  <div class="stat"><b>${next ? fmt(next.effectiveDue).replace(/ \d{4}$/, '') : 'None'}</b>
     <span>${next ? esc(next.title) : 'nothing coming up'}</span></div>
 </div>
 

@@ -236,10 +236,10 @@ export function welcomeMail(email: string, origin: string): Omit<Mail, 'to'> {
   const text =
     'Your FileClear account is ready.\n\n'
     + `Signed up as ${email}.\n\n`
-    + 'Next: tell FileClear where you incorporated and when your year ends. Every\n'
-    + 'answer changes which filings exist for you, and the calendar is built from\n'
-    + 'those answers rather than from a template.\n\n'
-    + `Set up your company: ${origin}/onboarding\n\n`
+    + 'Next: tell FileClear whether the business is incorporated, where it is and\n'
+    + 'when it started. Every answer changes which filings exist for you, and the\n'
+    + 'calendar is built from those answers rather than from a template.\n\n'
+    + `Set up your business: ${origin}/onboarding\n\n`
     + 'Reminders arrive in the morning, before a window closes rather than after.\n'
     + 'If this was not you, reply to this message and we will remove the account.\n';
 
@@ -248,10 +248,10 @@ export function welcomeMail(email: string, origin: string): Omit<Mail, 'to'> {
   <p style="margin:0 0 18px;font:400 15px ${SANS};color:${C.muted}">Signed up as
     <span style="font:500 14px ${MONO};color:${C.body}">${escape(email)}</span>.</p>
   <p style="margin:0 0 20px;font:400 15px ${SANS};color:${C.body};line-height:1.55">
-    Next, tell FileClear where you incorporated and when your year ends. Every answer
-    changes which filings exist for you, so the calendar is built from those answers
-    rather than from a template.</p>
-  <p style="margin:0 0 0">${button(`${origin}/onboarding`, 'Set up your company')}</p>`,
+    Next, tell FileClear whether the business is incorporated, where it is and when
+    it started. Every answer changes which filings exist for you, so the calendar is
+    built from those answers rather than from a template.</p>
+  <p style="margin:0 0 0">${button(`${origin}/onboarding`, 'Set up your business')}</p>`,
     'Reminders arrive in the morning, before a window closes rather than after. '
     + 'If this was not you, reply to this message and we will remove the account.');
 

@@ -69,8 +69,14 @@ const TRIAL_DAYS = 30;
  * somebody missing a deadline, and switching those off the day a trial ends
  * would make FileClear the cause of the penalty it exists to prevent. The
  * screens that compute money are the ones behind the paywall.
+ *
+ * /incorporate is on the list for consistency rather than enthusiasm. It is the
+ * structural twin of /compensation, one decision higher up, and it computes a
+ * tax figure the same way. Leaving one of a matched pair open and charging for
+ * the other is the kind of arbitrary line that makes a paywall feel arbitrary.
+ * The thirty day trial is what lets somebody weighing incorporation use it.
  */
-const PAID_PATHS = ['/hst', '/year-end', '/compensation', '/slips'];
+const PAID_PATHS = ['/hst', '/year-end', '/compensation', '/slips', '/incorporate'];
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -1181,7 +1187,7 @@ export default {
       return html(slipsPage(account.email, company.profile.legalName,
         years, year, t4s, t5, slipDeadline(year),
         run, advice, eht, employees, ledgerSalary, problem ?? undefined,
-        chrome), problem ? 400 : 200);
+        chrome, company.profile.entityType), problem ? 400 : 200);
     }
 
     // A signed in visitor landing on the marketing page wants their calendar.

@@ -1486,8 +1486,12 @@ export function slipsPage(
   years: number[], year: number, t4s: T4[], t5: T5, deadline: string,
   run: PayrollRun | null, advice: RemitterAdvice | null, eht: Eht | null,
   employees: Employee[], ledgerSalary: number, error?: string,
-  chrome: Chrome = {},
+  chrome: Chrome = {}, entityType: EntityType = 'corporation',
 ): string {
+  // A sole proprietorship has no shares, so there is no dividend and no T5.
+  // The page still exists because an unincorporated business with an employee
+  // owes exactly the same T4 and the same monthly remittance.
+  const sole = entityType === 'soleProprietorship';
   const boxes = (rows: SlipBox[]) => rows.map((b) => `<div class="frow">
     <span class="d">${b.box}</span>
     <span class="t">${esc(b.label)}${b.note ? `<span class="sub">${esc(b.note)}</span>` : ''}</span>
@@ -1502,38 +1506,54 @@ export function slipsPage(
 <span class="label">${esc(companyName)} &middot; slips and remittances</span>
 <h1>What goes on the slips.</h1>
 <p class="hint">Filled in from what the ledger says was paid, so the figures agree
-with the books rather than being typed twice. Both slips are due
-${esc(deadline)}.</p>
+with the books rather than being typed twice. ${sole
+  ? `The T4 is due ${esc(deadline)}.`
+  : `Both slips are due ${esc(deadline)}.`}</p>
 
 <div class="periods">${years.map((y) =>
   `<a class="btn small${y === year ? ' primary' : ''}" href="/slips?year=${y}">${y}</a>`).join('')}</div>
 
-<div class="advisory"><b>These are calendar year slips.</b>
-  A T4 and a T5 cover January to December whatever your fiscal year end is. Only
-  the T2 follows the fiscal year. Lining the slips up with the year end instead
-  produces figures CRA cannot match to your remittance account.</div>
+<div class="advisory"><b>${sole ? 'This is a calendar year slip.'
+  : 'These are calendar year slips.'}</b>
+  ${sole
+    ? 'A T4 covers January to December, which is also your fiscal year, so nothing '
+      + 'can drift out of step here. Note that you cannot put yourself on it: a sole '
+      + 'proprietor is not their own employee, and what you take out of the business '
+      + 'is a draw rather than a wage. It goes on your T2125 as profit, not as pay.'
+    : 'A T4 and a T5 cover January to December whatever your fiscal year end is. '
+      + 'Only the T2 follows the fiscal year. Lining the slips up with the year end '
+      + 'instead produces figures CRA cannot match to your remittance account.'}</div>
 
 ${anySalary || t5.boxes.some((b) => b.amount !== 0) ? summary([
   ...(anySalary ? [{ value: dollars(t4s.reduce((n, t) =>
       n + (t.boxes.find((b) => b.box === '14')?.amount ?? 0), 0)),
     label: 'on T4s' }] : []),
-  ...(t5.boxes.some((b) => b.amount !== 0) ? [{ value: dollars(
+  ...(!sole && t5.boxes.some((b) => b.amount !== 0) ? [{ value: dollars(
       t5.boxes.find((b) => b.box === '10' || b.box === '24')?.amount ?? 0),
     label: 'on the T5' }] : []),
   ...(run && run.periodRemittance ? [{ value: dollars(run.periodRemittance),
     label: 'per PD7A' }] : []),
-  { value: deadline.slice(8) + ' Feb', label: 'both slips due', strong: true },
+  { value: deadline.slice(8) + ' Feb', label: sole ? 'T4 due' : 'both slips due',
+    strong: true },
 ]) : ''}
 
-${nothing ? `<div class="advisory info">Nothing was paid as salary or dividends in
-  ${year}, so there is no slip to file. If that is wrong, the ledger is missing
-  entries: a salary belongs on the salaries account and a dividend on dividends
-  declared.</div>` : ''}
+${nothing ? `<div class="advisory info">${sole
+  ? `No salary was paid in ${year}, so there is no T4 to file. That is the normal
+     case for a sole proprietor working alone: money you take for yourself is a
+     draw rather than a wage, and it needs no slip. If you did pay somebody, the
+     ledger is missing entries on the salaries account.`
+  : `Nothing was paid as salary or dividends in ${year}, so there is no slip to
+     file. If that is wrong, the ledger is missing entries: a salary belongs on
+     the salaries account and a dividend on dividends declared.`}</div>` : ''}
 
 <h2 class="sec">Who is on the payroll</h2>
 <p class="hint">Needed once more than one person is paid, because a single salary
-total cannot be split back into separate slips. Voting shares decide EI: over 40%
-and the employment is not insurable, whatever anybody would prefer.</p>
+total cannot be split back into separate slips. ${sole
+  ? 'Everyone you employ is at arm\'s length and insurable, so EI is withheld and '
+    + 'you pay 1.4 times what they do on top. Leave the voting share box at zero; '
+    + 'there are no shares in an unincorporated business.'
+  : 'Voting shares decide EI: over 40% and the employment is not insurable, '
+    + 'whatever anybody would prefer.'}</p>
 
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
@@ -1638,7 +1658,7 @@ is watching. Most small corporations owe nothing and still have to file.</p>
 ${notes([eht.note], 'the health tax')}
 ${eht.instalmentsRequired ? '<div class="advisory">Payroll is over $1.2 million, so this is paid in monthly instalments rather than once a year.</div>' : ''}` : ''}
 
-${t5.boxes.some((b) => b.amount !== 0) ? `
+${!sole && t5.boxes.some((b) => b.amount !== 0) ? `
 <h2 class="sec">T5, statement of investment income</h2>
 <div class="sheet">
   <div class="sheet-head"><span>${year}</span><span>T5</span></div>

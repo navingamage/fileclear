@@ -44,6 +44,15 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    # The `secrets` context cannot be read from a step's `if`, which is not a
+    # documentation detail: GitHub refuses to parse the file at all and the run
+    # fails before a single job starts, named after the file rather than the
+    # workflow. Lifted to `env`, which a step's `if` can read.
+    env:
+      HAS_MAC_CERT: ${{ secrets.MAC_CERT_P12 != '' }}
+      HAS_WIN_CERT: ${{ secrets.WIN_CERT_PFX != '' }}
+      HAS_ASC_KEY: ${{ secrets.ASC_KEY_P8 != '' }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -73,7 +82,7 @@ jobs:
       # for the iOS work and because a password in a secret is a password that
       # has to be rotated by hand.
       - name: Write the notarisation key
-        if: matrix.platform == 'mac' && secrets.ASC_KEY_P8 != ''
+        if: matrix.platform == 'mac' && env.HAS_ASC_KEY == 'true'
         shell: bash
         env:
           ASC_KEY: ${{ secrets.ASC_KEY_P8 }}
@@ -123,19 +132,16 @@ jobs:
       - name: Say what was actually produced
         shell: bash
         working-directory: desktop
-        env:
-          MAC_SIGNED: ${{ secrets.MAC_CERT_P12 != '' }}
-          WIN_SIGNED: ${{ secrets.WIN_CERT_PFX != '' }}
         run: |
           {
             echo "### ${{ matrix.platform }}"
             echo ''
             ls dist/ | grep -E '\.(dmg|zip|exe|yml|blockmap)$' || echo 'nothing matched'
             echo ''
-            if [ "${{ matrix.platform }}" = mac ] && [ "$MAC_SIGNED" != true ]; then
+            if [ "${{ matrix.platform }}" = mac ] && [ "$HAS_MAC_CERT" != true ]; then
               echo '**Unsigned.** Gatekeeper refuses this on any Mac but the one that built it. See desktop/README.md.'
             fi
-            if [ "${{ matrix.platform }}" = win ] && [ "$WIN_SIGNED" != true ]; then
+            if [ "${{ matrix.platform }}" = win ] && [ "$HAS_WIN_CERT" != true ]; then
               echo '**Unsigned.** SmartScreen warns on download and on first run. See desktop/README.md.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -160,7 +166,9 @@ jobs:
   # the version before it.
   publish:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/desktop-v') || inputs.publish
+    if: >-
+      startsWith(github.ref, 'refs/tags/desktop-v')
+      || (github.event_name == 'workflow_dispatch' && inputs.publish)
     runs-on: ubuntu-latest
 
     steps:

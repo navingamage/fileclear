@@ -232,7 +232,11 @@ const CHROME = `<style>
        column, which on a three column GIFI row dropped every amount onto a line
        of its own: the same bug that was fixed for desktop and reintroduced
        here. */
-    .two .frow { grid-template-columns: 1fr auto; }
+    .two .frow,
+  /* A label and a figure in a full width card. Without this the default four
+     column row leaves its last track empty and the number stops short of the
+     edge it should be aligned to. */
+  .frow.pair { grid-template-columns: 1fr auto; }
     .two .frow .f { grid-column: auto; }
     .two .frow.gifi { grid-template-columns: 2.8rem 1fr auto; }
   }
@@ -458,7 +462,11 @@ const CHROME = `<style>
   @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
   .two .sheet { margin-bottom: 0; }
   .two .sheet.win { border-color: var(--brand); box-shadow: var(--shadow-lg); }
-  .two .frow { grid-template-columns: 1fr auto; }
+  .two .frow,
+  /* A label and a figure in a full width card. Without this the default four
+     column row leaves its last track empty and the number stops short of the
+     edge it should be aligned to. */
+  .frow.pair { grid-template-columns: 1fr auto; }
   /* A GIFI line carries its code in front of the name, so it needs the third
      column back. Without this the amount wrapped to a line of its own and every
      statement row stood 90 pixels tall. */
@@ -2467,6 +2475,15 @@ ${worksheetFooter('Your business number and the industry code go on the T2125 '
  * So the draw is a control rather than an assumption, and the table underneath
  * answers "at what profit" rather than "at this profit".
  */
+/**
+ * Whole dollars, for a figure that labels a row rather than being copied onto
+ * a form. "Profit of 60,000.00" wrapped onto two lines and the cents were
+ * never meaningful: the profit levels are round numbers chosen to span a
+ * range, not amounts anybody entered.
+ */
+const whole = (cents: number) =>
+  `$${Math.round(cents / 100).toLocaleString('en-CA')}`;
+
 export function incorporatePage(
   email: string, businessName: string,
   c: IncorporationComparison, rows: { profit: number; advantage: number }[],
@@ -2552,7 +2569,8 @@ level. The advantage grows with what is left behind, which is the whole mechanis
 it is not that higher income is taxed more kindly inside a corporation, it is that
 money you do not need yet can wait.</p>
 <div class="sheet">
-  ${rows.map((r) => `<div class="frow"><span class="t">Profit of ${dollars(r.profit)}</span>
+  ${rows.map((r) => `<div class="frow pair"><span class="t">Profit of ${
+    whole(r.profit)}</span>
     <span class="f num">${r.advantage >= 0 ? '+' : ''}${dollars(r.advantage)}</span></div>`).join('')}
 </div>
 

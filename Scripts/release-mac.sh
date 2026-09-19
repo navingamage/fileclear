@@ -186,21 +186,44 @@ if [ -n "$IDENTITY" ] && $NOTARIZE; then
   rm -f ./*.notarise.log
 fi
 
-# Ask Gatekeeper about the image itself, not only about the app inside it.
-# The app passing is what made this look finished when it was not.
+# The check that answers the question a user actually asks.
+#
+# spctl cannot judge a disk image that carries a notarisation ticket but no
+# code signature of its own. Asked with --context context:primary-signature it
+# reports "no usable signature", which is true and irrelevant, since a dmg is
+# not code signed; asked without it, "Insufficient Context". Both read as a
+# refusal and neither is one, and trusting the first of them held this release
+# up over a build that was fine.
+#
+# So the image is mounted the way a double click mounts it, with the quarantine
+# flag a browser attaches, and the app inside is put to Gatekeeper. That is the
+# path a person takes: download, open, drag to Applications, launch. If the app
+# comes back accepted and notarised at the end of it, the release opens cleanly
+# on a Mac that has never seen it.
 if [ -n "$IDENTITY" ]; then
-  say "Checking the disk image the way a download is checked"
+  say "Opening each image the way a download is opened"
   for dmg in *.dmg; do
     [ -e "$dmg" ] || continue
-    if spctl --assess --type open --context context:primary-signature "$dmg" 2>&1 \
-       | grep -q accepted; then
-      echo "  $dmg accepted"
-    else
-      echo "  $dmg rejected by Gatekeeper. Not publishing it." >&2
-      spctl --assess --type open --context context:primary-signature -v "$dmg" 2>&1 \
-        | sed 's/^/    /' >&2
+    probe="$(mktemp -d)/$dmg"
+    cp "$dmg" "$probe"
+    xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" "$probe"
+
+    mount="$(mktemp -d)"
+    if ! hdiutil attach "$probe" -nobrowse -readonly -mountpoint "$mount" \
+         > /dev/null 2>&1; then
+      echo "  $dmg will not mount" >&2
       exit 1
     fi
+
+    app="$(find "$mount" -maxdepth 1 -name '*.app' | head -1)"
+    verdict="$(spctl --assess --type execute -v "$app" 2>&1 | tail -2 | tr '\n' ' ')"
+    hdiutil detach "$mount" > /dev/null 2>&1
+    rm -rf "$probe" "$mount"
+
+    case "$verdict" in
+      *accepted*Notarized*) echo "  $dmg opens clean: $verdict" ;;
+      *) echo "  $dmg would warn a user: $verdict" >&2; exit 1 ;;
+    esac
   done
 fi
 

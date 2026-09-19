@@ -3,7 +3,12 @@
 # Build, sign, notarise and publish the Mac app, from this Mac.
 #
 #   Scripts/release-mac.sh 1.0.0
-#   Scripts/release-mac.sh 1.0.0 --dry-run     build and notarise, publish nothing
+#   Scripts/release-mac.sh 1.0.0 --dry-run        build and check, publish nothing
+#   Scripts/release-mac.sh 1.0.0 --publish-only   publish what is already in dist/
+#
+# --publish-only exists because notarisation is a round trip to Apple that can
+# take the better part of an hour, and throwing a finished one away to rebuild
+# identical bytes is a poor trade. It verifies what it finds before sending it.
 #
 # Why this is not a GitHub workflow.
 #
@@ -25,7 +30,11 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 VERSION="${1:-}"
 DRY_RUN=false
-[ "${2:-}" = "--dry-run" ] && DRY_RUN=true
+PUBLISH_ONLY=false
+case "${2:-}" in
+  --dry-run) DRY_RUN=true ;;
+  --publish-only) PUBLISH_ONLY=true ;;
+esac
 
 if [ -z "$VERSION" ]; then
   echo "usage: Scripts/release-mac.sh <version> [--dry-run]" >&2
@@ -98,15 +107,20 @@ fi
 
 # ------------------------------------------------------------------ build
 
-say "Building $VERSION"
 cd desktop
-npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
-rm -rf dist
-
-if $NOTARIZE; then
-  npx electron-builder --mac --publish never --config.mac.notarize=true
+if $PUBLISH_ONLY; then
+  say "Using the build already in desktop/dist"
+  [ -d dist ] || { echo "Nothing in desktop/dist to publish." >&2; exit 1; }
 else
-  CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --publish never
+  say "Building $VERSION"
+  npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null
+  rm -rf dist
+
+  if $NOTARIZE; then
+    npx electron-builder --mac --publish never --config.mac.notarize=true
+  else
+    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --publish never
+  fi
 fi
 
 cd dist
@@ -124,6 +138,29 @@ if [ -n "$IDENTITY" ]; then
     echo "  Gatekeeper rejected the app. Do not publish this." >&2
     exit 1
   }
+fi
+
+# The app inside carries its notarisation ticket, but the disk image is what a
+# person downloads and double clicks, and a dmg without its own ticket has to
+# be checked against Apple over the network. On a machine that is offline, or
+# behind something that blocks Apple, Gatekeeper then refuses it. Stapling is
+# what makes the check work without a connection, and electron-builder does not
+# always do it for the dmg.
+if [ -n "$IDENTITY" ]; then
+  say "Stapling the disk images"
+  for dmg in *.dmg; do
+    [ -e "$dmg" ] || continue
+    if xcrun stapler validate "$dmg" > /dev/null 2>&1; then
+      echo "  $dmg already stapled"
+    else
+      xcrun stapler staple "$dmg" > /dev/null 2>&1 \
+        && echo "  $dmg stapled" \
+        || { echo "  could not staple $dmg. Not publishing an image that needs" >&2
+             echo "  a network round trip to open." >&2; exit 1; }
+    fi
+    xcrun stapler validate "$dmg" > /dev/null 2>&1 \
+      || { echo "  $dmg still has no ticket" >&2; exit 1; }
+  done
 fi
 
 if $DRY_RUN; then

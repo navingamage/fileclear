@@ -78,16 +78,31 @@ STYLE = """<style>
 
   header.nav { position: sticky; top: 0; z-index: 60; background: var(--bg);
     border-bottom: 1px solid var(--line); }
-  .nav-in { display: flex; align-items: center; gap: 2rem; padding: .85rem 0; }
+  .nav-in { display: flex; align-items: center; gap: 2rem; padding: .85rem 0;
+    flex-wrap: wrap; row-gap: .55rem; }
   .brand { display: flex; align-items: center; gap: .6rem;
     font-family: var(--font-display); font-weight: 600; font-size: 1.12rem;
     letter-spacing: -.04em; }
   .brand:hover { text-decoration: none; }
   .brand img { width: 32px; height: 32px; border-radius: 8px; }
   .nav-links { display: flex; gap: 1.7rem; margin-left: auto; }
-  .nav-links a { color: var(--ink-2); font-size: .95rem; font-weight: 500; }
+  .nav-links a { color: var(--ink-2); font-size: .95rem; font-weight: 500;
+    white-space: nowrap; }
   .nav-links a:hover { color: var(--ink); text-decoration: none; }
-  @media (max-width: 900px) { .nav-links { display: none; } .nav-in { gap: 1rem; } }
+  /* The navigation moves to its own row and scrolls sideways rather than
+     disappearing. It was display:none below 900px, which is every phone and
+     most tablets, so a visitor on a phone could not reach pricing, support or
+     the download page from the header at all. */
+  @media (max-width: 900px) {
+    .nav-in { gap: 1rem; }
+    .nav-links {
+      order: 4; width: 100%; margin-left: 0; gap: 1.35rem;
+      overflow-x: auto; overscroll-behavior-x: contain;
+      padding-bottom: .15rem;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .nav-links::-webkit-scrollbar { display: none; }
+  }
 
   .btn { display: inline-flex; align-items: center; justify-content: center;
     padding: .82rem 1.5rem; border-radius: var(--radius-btn);
@@ -297,7 +312,7 @@ FOOT = """<footer><div class="wrap">
         <ul>
           <li><a href="/#how">How it works</a></li>
           <li><a href="/#different">Why yours differs</a></li>
-          <li><a href="/download">Mac and Windows</a></li>
+          <li><a href="/download">Download for Mac</a></li>
           <li><a href="/support">Support</a></li>
         </ul>
       </div>
@@ -583,20 +598,19 @@ TERMS = """<section><div class="wrap narrow prose">
 </div></section>"""
 
 DOWNLOAD = """<section><div class="wrap narrow prose">
-  <span class="eyebrow">Mac and Windows</span>
+  <span class="eyebrow">Mac</span>
   <h1 style="font-size:clamp(2.2rem,5vw,3.2rem)">FileClear on your desktop</h1>
   <p class="lead">An icon that is always there, the outstanding count on it, and the
   same calendar you already have.</p>
 
   <div class="cta-row" id="get">
     <a class="btn primary" id="dl-mac" href="#" rel="nofollow">Download for Mac</a>
-    <a class="btn" id="dl-win" href="#" rel="nofollow">Download for Windows</a>
   </div>
   <p class="fine" id="dl-note">Checking for the current version&hellip;</p>
 
   <h2>What it adds, and what it does not</h2>
-  <p>The dock or taskbar icon carries what is outstanding, so the number is in front of
-  you without opening anything. The sections have keyboard shortcuts. Links out to CRA
+  <p>The dock icon carries what is outstanding, so the number is in front of you
+  without opening anything. The sections have keyboard shortcuts. Links out to CRA
   and to the registries open in your own browser, where the address bar is visible.</p>
   <p>What it does not add is a second copy of the rules. Every rate and every deadline
   in FileClear is a claim about the outside world that was true on the day it was typed,
@@ -616,8 +630,15 @@ DOWNLOAD = """<section><div class="wrap narrow prose">
   the server on its own schedule and do not need this app to be open, or installed.</p>
 
   <h2>Requirements</h2>
-  <p>macOS 12 or later, on Apple silicon or Intel. Windows 10 or later, 64-bit. The
-  Windows installer does not need an administrator, so it works on a managed laptop.</p>
+  <p>macOS 12 or later, on Apple silicon or Intel. The app is signed and notarised by
+  Apple, so it opens the way any other Mac application does.</p>
+
+  <h2>Windows</h2>
+  <p>Not yet. A Windows build exists and works, but shipping it needs a code signing
+  certificate, and without one Windows shows a full screen warning before it will run.
+  That is a poor first screen for a product about tax, so it waits.
+  <a href="https://fileclear.ca/signin">The web version</a> is the same product and
+  works in any browser on Windows today.</p>
 
   <h2>Prefer the browser?</h2>
   <p>Then use the browser. <a href="https://fileclear.ca/signin">fileclear.ca</a> is the
@@ -631,32 +652,38 @@ DOWNLOAD = """<section><div class="wrap narrow prose">
    points at something older than the product. */
 (function () {
   var mac = document.getElementById('dl-mac');
-  var win = document.getElementById('dl-win');
   var note = document.getElementById('dl-note');
-  var ua = navigator.userAgent;
-  var arm = /Mac/.test(ua) && (navigator.maxTouchPoints > 1 || /Apple/.test(navigator.vendor));
-
-  /* Put the platform being used first, rather than making somebody find it.
-     Detection is a convenience: both buttons stay, because a person downloading
-     on one machine for another is an ordinary thing to do. */
-  if (/Win/.test(ua)) { win.className = 'btn primary'; mac.className = 'btn'; }
+  /* Apple silicon reports itself as Intel through the user agent, so the build
+     is chosen by what the machine can actually do rather than by what it
+     claims to be. A Mac that can run this returns a Metal renderer string; an
+     Intel one does not. Wrong either way is survivable, because both builds
+     run on both machines, one of them just through Rosetta. */
+  var arm = false;
+  try {
+    var c = document.createElement('canvas');
+    var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+    var dbg = gl && gl.getExtension('WEBGL_debug_renderer_info');
+    var r = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '';
+    arm = /Apple (M\\d|GPU)/.test(r);
+  } catch (e) { /* no WebGL: fall through to the Intel build, which runs on both */ }
 
   fetch('/api/release').then(function (r) {
     if (!r.ok) throw new Error('none');
     return r.json();
   }).then(function (d) {
-    var m = (d.mac && (arm ? d.mac.arm64 : d.mac.x64)) || (d.mac && d.mac.arm64);
-    if (m) mac.href = '/download/' + m;
-    if (d.windows) win.href = '/download/' + d.windows;
-    note.textContent = 'Version ' + d.version + ', released ' + d.releasedOn
-      + '. Signed and notarised.';
+    var file = (d.mac && (arm ? d.mac.arm64 : d.mac.x64))
+      || (d.mac && (d.mac.arm64 || d.mac.x64));
+    if (!file) throw new Error('no mac build');
+    mac.href = '/download/' + file;
+    mac.textContent = 'Download for Mac' + (arm ? ' (Apple silicon)' : '');
+    note.textContent = 'Version ' + d.version + ', released ' + d.releasedOn + '. '
+      + (d.notarized ? 'Signed and notarised by Apple.'
+        : d.signed ? 'Signed.' : 'Not signed yet.');
   }).catch(function () {
-    /* Honest about it rather than leaving two buttons that go nowhere. */
+    /* Honest about it rather than leaving a button that goes nowhere. */
     mac.href = '/signup';
-    win.href = '/signup';
     mac.textContent = 'Use FileClear in your browser';
-    win.style.display = 'none';
-    note.textContent = 'The desktop builds are not published yet. Everything above is '
+    note.textContent = 'The Mac build is not published yet. Everything above is '
       + 'available now at fileclear.ca, and the app will be the same product in a window.';
   });
 }());
@@ -687,10 +714,10 @@ PAGES = [
     ("terms.html", "terms", "Terms &middot; FileClear",
      "The terms covering use of FileClear, including what it is and what it "
      "deliberately is not.", TERMS, True),
-    ("download.html", "download", "Download for Mac and Windows &middot; FileClear",
-     "FileClear for macOS and Windows. The same filing calendar in its own window, with "
-     "what is outstanding on the icon, and the rules still coming from the server so a "
-     "corrected rate reaches you without an update.", DOWNLOAD, True),
+    ("download.html", "download", "Download for Mac &middot; FileClear",
+     "FileClear for macOS, signed and notarised. The same filing calendar in its own "
+     "window, with what is outstanding on the icon, and the rules still coming from the "
+     "server so a corrected rate reaches you without an update.", DOWNLOAD, True),
     ("404.html", "404", "Not found &middot; FileClear",
      "That page could not be found.", NOTFOUND, False),
 ]

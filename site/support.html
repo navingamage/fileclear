@@ -61,16 +61,31 @@
 
   header.nav { position: sticky; top: 0; z-index: 60; background: var(--bg);
     border-bottom: 1px solid var(--line); }
-  .nav-in { display: flex; align-items: center; gap: 2rem; padding: .85rem 0; }
+  .nav-in { display: flex; align-items: center; gap: 2rem; padding: .85rem 0;
+    flex-wrap: wrap; row-gap: .55rem; }
   .brand { display: flex; align-items: center; gap: .6rem;
     font-family: var(--font-display); font-weight: 600; font-size: 1.12rem;
     letter-spacing: -.04em; }
   .brand:hover { text-decoration: none; }
   .brand img { width: 32px; height: 32px; border-radius: 8px; }
   .nav-links { display: flex; gap: 1.7rem; margin-left: auto; }
-  .nav-links a { color: var(--ink-2); font-size: .95rem; font-weight: 500; }
+  .nav-links a { color: var(--ink-2); font-size: .95rem; font-weight: 500;
+    white-space: nowrap; }
   .nav-links a:hover { color: var(--ink); text-decoration: none; }
-  @media (max-width: 900px) { .nav-links { display: none; } .nav-in { gap: 1rem; } }
+  /* The navigation moves to its own row and scrolls sideways rather than
+     disappearing. It was display:none below 900px, which is every phone and
+     most tablets, so a visitor on a phone could not reach pricing, support or
+     the download page from the header at all. */
+  @media (max-width: 900px) {
+    .nav-in { gap: 1rem; }
+    .nav-links {
+      order: 4; width: 100%; margin-left: 0; gap: 1.35rem;
+      overflow-x: auto; overscroll-behavior-x: contain;
+      padding-bottom: .15rem;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .nav-links::-webkit-scrollbar { display: none; }
+  }
 
   .btn { display: inline-flex; align-items: center; justify-content: center;
     padding: .82rem 1.5rem; border-radius: var(--radius-btn);
@@ -314,7 +329,7 @@
         <ul>
           <li><a href="/#how">How it works</a></li>
           <li><a href="/#different">Why yours differs</a></li>
-          <li><a href="/download">Mac and Windows</a></li>
+          <li><a href="/download">Download for Mac</a></li>
           <li><a href="/support">Support</a></li>
         </ul>
       </div>

@@ -84,19 +84,40 @@ const CHROME = `<style>
 
   header.app { border-bottom: 1px solid var(--line); background: var(--bg);
     position: sticky; top: 0; z-index: 40; }
-  .app-in { display: flex; align-items: center; gap: 1.4rem; padding: .9rem 0; }
+  .app-in { display: flex; align-items: center; gap: 1.4rem; padding: .9rem 0;
+    flex-wrap: wrap; row-gap: .6rem; }
   .brand { display: flex; align-items: center; gap: .55rem; color: var(--ink);
     font-family: var(--font-display); font-weight: 800; font-size: 1.1rem;
     letter-spacing: -.04em; }
   .brand:hover { text-decoration: none; }
   .brand img { width: 30px; height: 30px; border-radius: 8px; }
   .app-nav { display: flex; gap: 1.3rem; margin-left: 1rem; }
-  .app-nav a { color: var(--muted); font-size: .95rem; font-weight: 500; }
+  /* "Year end" was breaking across two lines and taking the header's height
+     with it. A navigation item is a label, not a paragraph. */
+  .app-nav a { color: var(--muted); font-size: .95rem; font-weight: 500;
+    white-space: nowrap; }
   .app-nav a:hover { color: var(--ink); text-decoration: none; }
   .app-nav a.on { color: var(--ink); font-weight: 600; }
   .app-right { margin-left: auto; display: flex; align-items: center; gap: .9rem;
     font-size: .9rem; color: var(--muted); }
-  @media (max-width: 720px) { .app-nav { display: none; } }
+  /* Below this the navigation moves to a row of its own and scrolls sideways.
+     It used to be display:none with nothing in its place, so on a phone a
+     signed in person could reach the dashboard through the logo and no other
+     screen at all: not the books, not the HST return, not their own company
+     details. Hiding navigation is only a reasonable answer when something
+     replaces it. */
+  @media (max-width: 860px) {
+    .app-nav {
+      order: 3; width: 100%; margin-left: 0;
+      overflow-x: auto; overscroll-behavior-x: contain;
+      padding-bottom: .15rem;
+      /* The bar is short and the overflow is obvious from the cut off item, so
+         a scrollbar under seven links is noise. */
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .app-nav::-webkit-scrollbar { display: none; }
+    .app-in { padding-bottom: .5rem; }
+  }
   /* The address is who you are signed in as, which matters on a shared machine
      and not much otherwise. On a phone it was wrapping to two lines and pushing
      the sign out button off the screen entirely. */
@@ -162,6 +183,11 @@ const CHROME = `<style>
   .sheet { border: 1px solid var(--line); background: var(--surface);
     border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 2rem;
     overflow: hidden; }
+  /* Prose inside a card. Rows bring their own padding; a paragraph does not,
+     and .sheet clips its overflow, so text put straight into one sat against
+     the border with nothing between. */
+  .sheet-body { padding: 1.1rem 1.25rem; }
+  .sheet-body p:last-child { margin-bottom: 0; }
   .sheet-head { display: flex; justify-content: space-between; align-items: baseline;
     gap: 1rem; padding: .95rem 1.25rem; border-bottom: 1px solid var(--line);
     background: var(--band); font-family: var(--font-mono); font-size: .72rem;
@@ -183,6 +209,32 @@ const CHROME = `<style>
   @media (max-width: 660px) {
     .frow { grid-template-columns: 5.6rem 1fr; }
     .frow .f { grid-column: 2; }
+
+    /* A filing row carries four things and a button, which two columns cannot
+       hold. Collapsing to two put the date beside a two line title and then
+       auto-placed the button onto a row of its own on the left, under nothing,
+       while align-items:center floated the date halfway down the title. So on
+       a phone it stacks deliberately: the date, then what it is, then the form
+       and the button side by side. */
+    .frow.filing {
+      grid-template-columns: 1fr auto;
+      gap: .3rem .9rem;
+      align-items: start;
+      padding: .9rem 1rem;
+    }
+    .frow.filing .d,
+    .frow.filing .t { grid-column: 1 / -1; }
+    .frow.filing .f { grid-column: 1; align-self: center; }
+    .frow.filing form { grid-column: 2; justify-self: end; }
+
+    /* A statement line is a label and a number, and the number belongs beside
+       the label on any width. The generic rule above forces .f into the second
+       column, which on a three column GIFI row dropped every amount onto a line
+       of its own: the same bug that was fixed for desktop and reintroduced
+       here. */
+    .two .frow { grid-template-columns: 1fr auto; }
+    .two .frow .f { grid-column: auto; }
+    .two .frow.gifi { grid-template-columns: 2.8rem 1fr auto; }
   }
 
   details.why { margin-top: .4rem; }
@@ -306,7 +358,14 @@ const CHROME = `<style>
     text-overflow: ellipsis; white-space: nowrap; }
   .brow-n { font-family: var(--font-mono); font-size: .86rem; text-align: right;
     font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .brow-n.in { color: var(--brand); }
+  /* Money in is full strength ink and a plus sign; money out is quieter. It
+     used to be brand red, and tokens.css permits red to be brand and overdue
+     at once only because "the two never share a surface". In a ledger they
+     share a column: +18,500.00 in red above -1,450.00 in plain text reads as
+     though the income were the problem. The sign carries the direction and the
+     weight carries the emphasis, neither of which can be misread. */
+  .brow-n { color: var(--muted); }
+  .brow-n.in { color: var(--ink); font-weight: 600; }
   .brow-n.hst { color: var(--muted); font-size: .8rem; }
   /* A quiet cross rather than a button: removing a row is rare, and a button
      per row competes with the figures for attention. */
@@ -322,12 +381,37 @@ const CHROME = `<style>
     text-transform: uppercase; color: var(--muted); }
   .brow-month .brow-net { margin-left: auto; font-size: .82rem; letter-spacing: 0;
     font-variant-numeric: tabular-nums; text-transform: none; }
-  .brow-month .brow-net.up { color: var(--brand); }
+  .brow-month .brow-net.up { color: var(--ink); font-weight: 600; }
   .brow-month .brow-net.down { color: var(--ink-2); }
 
   @media (max-width: 900px) {
     .brow { grid-template-columns: 3.8rem minmax(0, 1fr) 6rem 1.4rem; }
     .brow.head, .brow-c, .brow-n.hst { display: none; }
+  }
+
+  /* On a phone the four columns above leave about 120 pixels for the account,
+     which put "Meals and entertainment" on three lines and cut every
+     description down to "Client re...". A description you cannot read is not
+     worth the row it sits on, since it is the only thing distinguishing one
+     retainer from the next.
+     
+     So the delete control moves to a second line and gives its width back to
+     the two things that carry meaning. */
+  @media (max-width: 560px) {
+    .brow {
+      grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+      gap: .15rem .7rem;
+      align-items: baseline;
+      padding: .6rem 1rem;
+    }
+    .brow-d { grid-column: 1; grid-row: 1; }
+    /* Spanning both rows rather than sitting in the first is what stops the
+       delete control adding a line of its own: it drops to the bottom of the
+       account block instead, beside the description. */
+    .brow-a { grid-column: 2; grid-row: 1 / 3; }
+    .brow-n { grid-column: 3; grid-row: 1; }
+    .brow form { grid-column: 3; grid-row: 2; justify-self: end; align-self: end; }
+    .brow-month { padding: .7rem 1rem; }
   }
 
   .why-books { margin: 1.4rem 0 1.8rem; }
@@ -840,7 +924,7 @@ export function dashboardPage(
     // The lead time is the point: a deadline you learn about on the day is not
     // a deadline you can act on.
     const starting = !done && !overdue && f.actionableFrom <= today;
-    return `<div class="frow${done ? ' done' : overdue ? ' overdue' : ''}">
+    return `<div class="frow filing${done ? ' done' : overdue ? ' overdue' : ''}">
       <span class="d">${fmt(f.effectiveDue)}${
         starting ? '<br><span class="now">start now</span>' : ''}</span>
       <span class="t">${esc(f.title)}
@@ -2216,7 +2300,7 @@ ${year.instalmentsLikely ? `<div class="advisory">
 <h2>The statement of business activities</h2>
 <div class="two">
   <div class="sheet">
-    <h3>Income and expenses</h3>
+    <div class="sheet-head"><span>Income and expenses</span><span>T2125</span></div>
     ${line('8299', 'Gross business income', st.grossRevenue, true)}
     ${st.costOfSales ? line('8518', 'Cost of goods sold', st.costOfSales) : ''}
     ${st.costOfSales ? line('8519', 'Gross profit', st.grossProfit, true) : ''}
@@ -2231,7 +2315,7 @@ ${year.instalmentsLikely ? `<div class="advisory">
   </div>
 
   <div class="sheet">
-    <h3>What you owe on it</h3>
+    <div class="sheet-head"><span>What you owe on it</span><span>T1</span></div>
     <div class="frow"><span class="t">Net business income</span>
       <span class="f num">${dollars(year.netBusinessIncome)}</span></div>
     <div class="frow"><span class="t">Less the deductible half of CPP</span>
@@ -2319,7 +2403,7 @@ what will not fit this year carries forward against this business indefinitely.<
 ${home ? `
 <div class="two" style="margin-top:1.6rem">
   <div class="sheet">
-    <h3>The claim</h3>
+    <div class="sheet-head"><span>The claim</span><span>line 9945</span></div>
     <div class="frow"><span class="t">Share of the home</span>
       <span class="f num">${(home.areaFraction * 100).toFixed(1)}%</span></div>
     <div class="frow"><span class="t">Share of the week</span>
@@ -2337,8 +2421,8 @@ ${home ? `
       <span class="f num">${dollars(st.homeOfficeCarriedForward)}</span></div>` : ''}
   </div>
   <div class="sheet">
-    <h3>Worth knowing</h3>
-    ${home.notes.map((n) => `<p class="hint">${esc(n)}</p>`).join('')}
+    <div class="sheet-head"><span>Worth knowing</span><span>before you claim</span></div>
+    <div class="sheet-body">${home.notes.map((n) => `<p class="hint">${esc(n)}</p>`).join('')}</div>
   </div>
 </div>` : ''}
 
@@ -2390,7 +2474,7 @@ export function incorporatePage(
 ): string {
   const side = (s: Side, best: boolean) => `
   <div class="sheet${best ? ' win' : ''}">
-    <h3>${esc(s.label)}</h3>
+    <div class="sheet-head"><span>${esc(s.label)}</span><span>${best ? 'better here' : ''}</span></div>
     ${s.businessTax ? `<div class="frow"><span class="t">Corporate tax</span>
       <span class="f num">${dollars(s.businessTax)}</span></div>` : ''}
     <div class="frow"><span class="t">Personal tax</span>
@@ -2404,7 +2488,7 @@ export function incorporatePage(
     <div class="frow"><span class="t">Cash in your hands</span>
       <span class="f num">${dollars(s.cashInHand)}</span></div>
     <div class="frow"><span class="t">Left inside the business</span>
-      <span class="f num">${s.retained ? dollars(s.retained) : 'nothing to leave'}</span></div>
+      <span class="f num">${s.retained ? dollars(s.retained) : 'none'}</span></div>
     <div class="frow"><span class="t">RRSP room created</span>
       <span class="f num">${s.rrspRoom ? dollars(s.rrspRoom) : 'none'}</span></div>
   </div>`;

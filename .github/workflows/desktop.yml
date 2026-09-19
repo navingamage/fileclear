@@ -216,7 +216,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          put() { npx --yes wrangler@4 r2 object put "fileclear-downloads/$1" --file "$1" --remote; }
+          put() { npx --yes wrangler@4 r2 object put "fileclear-releases/$1" --file "$1" --remote; }
 
           # The installers first and the feed last. An app that reads a
           # manifest naming a file which has not finished uploading fails its

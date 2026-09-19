@@ -49,9 +49,14 @@ enabled = true
 # Nothing in here is secret. These are public files by design, and what protects
 # somebody from a tampered build is the code signature on it rather than an
 # access control on the bucket.
+#
+# Named for what it holds, and named a second time. The first attempt was
+# created against the wrong location hint, and R2 keeps a bucket name tied to
+# its first placement even across a delete, so recreating it under the same name
+# left it in Western Europe for a Canadian product. A fresh name takes the hint.
 [[r2_buckets]]
 binding = "DOWNLOADS"
-bucket_name = "fileclear-downloads"
+bucket_name = "fileclear-releases"
 
 # Company profiles, accounts and what has been ticked off. Filings themselves are
 # not stored: they are computed from the profile on every read, so a corrected

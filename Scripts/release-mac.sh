@@ -236,7 +236,26 @@ fi
 # ---------------------------------------------------------------- publish
 
 say "Publishing to R2"
-put() { npx --yes wrangler@4 r2 object put "fileclear-releases/$1" --file "$1" --remote > /dev/null && echo "  $1"; }
+
+# Retried, because a hundred and twenty megabyte upload fails transiently and
+# the first attempt at this release did: "fetch failed" after two seconds,
+# which is too quick to be the upload and was gone on the next try. A release
+# that gives up halfway leaves some of the files in the bucket and the rest
+# not, which is the state the ordering below exists to avoid.
+put() {
+  local attempt
+  for attempt in 1 2 3; do
+    if npx --yes wrangler@4 r2 object put "fileclear-releases/$1" \
+         --file "$1" --remote > /dev/null 2>&1; then
+      echo "  $1"
+      return 0
+    fi
+    echo "  $1 failed, attempt $attempt of 3" >&2
+    sleep $((attempt * 5))
+  done
+  echo "  giving up on $1" >&2
+  return 1
+}
 
 # Installers before the manifest. An app that reads a manifest naming a file
 # which has not finished uploading fails its update.

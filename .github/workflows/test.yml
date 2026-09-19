@@ -50,6 +50,12 @@ jobs:
 
       - run: npm ci
         working-directory: desktop
+        env:
+          # The checks below are a syntax parse, an audit and a file test. None
+          # of them runs Electron, and installing it pulls a hundred megabyte
+          # binary that is then thrown away. Skipping it is most of this job's
+          # runtime.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       # The shell has no test suite: it is a window onto a remote origin and
       # what it does is hard to assert without driving a real browser. What can
@@ -59,9 +65,36 @@ jobs:
         run: node --check src/main.js && node --check src/preload.js
         working-directory: desktop
 
+      # `npm audit --audit-level=high` alone fails the build when npm's own
+      # advisory endpoint is unavailable, which it was the first time this ran:
+      # a 503 for maintenance, reported exactly like a vulnerability. An outage
+      # somewhere else is not a reason to block this repository, and a real
+      # advisory is not something to pass over, so the two are told apart.
+      #
+      # This matters more here than in most projects. electron-updater fetches
+      # and installs code on a user's machine, so an advisory in it is an
+      # advisory in the thing that installs the product.
       - name: No known advisories
-        run: npm audit --audit-level=high
         working-directory: desktop
+        run: |
+          npm audit --json > audit.json 2>/dev/null || true
+          node -e '
+            const a = JSON.parse(require("fs").readFileSync("audit.json", "utf8"));
+            if (a.error) {
+              console.log("Could not reach npm:", a.error.summary || a.error);
+              console.log("Not treating an outage as a clean bill of health, but not");
+              console.log("blocking on it either. The next run will check again.");
+              process.exit(0);
+            }
+            const v = (a.metadata && a.metadata.vulnerabilities) || {};
+            const bad = (v.high || 0) + (v.critical || 0);
+            console.log(JSON.stringify(v));
+            if (bad > 0) {
+              console.error(`${bad} high or critical advisories.`);
+              process.exit(1);
+            }
+            console.log("No high or critical advisories.");
+          '
 
       - name: The icon the build needs exists
         run: test -f build/icon.png

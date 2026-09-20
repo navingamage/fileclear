@@ -250,7 +250,11 @@ fi
 # until somebody on the other kind of Mac installed it.
 if [ -d mac-universal ] || ls -d *.app > /dev/null 2>&1; then
   say "Checking the binary is actually universal"
-  bin="$(find . -maxdepth 3 -name FileClear -type f -path '*/Contents/MacOS/*' | head -1)"
+  # Five components from dist: mac-universal/FileClear.app/Contents/MacOS/FileClear.
+  # maxdepth 3 found nothing, and because the check refuses to pass quietly it
+  # stopped a release that was otherwise finished. Better that way round than
+  # the alternative, but the depth was simply wrong.
+  bin="$(find . -maxdepth 5 -name FileClear -type f -path '*/Contents/MacOS/*' | head -1)"
   [ -n "$bin" ] || { echo "  no binary found to check" >&2; exit 1; }
   if [ -n "$bin" ]; then
     archs="$(lipo -archs "$bin" 2>/dev/null)"

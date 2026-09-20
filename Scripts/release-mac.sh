@@ -82,6 +82,10 @@ say "Checking credentials"
 source ~/.config/antipode/load-secrets.sh > /dev/null 2>&1 || true
 [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "no Cloudflare token. source ~/.config/antipode/load-secrets.sh" >&2; exit 1; }
 echo "  Cloudflare: loaded"
+command -v aws > /dev/null || {
+  echo "  the aws CLI is needed to upload in parts. brew install awscli" >&2
+  exit 1
+}
 
 IDENTITY="$(security find-identity -v -p codesigning \
   | grep -o 'Developer ID Application: [^"]*' | head -1 || true)"
@@ -238,6 +242,7 @@ fi
 if [ -d mac-universal ] || ls -d *.app > /dev/null 2>&1; then
   say "Checking the binary is actually universal"
   bin="$(find . -maxdepth 3 -name FileClear -type f -path '*/Contents/MacOS/*' | head -1)"
+  [ -n "$bin" ] || { echo "  no binary found to check" >&2; exit 1; }
   if [ -n "$bin" ]; then
     archs="$(lipo -archs "$bin" 2>/dev/null)"
     echo "  $archs"
@@ -264,11 +269,44 @@ say "Publishing to R2"
 # which is too quick to be the upload and was gone on the next try. A release
 # that gives up halfway leaves some of the files in the bucket and the rest
 # not, which is the state the ordering below exists to avoid.
+# Uploaded in parts over the S3 API rather than in one request through
+# wrangler.
+#
+# `wrangler r2 object put` sends the whole file in a single PUT, and a single
+# PUT of a universal disk image does not survive a link that drops packets: it
+# failed three times running on 217 MiB, and a 121 MiB control failed too, so
+# it was never about size. Multipart turns one fragile transfer into forty odd
+# small ones, each retried on its own, which is what gets a large file across a
+# connection that cannot hold a long one open.
+#
+# R2 accepts a Cloudflare API token as S3 credentials: the access key is the
+# token's id and the secret is the SHA-256 of the token itself. So this needs
+# no second credential, and the token still never appears in an argument.
+_r2_s3_env() {
+  AWS_ACCESS_KEY_ID="$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify" \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["id"])')"
+  AWS_SECRET_ACCESS_KEY="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | shasum -a 256 | cut -d' ' -f1)"
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  export AWS_DEFAULT_REGION=auto AWS_MAX_ATTEMPTS=12 AWS_RETRY_MODE=adaptive
+  R2_ENDPOINT="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+  aws configure set default.s3.multipart_threshold 8MB
+  aws configure set default.s3.multipart_chunksize 8MB
+  aws configure set default.s3.max_concurrent_requests 2
+}
+
 put() {
-  local attempt
+  local type=application/octet-stream attempt
+  case "$1" in
+    *.dmg) type=application/x-apple-diskimage ;;
+    *.zip) type=application/zip ;;
+    *.json) type=application/json ;;
+    *.yml) type=text/yaml ;;
+  esac
   for attempt in 1 2 3; do
-    if npx --yes wrangler@4 r2 object put "fileclear-releases/$1" \
-         --file "$1" --remote > /dev/null 2>&1; then
+    if aws s3 cp "$1" "s3://fileclear-releases/$1" \
+         --endpoint-url "$R2_ENDPOINT" --content-type "$type" \
+         --no-progress > /dev/null 2>&1; then
       echo "  $1"
       return 0
     fi
@@ -278,6 +316,8 @@ put() {
   echo "  giving up on $1" >&2
   return 1
 }
+
+_r2_s3_env
 
 # Installers before the manifest. An app that reads a manifest naming a file
 # which has not finished uploading fails its update.

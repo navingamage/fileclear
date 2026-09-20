@@ -132,7 +132,11 @@ ls -1 *.dmg *.zip latest-mac.yml 2>/dev/null | sed 's/^/  /'
 # whether a signature exists.
 if [ -n "$IDENTITY" ]; then
   say "Checking what a user's Mac will make of it"
-  APP="$(ls -d ../dist/mac-arm64/*.app 2>/dev/null | head -1 || ls -d mac-arm64/*.app | head -1)"
+  # Found rather than named. This was hard coded to mac-arm64, which stopped
+  # existing the moment the build became universal, and the release then failed
+  # after notarisation had already succeeded.
+  APP="$(find . -maxdepth 2 -name '*.app' -type d | head -1)"
+  [ -n "$APP" ] || { echo "  no .app in dist/" >&2; exit 1; }
   codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | sed 's/^/  /'
   spctl --assess --type execute --verbose=2 "$APP" 2>&1 | sed 's/^/  /' || {
     echo "  Gatekeeper rejected the app. Do not publish this." >&2

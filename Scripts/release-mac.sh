@@ -227,6 +227,24 @@ if [ -n "$IDENTITY" ]; then
   done
 fi
 
+# The claim the download page now makes is that one image runs natively
+# everywhere. Checked rather than trusted: a configuration change that quietly
+# produced a single architecture again would look identical from the outside
+# until somebody on the other kind of Mac installed it.
+if [ -d mac-universal ] || ls -d *.app > /dev/null 2>&1; then
+  say "Checking the binary is actually universal"
+  bin="$(find . -maxdepth 3 -name FileClear -type f -path '*/Contents/MacOS/*' | head -1)"
+  if [ -n "$bin" ]; then
+    archs="$(lipo -archs "$bin" 2>/dev/null)"
+    echo "  $archs"
+    case "$archs" in
+      *arm64*x86_64*|*x86_64*arm64*) : ;;
+      *) echo "  not universal. The download page promises it runs natively on both." >&2
+         exit 1 ;;
+    esac
+  fi
+fi
+
 if $DRY_RUN; then
   say "Dry run: built and verified, nothing published"
   echo "  artefacts in desktop/dist/"
@@ -261,15 +279,17 @@ put() {
 # which has not finished uploading fails its update.
 for f in *.dmg *.zip *.blockmap; do [ -e "$f" ] && put "$f"; done
 
-MAC_ARM="$(ls *arm64*.dmg | head -1)"
-MAC_X64="$(ls *.dmg | grep -v arm64 | head -1)"
+# One universal image, read rather than assumed. Naming it here by hand is how
+# a download button ends up pointing at a file that was renamed.
+MAC="$(ls *.dmg 2>/dev/null | head -1)"
+[ -n "$MAC" ] || { echo "no disk image in dist/" >&2; exit 1; }
 cat > release.json <<JSON
 {
   "version": "$VERSION",
   "releasedOn": "$(date -u +%Y-%m-%d)",
   "signed": $([ -n "$IDENTITY" ] && echo true || echo false),
   "notarized": $NOTARIZE,
-  "mac": { "arm64": "$MAC_ARM", "x64": "$MAC_X64" },
+  "mac": { "universal": "$MAC" },
   "windows": null
 }
 JSON
@@ -287,7 +307,7 @@ FEED="$(curl -fsS https://fileclear.ca/download/latest-mac.yml | head -1)"
 echo "  feed says: $FEED"
 REL="$(curl -fsS https://fileclear.ca/api/release)"
 echo "  page reads: $REL"
-CODE="$(curl -fsS -o /dev/null -w '%{http_code}' -r 0-1023 "https://fileclear.ca/download/$MAC_ARM")"
+CODE="$(curl -fsS -o /dev/null -w '%{http_code}' -r 0-1023 "https://fileclear.ca/download/$MAC")"
 echo "  installer range request: HTTP $CODE (206 means resumable updates work)"
 
 cd "$ROOT"

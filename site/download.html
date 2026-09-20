@@ -308,14 +308,28 @@
   app itself updates separately and rarely, in the background, and installs when you
   quit rather than interrupting a return.</p>
 
+  <h2>Where your data lives</h2>
+  <p>In one place, and not on your Mac. Your books, your company details and what you
+  have ticked off are held in FileClear&rsquo;s database and reached over HTTPS by the
+  app and the browser alike. The app keeps no copy: it stores nothing but the cookie
+  that says you are signed in.</p>
+  <p>So there is nothing to sync and nothing that can disagree. Enter an expense in the
+  app and it is on the website when you reload it, because both are looking at the same
+  record rather than at two copies being reconciled. The same is true across machines,
+  and it is why a deadline you tick off on a laptop is ticked off on a phone.</p>
+  <p>Signing in is per device, the way it is for any app. The session lasts thirty days
+  and survives quitting, so it is one sign-in rather than one a day, and signing in to
+  the app does not sign you out of the browser.</p>
+
   <h2>Without a connection</h2>
   <p>It says so, plainly, and explains that the deadlines are worked out when you look
   rather than stored. Your email reminders are unaffected either way: they are sent from
   the server on its own schedule and do not need this app to be open, or installed.</p>
 
   <h2>Requirements</h2>
-  <p>macOS 12 or later, on Apple silicon or Intel. The app is signed and notarised by
-  Apple, so it opens the way any other Mac application does.</p>
+  <p>macOS 12 or later. One download runs natively on Apple silicon and on Intel, so
+  there is nothing to choose between and nothing that runs under Rosetta. It is signed
+  and notarised by Apple, so it opens the way any other Mac application does.</p>
 
   <h2>Windows</h2>
   <p>Not yet. A Windows build exists and works, but shipping it needs a code signing
@@ -333,36 +347,30 @@
 /* The version is read rather than written into this page.
    A page with "version 1.2.0" typed into it is a page somebody has to remember
    to edit on every release, and forgetting is silent: the link still works and
-   points at something older than the product. */
+   points at something older than the product.
+
+   There is no architecture detection here any more, and its absence is the
+   point. This page used to choose between an Apple silicon and an Intel build
+   by reading the WebGL renderer string, which Safari removed for
+   fingerprinting reasons. It saw nothing, assumed Intel, and handed every
+   Apple silicon Mac a build that runs under Rosetta and warns that it will
+   stop being supported. The download is one universal image now, so there is
+   nothing left to get wrong. */
 (function () {
   var mac = document.getElementById('dl-mac');
   var note = document.getElementById('dl-note');
-  /* Apple silicon reports itself as Intel through the user agent, so the build
-     is chosen by what the machine can actually do rather than by what it
-     claims to be. A Mac that can run this returns a Metal renderer string; an
-     Intel one does not. Wrong either way is survivable, because both builds
-     run on both machines, one of them just through Rosetta. */
-  var arm = false;
-  try {
-    var c = document.createElement('canvas');
-    var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-    var dbg = gl && gl.getExtension('WEBGL_debug_renderer_info');
-    var r = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '';
-    arm = /Apple (M\d|GPU)/.test(r);
-  } catch (e) { /* no WebGL: fall through to the Intel build, which runs on both */ }
 
   fetch('/api/release').then(function (r) {
     if (!r.ok) throw new Error('none');
     return r.json();
   }).then(function (d) {
-    var file = (d.mac && (arm ? d.mac.arm64 : d.mac.x64))
-      || (d.mac && (d.mac.arm64 || d.mac.x64));
+    var file = d.mac && (d.mac.universal || d.mac.arm64 || d.mac.x64);
     if (!file) throw new Error('no mac build');
     mac.href = '/download/' + file;
-    mac.textContent = 'Download for Mac' + (arm ? ' (Apple silicon)' : '');
     note.textContent = 'Version ' + d.version + ', released ' + d.releasedOn + '. '
-      + (d.notarized ? 'Signed and notarised by Apple.'
-        : d.signed ? 'Signed.' : 'Not signed yet.');
+      + (d.notarized ? 'Signed and notarised by Apple. '
+        : d.signed ? 'Signed. ' : 'Not signed yet. ')
+      + 'Runs natively on Apple silicon and Intel.';
   }).catch(function () {
     /* Honest about it rather than leaving a button that goes nowhere. */
     mac.href = '/signup';

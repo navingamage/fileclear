@@ -35,16 +35,26 @@ publish:
 
 mac:
   category: public.app-category.finance
-  # Both architectures. A Rosetta build on an M-series Mac is slower to start
-  # and is the kind of thing a user notices without being able to name.
+  # One universal binary rather than one per architecture.
+  #
+  # Shipping both meant the download page had to work out which Mac was asking,
+  # and it got it wrong. The detection read the WebGL renderer string, which
+  # Safari removed for fingerprinting reasons, so it saw nothing, assumed
+  # Intel, and handed every Apple silicon Mac a build that runs under Rosetta
+  # and warns it will stop being supported. The first person to install it hit
+  # exactly that.
+  #
+  # A guess that cannot be made reliably should not be made. A universal image
+  # is about twice the download and runs natively everywhere, and there is no
+  # longer a question for the page to get wrong.
   target:
     - target: dmg
-      arch: [arm64, x64]
+      arch: [universal]
     # The zip is not for people, it is what electron-updater downloads. Without
     # it macOS auto-updates do not work at all, and the failure is silent: the
     # feed is read, the version is found, and nothing installs.
     - target: zip
-      arch: [arm64, x64]
+      arch: [universal]
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist

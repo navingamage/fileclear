@@ -70,10 +70,23 @@ function createWindow() {
     // The site's own background, so a cold start is not a white flash against
     // a dark application.
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#14110d' : '#ffffff',
+    // Inset on macOS so the window has no separate title strip above a page
+    // that already has a header. preload.js pads that header out of the way of
+    // the traffic lights, which otherwise sit on top of the logo.
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // Placed rather than left to the system, so the padding in preload.js is
+    // measured against a known position instead of whatever macOS chooses for
+    // this window size. The buttons are 12 points across, so they occupy y=14
+    // to y=26 and the 30 points of header padding clears them.
+    trafficLightPosition: { x: 14, y: 14 },
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      // The version is passed in rather than read from disk by the preload.
+      // A sandboxed preload may require('electron') and nothing else, so
+      // require('../package.json') threw and took the whole script with it,
+      // silently: no exposed API, and no window chrome fix either.
+      additionalArguments: [`--fc-version=${app.getVersion()}`],
       // Both of these are the whole security posture of an app that loads a
       // remote origin. Neither is negotiable.
       contextIsolation: true,
@@ -86,7 +99,16 @@ function createWindow() {
   // Shown once there is something to look at rather than as an empty frame.
   win.once('ready-to-show', () => win.show());
 
-  win.loadURL(ORIGIN);
+  /**
+   * Straight to the product, never the marketing page.
+   *
+   * Somebody who installed the app has already been sold to; opening on "A CPA
+   * charges $2,000 to $4,000 a year" and a Start free button is asking them to
+   * make a decision they made when they downloaded it. /signin redirects to
+   * the dashboard when there is already a session, so this is the sign in page
+   * exactly once and the calendar every time after.
+   */
+  win.loadURL(`${ORIGIN}/signin`);
 
   // A link to CRA, to Corporations Canada or to any of the sources the product
   // cites belongs in the system browser. Those pages are the user's own

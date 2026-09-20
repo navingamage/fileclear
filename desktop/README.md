@@ -253,6 +253,23 @@ nothing as the app can manage. It exposes the version and a flag saying this is
 the desktop app. Anything more gets one named channel with a validated payload
 rather than a general bridge.
 
+## Where the data is
+
+Nowhere in this app. It writes no application data: no local database, no cache
+of the books, nothing in `localStorage`. The only thing it persists is the
+session cookie, in Electron's own store, which is why it opens on the dashboard
+rather than the sign in page the second time.
+
+Everything else lives in the Worker's D1 database and is reached over HTTPS by
+the app and a browser alike. There is no synchronisation because there is only
+one copy: an expense entered in the app is on the website when it reloads,
+because both are reading the same row rather than reconciling two of them.
+
+That is the same reason the rules stay on the server. A desktop app with its
+own store would need to merge, and a merge between a laptop that was offline in
+March and a phone that was not is exactly the kind of thing that quietly loses
+a transaction.
+
 ## The dock badge
 
 `/api/summary` gives the app what is outstanding, asked for every half hour and

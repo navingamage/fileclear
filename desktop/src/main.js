@@ -57,6 +57,16 @@ const isAllowed = (url) => {
   }
 };
 
+/** The origin's own front page, which is the marketing site. */
+const isRoot = (url) => {
+  try {
+    const u = new URL(url);
+    return u.origin === new URL(ORIGIN).origin && (u.pathname === '/' || u.pathname === '');
+  } catch {
+    return false;
+  }
+};
+
 let win = null;
 
 // ---------------------------------------------------------------- the window
@@ -120,6 +130,16 @@ function createWindow() {
   });
 
   win.webContents.on('will-navigate', (event, url) => {
+    // The marketing page is never a destination inside the app. The header
+    // logo points at the origin root, which redirects to the dashboard for
+    // somebody signed in and shows "A CPA charges $2,000 to $4,000 a year" to
+    // somebody who is not. Opening the app there was the complaint; reaching
+    // it by clicking the logo is the same screen by a longer route.
+    if (isRoot(url)) {
+      event.preventDefault();
+      win.loadURL(`${ORIGIN}/signin`);
+      return;
+    }
     if (isAllowed(url)) return;
     event.preventDefault();
     shell.openExternal(url);

@@ -192,6 +192,15 @@ if [ -n "$IDENTITY" ] && $NOTARIZE; then
     echo "  $dmg stapled"
   done
   rm -f ./*.notarise.log
+
+  # Stapling appends the ticket, so every image that was just stapled is a
+  # couple of kilobytes larger than the manifest electron-builder wrote before
+  # it. The manifest then describes a file that no longer exists. It does not
+  # break the update, which follows `path:` to the unstapled zip, but it is
+  # wrong data being served and the day something reads the image entry it
+  # would reject a perfectly good image.
+  say "Bringing the manifest back in step with the files"
+  python3 "$ROOT/Scripts/refresh-feed.py" .
 fi
 
 # The check that answers the question a user actually asks.

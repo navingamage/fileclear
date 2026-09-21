@@ -321,6 +321,33 @@ CREATE INDEX IF NOT EXISTS password_resets_account ON password_resets (account_i
 -- key, a fixed window, and the key is either an address or an account: either
 -- can trip, which stops a spread out attack without letting anybody lock a
 -- customer out of their own product by failing their sign in on purpose.
+-- ----------------------------------------------------- what the sweep did
+--
+-- One row per daily run, so that the question "is FileClear still sending
+-- reminders" has an answer that does not involve reading logs.
+--
+-- It exists because the answer used to be a console.log. The sweep already
+-- handled a failed send correctly, by not recording the reminder so it goes
+-- out again on the next run, but the only trace of the failure was a line in
+-- a log nobody opens. ZeptoMail's credits expired and every send failed for an
+-- unknown number of days while the product looked like it was working.
+--
+-- Read by /readyz and, through it, by the Antipode monitor.
+CREATE TABLE IF NOT EXISTS sweep_runs (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ran_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  -- The Toronto date the run was for, which is not always the UTC one.
+  for_date      TEXT NOT NULL,
+  companies     INTEGER NOT NULL,
+  emailed       INTEGER NOT NULL,
+  filings       INTEGER NOT NULL,
+  failed        INTEGER NOT NULL,
+  -- The first reason, verbatim. One is enough to act on and the rest are
+  -- usually the same sentence repeated per company.
+  first_failure TEXT
+);
+CREATE INDEX IF NOT EXISTS sweep_runs_recent ON sweep_runs (ran_at DESC);
+
 CREATE TABLE IF NOT EXISTS rate_limits (
   key          TEXT PRIMARY KEY,
   count        INTEGER NOT NULL,

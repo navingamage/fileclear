@@ -19,7 +19,8 @@ import {
   homeOfficeFor, saveHomeOffice,
 } from './db';
 import { computeHst } from './rules/hst';
-import { sweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
+import { sweep, recordSweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
+import { readReadiness } from './health';
 import { watchSources } from './watch';
 import { staleness } from './rules/sources';
 import { suggestAccounts, explain } from './llm';
@@ -309,9 +310,16 @@ export default {
       console.log(`housekeeping ${now.date}: ${rows} throttle rows cleared`);
     }));
 
-    ctx.waitUntil(sweep(env, now.date).then((r) => {
+    ctx.waitUntil(sweep(env, now.date).then(async (r) => {
       console.log(`sweep ${now.date}: ${r.emailed}/${r.companies} companies emailed, `
         + `${r.filings} filings` + (r.skipped.length ? `, skipped ${r.skipped.join('; ')}` : ''));
+      // Recorded as well as logged, because the log is the thing nobody reads
+      // and a failed send that only appears there is a failure nobody finds.
+      // Reported rather than thrown: a run that sent the mail and could not
+      // write down that it sent it is still a run that sent the mail.
+      await recordSweep(env, now.date, r).catch((err: unknown) => {
+        console.error(`sweep ${now.date}: could not record the run: ${err}`);
+      });
     }));
 
     // The rate watch runs weekly rather than daily. Government pages do not
@@ -346,6 +354,25 @@ export default {
     if (path.startsWith('/download/')) {
       return serveDownload(request, env, path.slice('/download/'.length));
     }
+    /**
+     * Whether the product is working, not whether the Worker is up.
+     *
+     * Plain text, one fact per line, and a 503 when something is wrong, so
+     * the Antipode monitor can show the reason rather than a colour. It is
+     * deliberately readable by a person with curl, because the first thing
+     * anybody does with a red dot is go and look.
+     *
+     * Nothing is cached. A readiness answer served from a cache is a readiness
+     * answer about the past.
+     */
+    if (path === '/readyz') {
+      const state = await readReadiness(env.DB, Boolean(env.ZEPTOMAIL_TOKEN && env.FC_MAIL_FROM));
+      return new Response(`${state.ok ? 'ok' : 'not ok'}\n${state.lines.join('\n')}\n`, {
+        status: state.ok ? 200 : 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      });
+    }
+
     if (path === '/api/release') return releaseInfo(env);
 
     // Stripe's webhook, before any session handling: it arrives with no cookie

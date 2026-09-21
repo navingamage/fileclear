@@ -118,3 +118,32 @@ export async function sweep(env: CronEnv, todayIso: string): Promise<SweepResult
 
   return result;
 }
+
+/**
+ * Write down what the run did.
+ *
+ * Separate from sweep() so the sweep stays a pure-ish function over the
+ * database it already reads, and so a failure to record cannot take the
+ * sending with it. Called by the scheduled handler.
+ *
+ * Old rows are dropped: this answers "is it working now", and a table that
+ * only ever grows to answer that is a slow leak. Ninety days is long enough
+ * to see a pattern in a gap.
+ */
+export async function recordSweep(
+  env: CronEnv,
+  forDate: string,
+  result: SweepResult,
+): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO sweep_runs (for_date, companies, emailed, filings, failed, first_failure)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+  ).bind(
+    forDate, result.companies, result.emailed, result.filings,
+    result.skipped.length, result.skipped[0] ?? null,
+  ).run();
+
+  await env.DB.prepare(
+    "DELETE FROM sweep_runs WHERE ran_at < datetime('now', '-90 days')",
+  ).run();
+}

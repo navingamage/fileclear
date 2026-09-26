@@ -81,7 +81,7 @@ export const SCHEDULED_CHANGES: ScheduledChange[] = [
       + 'amounts, the CPP ceilings and contribution maximums, the EI rate and '
       + 'maximum insurable earnings, and the RRSP dollar limit. CRA publishes the '
       + 'new ones in November.',
-    where: 'src/rules/personal.ts, the whole file',
+    where: 'src/rules/personal.ts, add a 2027 entry to TABLES and move RATE_YEAR',
     url: 'https://www.canada.ca/en/revenue-agency/services/tax/rates.html',
     leadDays: 60,
   },
@@ -158,7 +158,7 @@ export const WATCHED_SOURCES: WatchedSource[] = [
       + 'payroll-deductions-contributions/canada-pension-plan-cpp/'
       + 'cpp-contribution-rates-maximums-exemptions.html',
     holds: 'YMPE 74,600, exemption 3,500, rate 5.95%, maximum 4,230.45',
-    where: 'src/rules/personal.ts, CPP',
+    where: 'src/rules/personal.ts, TABLES, the cpp entry for each year',
   },
   {
     id: 'cpp2-rates',
@@ -168,7 +168,7 @@ export const WATCHED_SOURCES: WatchedSource[] = [
       + 'calculating-deductions/making-deductions/'
       + 'second-additional-cpp-contribution-rates-maximums.html',
     holds: 'YAMPE 85,000, rate 4%, maximum 416.00',
-    where: 'src/rules/personal.ts, CPP',
+    where: 'src/rules/personal.ts, TABLES, the cpp entry for each year',
   },
   {
     id: 'personal-brackets',
@@ -177,7 +177,7 @@ export const WATCHED_SOURCES: WatchedSource[] = [
     url: 'https://www.canada.ca/en/revenue-agency/services/tax/individuals/'
       + 'tax-rates-brackets/current-year.html',
     holds: 'federal lowest rate 14%, Ontario lowest 5.05%',
-    where: 'src/rules/personal.ts, FEDERAL_BRACKETS and ONTARIO_BRACKETS',
+    where: 'src/rules/personal.ts, TABLES, a new entry for each year',
   },
   {
     id: 'corporate-rates',

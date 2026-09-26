@@ -1,6 +1,8 @@
 import type { LedgerLine } from './hst';
 import { balances } from './postings';
-import { personalTax, cppOnSalary, eiOnSalary, DIVIDENDS, type DividendKind } from './personal';
+import {
+  personalTax, cppOnSalary, eiOnSalary, tablesFor, DIVIDENDS, type DividendKind,
+} from './personal';
 
 /**
  * T4 and T5, filled in from the ledger.
@@ -60,16 +62,20 @@ export interface T4 {
 export function t4ForSalary(
   salary: number, year: number, insurable = false, name = '',
 ): T4 {
-  const cpp = cppOnSalary(salary);
-  const ei = eiOnSalary(salary, insurable);
-  const tax = personalTax({ salary, insurable }).total;
+  // The year's own figures. A 2025 slip carries 2025 CPP, EI and tax, and
+  // CRA checks box 16 against the 2025 ceiling, not this year's.
+  const tables = tablesFor(year);
+  const cpp = cppOnSalary(salary, year);
+  const ei = eiOnSalary(salary, insurable, year);
+  const tax = personalTax({ salary, insurable, year }).total;
+  const cpp2 = secondCpp(salary, year);
 
-  const pensionable = Math.max(0, Math.min(salary, CPP_YMPE));
+  const pensionable = Math.max(0, Math.min(salary, tables.cpp.ympe));
 
   const boxes: SlipBox[] = [
     { box: '14', label: 'Employment income', amount: salary },
-    { box: '16', label: 'Employee CPP contributions', amount: cpp.employee - secondCpp(salary) },
-    { box: '16A', label: 'Second CPP contributions (CPP2)', amount: secondCpp(salary),
+    { box: '16', label: 'Employee CPP contributions', amount: cpp.employee - cpp2 },
+    { box: '16A', label: 'Second CPP contributions (CPP2)', amount: cpp2,
       note: 'Left blank when there are none. Only earnings above the first ceiling create them.' },
     { box: '18', label: 'EI premiums', amount: ei.employee, keepIfZero: !insurable,
       note: insurable
@@ -88,6 +94,11 @@ export function t4ForSalary(
   ];
 
   const notes: string[] = [];
+  if (salary > 0 && tables.year !== year) {
+    notes.push(`FileClear does not hold ${year} payroll figures, so the deductions here were `
+      + `worked out with ${tables.year} rates and ceilings. Check each against what was `
+      + 'actually withheld before filing.');
+  }
   if (salary > 0) {
     notes.push('This is the calendar year, not your fiscal year. A T4 covers January to '
       + 'December whatever your year end is, and lining it up with the year end instead '
@@ -135,12 +146,10 @@ export const T4_CONFIRMED_BOXES: { box: string; label: string }[] = [
   { box: '26', label: 'CPP pensionable earnings' },
 ];
 
-/** The first CPP ceiling, named so the box 26 cap is not a bare number. */
-const CPP_YMPE = 74_600_00;
-
-function secondCpp(salary: number): number {
-  const first = cppOnSalary(Math.min(salary, CPP_YMPE)).employee;
-  return Math.max(0, cppOnSalary(salary).employee - first);
+/** CPP2, the part of the contribution on earnings above the year's first ceiling. */
+function secondCpp(salary: number, year: number): number {
+  const first = cppOnSalary(Math.min(salary, tablesFor(year).cpp.ympe), year).employee;
+  return Math.max(0, cppOnSalary(salary, year).employee - first);
 }
 
 // ------------------------------------------------------------------- T5

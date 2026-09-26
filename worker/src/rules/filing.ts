@@ -33,7 +33,7 @@ import type { GifiStatements, StatementLine } from './yearend';
 import type { Schedule8 } from './cca';
 import type { Schedule1, TaxComputation } from './t2';
 import type { Statement, SelfEmployedYear, T2125Statement } from './selfemployed';
-import { RATE_YEAR } from './personal';
+import { RATE_YEAR, hasTables } from './personal';
 
 // ------------------------------------------------------------------ GST/HST
 
@@ -363,15 +363,16 @@ export function t1Figures(
     ],
   });
 
-  // The CPP and tax figures come from one year's tables. For any other year
-  // they would be a confident wrong answer to check against, so they are
-  // left out and the software's own figures are the ones to trust.
-  const sameYear = taxYear === RATE_YEAR;
+  // The CPP and tax figures come from the year's own tables. For a year
+  // FileClear holds none for they would be a confident wrong answer to check
+  // against, so they are left out and the software's figures are the ones to
+  // trust.
+  const sameYear = hasTables(taxYear);
   sections.push({
     title: 'Check the result', form: 'T1',
     note: sameYear
       ? 'These match only when the business is your only income and you claim nothing beyond the basic personal amount. RRSP contributions, other income or other credits change them, and the software is right when they do.'
-      : `FileClear's personal tax and CPP tables are for ${RATE_YEAR}, so it gives no tax figure to check a ${taxYear} return against. The software's figures for ${taxYear} are the ones to use.`,
+      : `FileClear does not hold ${taxYear} personal tax and CPP tables, so it gives no tax figure to check a ${taxYear} return against. The software's figures for ${taxYear} are the ones to use.`,
     lines: [
       total(13499, 'Gross business income', st.grossRevenue),
       total(13500, 'Net business income', st.netIncome),

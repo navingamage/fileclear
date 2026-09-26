@@ -53,7 +53,7 @@ import {
   t4Xml, t5Xml, validSin, validBn, cleanBn, validPostal, validPhone, splitName, PROVINCES,
 } from './rules/slipxml';
 import { serveDownload, releaseInfo, type DownloadsEnv } from './downloads';
-import { RATE_YEAR } from './rules/personal';
+import { tablesFor } from './rules/personal';
 import { homeOffice, type HomeOfficeInput } from './rules/homeoffice';
 import { statement, selfEmployedYear, t2125Statement } from './rules/selfemployed';
 import { compareIncorporation, crossoverTable } from './rules/incorporate';
@@ -354,7 +354,8 @@ async function returnFiguresFor(
       grossRevenue: t.grossRevenue, expenses: t.totalExpenses,
       cca: s8.totalCca, homeOfficeClaim: home?.claim ?? 0,
     });
-    return t1Figures(t, st, s8, selfEmployedYear(st.netIncome), Number(active.to.slice(0, 4)));
+    const taxYear = Number(active.to.slice(0, 4));
+    return t1Figures(t, st, s8, selfEmployedYear(st.netIncome, taxYear), taxYear);
   }
 
   const statements = statementsFor(ledger, active, (id) => ACCOUNT_BY_ID.get(id)?.current !== false);
@@ -1199,7 +1200,9 @@ export default {
           cca: s8.totalCca,
           homeOfficeClaim: home?.claim ?? 0,
         });
-        const year = selfEmployedYear(st.netIncome);
+        // The tax year is the calendar year the fiscal year ends in, which for
+        // a sole proprietor is nearly always the fiscal year itself.
+        const year = selfEmployedYear(st.netIncome, Number(active.to.slice(0, 4)));
 
         const facts = [
           `Fiscal year: ${active.from} to ${active.to}.`,
@@ -1480,7 +1483,7 @@ export default {
 
       return html(slipFilePage(account.email, company.profile.legalName, {
         kind, year, deadline: slipDeadline(year), eligible, filer, recipients, errors,
-        rateYear: RATE_YEAR,
+        tablesYear: tablesFor(year).year,
       }, chrome), errors.length ? 400 : 200);
     }
 

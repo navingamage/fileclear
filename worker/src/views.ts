@@ -1050,7 +1050,6 @@ ${months.map((m) => `<div class="sheet">
 import { ACCOUNTS, ACCOUNT_BY_ID, type AccountKind } from './rules/gifi';
 import { dollars, type HstReturn } from './rules/hst';
 import type { Statement, SelfEmployedYear, T2125Statement } from './rules/selfemployed';
-import { SELF_EMPLOYED_CPP_MAX } from './rules/selfemployed';
 import type { HomeOffice, HomeOfficeInput } from './rules/homeoffice';
 import type { IncorporationComparison, Side } from './rules/incorporate';
 import type { GuideKind, ReturnLine, FigureSection } from './rules/filing';
@@ -2367,6 +2366,11 @@ ${summary([
 
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
+${year.tablesYear !== year.year ? `<div class="advisory">
+  <b>The tax below uses ${year.tablesYear} rates.</b> FileClear does not hold the ${year.year}
+  personal tax and CPP tables, so the business figures are exact and the tax and CPP are
+  an estimate. Your tax software has the ${year.year} figures.</div>` : ''}
+
 ${year.instalmentsLikely ? `<div class="advisory">
   <b>This puts you over the instalment threshold.</b>
   Net tax owing above $3,000 in this year and in either of the two before it means
@@ -2389,7 +2393,7 @@ ${year.instalmentsLikely ? `<div class="advisory">
   </div>
 
   <div class="sheet">
-    <div class="sheet-head"><span>What you owe on it</span><span>T1</span></div>
+    <div class="sheet-head"><span>What you owe on it</span><span>T1 ${year.year}</span></div>
     <div class="frow"><span class="t">Net business income</span>
       <span class="f num">${dollars(year.netBusinessIncome)}</span></div>
     <div class="frow"><span class="t">Less the deductible half of CPP</span>
@@ -2417,7 +2421,7 @@ ${year.instalmentsLikely ? `<div class="advisory">
   <p>An employee pays 5.95% and their employer pays the matching 5.95%. Self-employed,
   you are both, so the rate is 11.9% and the maximum for ${year.cpp.atMaximum
     ? 'the year, which you have reached, is' : 'the year is'}
-  ${dollars(SELF_EMPLOYED_CPP_MAX)} rather than half that. It is the single largest
+  ${dollars(year.cpp.maximum)} rather than half that. It is the single largest
   difference between a salary and self-employment income of the same size, and it
   arrives as one bill in April rather than in twenty six pieces through the year.</p>
   <p>It is not folded into the tax figure above, on purpose. It leaves on the same
@@ -3038,8 +3042,8 @@ export interface SlipFileData {
   };
   recipients: SlipRecipient[];
   errors: string[];
-  /** The year FileClear's payroll tables are for. */
-  rateYear: number;
+  /** The year whose payroll tables worked out the deductions. */
+  tablesYear: number;
 }
 
 /**
@@ -3134,9 +3138,9 @@ export function slipFilePage(
       ${t4 ? `<p class="hint">Box 14 is the salary in your ledger. The deductions are what
       FileClear worked out should have been withheld. A slip reports what actually was, so
       check each one against your payroll records and change any that differ.</p>
-      ${d.year !== d.rateYear ? `<div class="advisory"><b>Check these closely.</b>
-      FileClear's payroll tables are for ${d.rateYear}, so the deductions below were worked out
-      at ${d.rateYear} rates. The ${d.year} rates and ceilings were different, and the
+      ${d.year !== d.tablesYear ? `<div class="advisory"><b>Check these closely.</b>
+      FileClear does not hold ${d.year} payroll figures, so the deductions below were worked
+      out at ${d.tablesYear} rates. The ${d.year} rates and ceilings were different, and the
       ${d.year} slip has to show what was withheld in ${d.year}.</div>` : ''}` : ''}
       ${!t4 ? `<p class="hint">All ${esc(String(d.year))} ${d.eligible ? 'eligible' : 'non-eligible'} dividends
       in the ledger go on one slip. If more than one shareholder was paid, each needs their

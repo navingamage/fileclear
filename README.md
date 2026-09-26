@@ -715,9 +715,8 @@ response carries `Cache-Control: no-store`.
 
 The T4 deduction boxes are editable on that form, box 14 is not. Box 14 is the
 ledger's salary. Boxes 16 to 26 report what was actually withheld, which only
-the payroll records know, and FileClear's payroll tables are for a single year,
-so a slip for any other year says plainly that its deductions were worked out
-at the wrong year's rates and need checking.
+the payroll records know, so FileClear's figures are offered as the starting
+point rather than the answer.
 
 ### The T2 and the T1: other software, exact figures
 
@@ -732,10 +731,24 @@ software computes are marked as ones to check, never to type. The Schedule 1
 line numbers were checked against CRA's form: recapture is line 107, the meals
 add back 121, capital cost allowance 403 and a terminal loss 404.
 
-The T1 check figures carry the same caveat as the slips. The CPP and tax come
-from one year's tables, so for any other year only lines 13499 and 13500 are
-offered, with a sentence saying why, rather than a tax figure that would be
-confidently wrong.
+### Tax tables by year
+
+Personal tax, CPP, EI and the RRSP limit are held one set per tax year in
+`TABLES` in `src/rules/personal.ts`: 2024, 2025 and 2026, each read off that
+year's T4127 payroll formulas and CRA's table of limits. A 2025 slip carries
+2025 CPP and EI, a 2025 T2125 is taxed at 14.5% on the lowest federal bracket,
+which is 15% for half of 2025 and 14% for the other half, and the 2025 basic
+personal amount, and so on. A test checks every CPP and EI maximum against its
+own ceilings, so a table typed wrong fails before it reaches a slip.
+
+A year with no tables of its own, such as 2023, gets the nearest year held and
+says so on every screen that uses it. The T1 filing screen goes further and
+offers only lines 13499 and 13500 for such a year, since a tax figure to check
+against would be confidently wrong. The salary and dividend comparison and the
+incorporation question look forward, so they use the current year.
+
+Each January needs one new entry in `TABLES` and `RATE_YEAR` moved to it. The
+rate watch on the calendar says so ahead of time.
 
 ## The chart of accounts, checked against RC4088
 

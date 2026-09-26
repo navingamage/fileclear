@@ -13,7 +13,7 @@
  *
  * CPP is paid at both halves. An employee pays 5.95% and their employer pays
  * the matching 5.95%; a self-employed person is both, so the rate is 11.9% and
- * the maximum is $8,460.90 rather than $4,230.45. It is the single largest
+ * the 2026 maximum is $8,460.90 rather than $4,230.45. It is the single largest
  * difference between a salary of $70,000 and self-employment income of $70,000,
  * and it arrives as one bill on 30 April rather than in twenty six pieces.
  *
@@ -25,7 +25,7 @@
  */
 
 import {
-  CPP, taxOnTaxableIncome, type PersonalTax, RATE_YEAR, RRSP_RATE, RRSP_LIMIT_NEXT_YEAR,
+  CPP, taxOnTaxableIncome, tablesFor, type PersonalTax, RATE_YEAR, RRSP_RATE,
 } from './personal';
 
 import { ACCOUNT_BY_ID, CLAIMABLE_FRACTION } from './gifi';
@@ -56,9 +56,12 @@ export interface SelfEmployedCpp {
   pensionableEarnings: number;
   /** True once the year's maximum has been reached, which caps the bill. */
   atMaximum: boolean;
+  /** The most that year can ask for, both halves and CPP2 together. */
+  maximum: number;
 }
 
-export function cppOnSelfEmployment(netIncome: number): SelfEmployedCpp {
+export function cppOnSelfEmployment(netIncome: number, year = RATE_YEAR): SelfEmployedCpp {
+  const CPP = tablesFor(year).cpp;
   const pensionable = Math.max(0, Math.min(netIncome, CPP.ympe) - CPP.exemption);
 
   // Both halves. The employee maximum is doubled rather than the rate applied
@@ -79,9 +82,11 @@ export function cppOnSelfEmployment(netIncome: number): SelfEmployedCpp {
     creditable,
     pensionableEarnings: pensionable,
     atMaximum: base >= CPP.maxContribution * 2,
+    maximum: CPP.maxContribution * 2 + CPP.maxContribution2 * 2,
   };
 }
 
+/** The current year's maximum, for copy that looks forward. */
 export const SELF_EMPLOYED_CPP_MAX = CPP.maxContribution * 2 + CPP.maxContribution2 * 2;
 
 // ------------------------------------------------------------------ T2125
@@ -153,6 +158,10 @@ export function statement(input: StatementInput): Statement & { homeOfficeCarrie
 // ------------------------------------------------- the whole year, end to end
 
 export interface SelfEmployedYear {
+  /** The tax year asked for. */
+  year: number;
+  /** The year whose tables were used, which differs when FileClear holds none for `year`. */
+  tablesYear: number;
   netBusinessIncome: number;
   cpp: SelfEmployedCpp;
   /** Income tax only, after the CPP deduction and credit have been applied. */
@@ -176,23 +185,25 @@ export interface SelfEmployedYear {
  * and together in the total is the honest presentation: CPP is not a tax, it
  * buys a pension, but it leaves the bank account on the same morning.
  */
-export function selfEmployedYear(netBusinessIncome: number): SelfEmployedYear {
-  const cpp = cppOnSelfEmployment(netBusinessIncome);
+export function selfEmployedYear(netBusinessIncome: number, year = RATE_YEAR): SelfEmployedYear {
+  const cpp = cppOnSelfEmployment(netBusinessIncome, year);
 
   // personalTax handles the employee case, where CPP is withheld and the
   // deduction and credit are computed from a salary. Here the contribution is
   // already known, so the income is passed net of the deductible part and the
   // credit is applied by hand.
-  const tax = personalTaxOnSelfEmployment(netBusinessIncome, cpp);
+  const tax = personalTaxOnSelfEmployment(netBusinessIncome, cpp, year);
 
   const totalDue = tax.total + cpp.total;
   return {
+    year,
+    tablesYear: tablesFor(year).year,
     netBusinessIncome,
     cpp,
     tax,
     totalDue,
     afterTax: netBusinessIncome - totalDue,
-    rrspRoom: Math.min(Math.round(netBusinessIncome * RRSP_RATE), RRSP_LIMIT_NEXT_YEAR),
+    rrspRoom: Math.min(Math.round(netBusinessIncome * RRSP_RATE), tablesFor(year).rrspLimitNextYear),
     instalmentsLikely: totalDue > 3_000_00,
   };
 }
@@ -205,10 +216,11 @@ export function selfEmployedYear(netBusinessIncome: number): SelfEmployedYear {
  * so nothing else changes: the brackets, the basic personal amount, Ontario's
  * surtax and the health premium are the same ones a salaried person meets.
  */
-function personalTaxOnSelfEmployment(net: number, cpp: SelfEmployedCpp): PersonalTax {
+function personalTaxOnSelfEmployment(net: number, cpp: SelfEmployedCpp, year: number): PersonalTax {
   return taxOnTaxableIncome({
     taxableIncome: net - cpp.deductible,
     creditableAmounts: cpp.creditable,
+    year,
   });
 }
 

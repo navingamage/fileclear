@@ -127,10 +127,23 @@ describe('the T1 and its T2125', () => {
   });
 });
 
-describe('a T1 for a year the tax tables are not for', () => {
+describe('a T1 for a year FileClear has tables for', () => {
   const t = t2125Statement(ledger, '2025-01-01', '2025-12-31');
+  const st = statement({ grossRevenue: 90_000_00, expenses: 8_000_00 });
+  const year = selfEmployedYear(st.netIncome, 2025);
+  const sections = t1Figures(t, st, schedule8([], []), year, 2025);
+
+  it('checks 2025 CPP against the 2025 ceilings', () => {
+    // $82,000 is above both 2025 ceilings, so it is the 2025 maximum:
+    // twice $4,034.10 plus twice $396.00.
+    expect(find(sections, 'T1', '42100')!.value).toBe(8_860_20);
+  });
+});
+
+describe('a T1 for a year the tax tables are not for', () => {
+  const t = t2125Statement(ledger, '2023-01-01', '2023-12-31');
   const st = statement({ grossRevenue: 100_000_00, expenses: 10_000_00 });
-  const sections = t1Figures(t, st, schedule8([], []), selfEmployedYear(st.netIncome), 2025);
+  const sections = t1Figures(t, st, schedule8([], []), selfEmployedYear(st.netIncome, 2023), 2023);
   const check = sections.at(-1)!;
 
   it('still carries the business income, which no table touches', () => {
@@ -138,6 +151,6 @@ describe('a T1 for a year the tax tables are not for', () => {
   });
 
   it('says why there is no tax figure to check against', () => {
-    expect(check.note).toMatch(/tables are for 2026/);
+    expect(check.note).toMatch(/does not hold 2023/);
   });
 });

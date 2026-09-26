@@ -120,6 +120,21 @@ export function salaryInLedger(lines: LedgerLine[], year: number): number {
   return rows.find((r) => r.accountId === 'salaries')?.amount ?? 0;
 }
 
+/**
+ * The T4 boxes a person confirms before a file is made, because they record
+ * what was actually withheld rather than what should have been. Box 14 is not
+ * among them: it is the ledger's salary, and a file that disagreed with the
+ * books would be worse than one that did not exist.
+ */
+export const T4_CONFIRMED_BOXES: { box: string; label: string }[] = [
+  { box: '16', label: 'Employee CPP contributions' },
+  { box: '16A', label: 'Second CPP contributions (CPP2)' },
+  { box: '18', label: 'EI premiums' },
+  { box: '22', label: 'Income tax deducted' },
+  { box: '24', label: 'EI insurable earnings' },
+  { box: '26', label: 'CPP pensionable earnings' },
+];
+
 /** The first CPP ceiling, named so the box 26 cap is not a bare number. */
 const CPP_YMPE = 74_600_00;
 

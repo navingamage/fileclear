@@ -545,6 +545,10 @@ const CHROME = `<style>
   .file-inst label { font-size: .88rem; color: var(--muted); }
   .file-inst input { width: 9rem; }
   .file-record { margin-top: .6rem; }
+  /* A schedule's note spans the sheet: in the row grid it got the name
+     column, which on a phone is a word wide. */
+  .frow.file-note { display: block; }
+  .slip-box .f input { width: 8.5rem; text-align: right; font-family: var(--font-mono); }
   .cta-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: .6rem 0 .8rem; }
 
   .steps-bar { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
@@ -1049,9 +1053,10 @@ import type { Statement, SelfEmployedYear, T2125Statement } from './rules/selfem
 import { SELF_EMPLOYED_CPP_MAX } from './rules/selfemployed';
 import type { HomeOffice, HomeOfficeInput } from './rules/homeoffice';
 import type { IncorporationComparison, Side } from './rules/incorporate';
-import type { GuideKind, ReturnLine } from './rules/filing';
+import type { GuideKind, ReturnLine, FigureSection } from './rules/filing';
 import type { HstMethod } from './rules/profile';
 import type { FiledRecord } from './db';
+import { PROVINCES as PROVINCE_CODES } from './rules/slipxml';
 import type { TxnRow } from './db';
 
 const KIND_LABEL: Record<AccountKind, string> = {
@@ -1683,6 +1688,14 @@ ${anySalary || t5.boxes.some((b) => b.amount !== 0) ? summary([
   { value: deadline.slice(8) + ' Feb', label: sole ? 'T4 due' : 'both slips due',
     strong: true },
 ]) : ''}
+
+${anySalary || (!sole && t5.boxes.some((b) => b.amount !== 0)) ? `<div class="cta-row">
+  ${anySalary ? `<a class="btn primary" href="/slips/file?year=${year}&amp;kind=t4">Make the T4 file for CRA</a>` : ''}
+  ${!sole && t5.boxes.some((b) => b.amount !== 0)
+    ? `<a class="btn${anySalary ? '' : ' primary'}" href="/slips/file?year=${year}&amp;kind=t5">Make the T5 file for CRA</a>` : ''}
+</div>
+<p class="hint">An XML file you upload to CRA yourself, with the slips and the summary
+in it. It is the one return FileClear can hand CRA in CRA's own format.</p>` : ''}
 
 ${nothing ? `<div class="advisory info">${sole
   ? `No salary was paid in ${year}, so there is no T4 to file. That is the normal
@@ -2665,12 +2678,20 @@ export interface FilePageData {
   sole: boolean;
   /** When the balance has to be paid, which can be earlier than the return. */
   payBy?: string;
+  /** The T2 or T1 schedule by schedule, for returns filed through other software. */
+  sections?: FigureSection[];
+  /** Whether the figures behind the paid screens can be shown. */
+  paid?: boolean;
 }
 
 const CRA_NETFILE = 'https://www.canada.ca/en/revenue-agency/services/e-services/digital-services-businesses/gst-hst-netfile.html';
 const CRA_ACCOUNT = 'https://www.canada.ca/en/revenue-agency/services/e-services/digital-services-businesses/business-account.html';
 const CRA_ACCESS_CODE = 'https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/file-gst-hst-return/how-file/get-gst-hst-access-code.html';
 const CRA_PAY = 'https://www.canada.ca/en/revenue-agency/services/payments/payments-cra.html';
+const CRA_T2_SOFTWARE = 'https://www.canada.ca/en/revenue-agency/services/e-services/digital-services-businesses/corporation-internet-filing/software.html';
+const CRA_T1_SOFTWARE = 'https://www.canada.ca/en/revenue-agency/services/e-services/digital-services-individuals/netfile-overview/certified-software-netfile-program.html';
+const CRA_IFT = 'https://apps.cra-arc.gc.ca/ebci/njfs/ext/disclaimer';
+const CRA_IFT_READY = 'https://www.canada.ca/en/revenue-agency/services/e-services/filing-information-returns-electronically-t4-t5-other-types-returns-overview/filing-information-returns-electronically-t4-t5-other-types-returns-what-you-should-know-before.html';
 const OBR_ANNUAL = 'https://www.ontario.ca/page/annual-return-filing-corporations-information-act';
 const CC_ANNUAL = 'https://ised-isde.canada.ca/site/corporations-canada/en/annual-return-business-corporations';
 const CC_ISC = 'https://ised-isde.canada.ca/site/corporations-canada/en/individuals-significant-control';
@@ -2689,7 +2710,9 @@ export function filePage(
   const copyRow = (l: ReturnLine) => `
     <div class="frow pair file-line${l.enter ? '' : ' calc'}">
       <span class="t"><span class="file-ln">${esc(l.line)}</span> ${esc(l.name)}
-        ${l.enter ? '' : '<span class="sub">CRA calculates this one. Check it reads the same.</span>'}
+        ${l.enter ? '' : `<span class="sub">${d.kind === 't2' || d.kind === 't1'
+          ? 'Check only.'
+          : 'CRA calculates this one. Check it reads the same.'}</span>`}
         ${l.note ? `<span class="sub">${esc(l.note)}</span>` : ''}</span>
       <span class="f num"><span class="file-v">${(l.value / 100).toFixed(2)}</span>${
         l.enter ? '<button type="button" class="copy" hidden>Copy</button>' : ''}</span>
@@ -2826,6 +2849,81 @@ export function filePage(
     ${step(4, 'Tell FileClear it is done', recordForm)}`;
   }
 
+  else if (d.kind === 'slips') {
+    const t5 = f.obligationId === 't5-slips';
+    const year = f.coversUpTo.slice(0, 4);
+    body = `
+    ${step(1, 'Make the file', `
+      <p class="hint">FileClear builds the ${t5 ? 'T5' : 'T4'} slips and summary as the XML file
+      CRA's Internet File Transfer takes, starting from the slips screen's figures, which you confirm before the file is made. It asks
+      for the ${t5 ? 'recipient' : 'employees'}' SINs and addresses when it makes the file and
+      keeps neither.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="/slips/file?year=${esc(year)}&amp;kind=${t5 ? 't5' : 't4'}">Make the ${t5 ? 'T5' : 'T4'} file for ${esc(year)}</a>
+        <a class="btn" href="/slips?year=${esc(year)}">See the slips</a>
+      </div>`)}
+    ${step(2, 'Upload it to CRA', `
+      <p class="hint">The steps are on the file screen, beside the download. You sign in with
+      your CRA business account or a web access code, attach the file, and CRA answers with a
+      submission number.</p>`)}
+    ${step(3, 'Tell FileClear it is done', recordForm)}`;
+  }
+
+  else if (d.kind === 't2' || d.kind === 't1') {
+    const t2 = d.kind === 't2';
+    const sheets = (d.sections ?? []).map((sec) => `
+      <div class="sheet file-lines">
+        <div class="sheet-head"><span>${esc(sec.title)}</span><span>${esc(sec.form)}</span></div>
+        ${sec.note ? `<div class="frow file-note"><span class="sub">${esc(sec.note)}</span></div>` : ''}
+        ${sec.lines.map(copyRow).join('')}
+      </div>`).join('');
+    body = `
+    ${step(1, 'Choose where to file it', t2 ? `
+      <p class="hint">A T2 can only be sent to CRA by software CRA has certified, or by an
+      accountant using it. FileClear is not certified, so the return goes in through one of
+      them with the figures below typed in. Products on CRA's list aimed at a small
+      corporation filing its own return include TurboTax Business Incorporated, UFile T2,
+      CloudTax T2 Basic, T2Express, AuraTax and FutureTax T2. CRA does not recommend one over
+      another and neither does FileClear. Check the product is certified for this tax year
+      before paying for it.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="${CRA_T2_SOFTWARE}" rel="noopener" target="_blank">CRA's certified T2 software</a>
+      </div>
+      <p class="hint">An accountant needs exactly the same figures. Send them this page's
+      numbers along with the year end screen.</p>` : `
+      <p class="hint">Your personal return, with the business on form T2125 inside it, goes
+      in through NETFILE certified tax software. Several are free: CRA lists Better Tax,
+      GenuTax Standard and Wealthsimple Tax as free. Before you start, check the
+      one you pick handles form T2125 for self-employment income.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="${CRA_T1_SOFTWARE}" rel="noopener" target="_blank">CRA's certified tax software</a>
+      </div>`)}
+    ${step(2, 'Have these in hand', t2 ? `
+      <p class="hint">Your business number and corporation account, ending RC0001. The tax
+      year: <b>${esc(fmt(f.coversFrom ?? f.coversUpTo))}</b> to <b>${esc(fmt(f.coversUpTo))}</b>.
+      Each shareholder's name and percentage of shares, for Schedule 50. Last year's return,
+      if there was one, because the software carries balances forward from it.</p>` : `
+      <p class="hint">Your social insurance number, the fiscal period of the business,
+      <b>${esc(fmt(f.coversFrom ?? f.coversUpTo))}</b> to <b>${esc(fmt(f.coversUpTo))}</b>, and
+      the six digit industry code for what you do. The software has a search for the code.
+      Any other slips you received, such as a T4 from a job or a T5 from a bank.</p>`)}
+    ${step(3, 'Type these in', d.sections ? `
+      <p class="hint">In the order the software asks for them. Figures marked as worked out
+      by the software are there to check against, not to type.</p>
+      ${sheets}` : d.paid ? `
+      <p class="hint">FileClear could not find the fiscal year this return covers. The
+      figures are on the year end screen. <a href="/year-end">Open year end</a>.</p>` : `
+      <p class="hint">The figures come from the year end screen, which needs a subscription.
+      <a href="/billing">See plans</a>.</p>`)}
+    ${step(4, 'Submit it and pay', `
+      <p class="hint">The software transmits it and shows a confirmation number when CRA
+      accepts it. ${t2
+        ? 'The balance of tax was due before the return, two or three months after the year end, and it is its own entry on your calendar.'
+        : 'The balance is due 30 April even though the return is due 15 June, and it is its own entry on your calendar.'}
+      <a href="${CRA_PAY}" rel="noopener" target="_blank">Every way to pay CRA</a>.</p>`)}
+    ${step(5, 'Tell FileClear it is done', recordForm)}`;
+  }
+
   else if (d.kind === 'payment') {
     body = `
     ${step(1, 'Work out the amount', `
@@ -2847,13 +2945,7 @@ export function filePage(
       <p class="hint">${esc(f.detail)}</p>
       <div class="cta-row">
         <a class="btn primary" href="${esc(f.linkUrl)}" rel="noopener" target="_blank">${esc(f.linkLabel)}</a>
-        ${f.obligationId === 't2-return' || f.obligationId === 't1-return'
-          ? '<a class="btn" href="/year-end">The figures, on year end</a>' : ''}
-      </div>
-      ${f.obligationId === 't2-return' || f.obligationId === 't1-return' ? `
-      <p class="hint">A ${f.obligationId === 't2-return' ? 'T2' : 'T1'} is filed through
-      CRA-certified tax software or by an accountant. FileClear is not certified to transmit
-      it, so it gives you the figures, with each one's line, to enter there.</p>` : ''}`)}
+      </div>`)}
     ${step(2, 'Tell FileClear it is done', recordForm)}`;
   }
 
@@ -2868,6 +2960,13 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 ${filed}
 
 <div class="file-steps">${body}</div>
+
+${d.kind === 't2' || d.kind === 't1' ? `<details class="why"><summary>Why FileClear does not send it for you</summary>
+  <p>CRA accepts a ${d.kind === 't2' ? 'T2' : 'T1'} electronically only from software it has
+  certified for that tax year, and certification is an application to CRA and a yearly
+  test suite rather than a feature. Until FileClear is certified, the return goes in
+  through software that is, which takes these figures as they are.</p>
+</details>` : ''}
 
 ${d.kind === 'hst' ? `<details class="why"><summary>Why FileClear does not send it for you</summary>
   <p>CRA only accepts a GST/HST return transmitted on somebody's behalf from software it has
@@ -2910,4 +3009,186 @@ ${worksheetFooter()}
 }());
 </script>
 `, email, '/dashboard', chrome);
+}
+
+// ------------------------------------------------------------- slip files
+
+export type SlipKind = 't4' | 't5';
+
+/** One slip on the file screen: the boxes, and who it is for as typed. */
+export interface SlipRecipient {
+  /** The name on the register, or blank when the slip came from the ledger. */
+  label: string;
+  boxes: SlipBox[];
+  insurable: boolean;
+  surname: string; given: string; sin: string;
+  line1: string; city: string; prov: string; postal: string;
+  /** Province of employment, for a T4. */
+  empProv: string;
+}
+
+export interface SlipFileData {
+  kind: SlipKind;
+  year: number;
+  deadline: string;
+  eligible: boolean;
+  filer: {
+    bn: string; line1: string; city: string; prov: string; postal: string;
+    contactName: string; contactPhone: string; contactEmail: string;
+  };
+  recipients: SlipRecipient[];
+  errors: string[];
+  /** The year FileClear's payroll tables are for. */
+  rateYear: number;
+}
+
+/**
+ * The T4 or T5 as a file for CRA's Internet File Transfer.
+ *
+ * The form asks only for what the slips screen cannot know: account numbers,
+ * addresses and SINs. The amounts are the slips screen's and are shown rather
+ * than editable, so the file can never say something the books do not.
+ */
+export function slipFilePage(
+  email: string, companyName: string, d: SlipFileData, chrome: Chrome = {},
+): string {
+  const t4 = d.kind === 't4';
+  const name = t4 ? 'T4' : 'T5';
+  const f = d.filer;
+
+  const provSelect = (id: string, value: string) => `<select id="${id}" name="${id}">${
+    PROVINCE_CODES.map((p) => `<option${p === value ? ' selected' : ''}>${p}</option>`).join('')}</select>`;
+  const field = (id: string, label: string, value: string, extra = '', sub = '') => `
+    <div class="field"><label for="${id}">${esc(label)}</label>
+      <input id="${id}" name="${id}" type="text" value="${esc(value)}" ${extra}>
+      ${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+  const step = (n: number, title: string, body: string) => `
+  <div class="file-step">
+    <span class="file-n">${n}</span>
+    <div><h3>${esc(title)}</h3>${body}</div>
+  </div>`;
+
+  // On a T4 every box but 14 is an input: they record what was withheld,
+  // which only the payroll records know for certain.
+  const boxRow = (b: SlipBox, i: number) => t4 && b.box !== '14'
+    ? `<div class="frow slip-box">
+        <span class="d"><label for="s${i}_b${esc(b.box)}">${esc(b.box)}</label></span>
+        <span class="t">${esc(b.label)}</span>
+        <span class="f"><input id="s${i}_b${esc(b.box)}" name="s${i}_b${esc(b.box)}" type="text"
+          inputmode="decimal" value="${(b.amount / 100).toFixed(2)}" required></span></div>`
+    : `<div class="frow">
+        <span class="d">${esc(b.box)}</span><span class="t">${esc(b.label)}</span>
+        <span class="f num">${dollars(b.amount)}</span></div>`;
+
+  const person = (r: SlipRecipient, i: number) => `
+    <div class="sheet">
+      <div class="sheet-head"><span>${esc(r.label || (d.recipients.length > 1 ? `Slip ${i + 1}` : `Who the ${name} is for`))}</span><span>${name}</span></div>
+      ${r.boxes.filter((b) => t4 || b.amount !== 0 || b.keepIfZero).map((b) => boxRow(b, i)).join('')}
+    </div>
+    <div class="row2">
+      ${field(`s${i}_surname`, 'Surname', r.surname, 'required maxlength="100" autocomplete="off"')}
+      ${field(`s${i}_given`, 'Given name', r.given, 'maxlength="100" autocomplete="off"')}
+    </div>
+    ${field(`s${i}_sin`, 'Social insurance number', r.sin,
+      'required inputmode="numeric" maxlength="11" autocomplete="off" placeholder="000 000 000"',
+      'Checked here the way CRA checks it. Used for this file only and never saved.')}
+    ${field(`s${i}_line1`, 'Home address', r.line1, 'required maxlength="100" autocomplete="off"')}
+    <div class="row2">
+      ${field(`s${i}_city`, 'City', r.city, 'required maxlength="100" autocomplete="off"')}
+      <div class="row2">
+        <div class="field"><label for="s${i}_prov">Province</label>${provSelect(`s${i}_prov`, r.prov)}</div>
+        ${field(`s${i}_postal`, 'Postal code', r.postal, 'required maxlength="7" autocomplete="off"')}
+      </div>
+    </div>
+    ${t4 ? `<div class="field"><label for="s${i}_empProv">Province of employment</label>
+      ${provSelect(`s${i}_empProv`, r.empProv)}
+      <span class="sub">Where they reported for work, which decides the provincial tax on the slip.</span></div>` : ''}`;
+
+  const form = d.recipients.length ? `
+  <form method="post" action="/slips/file">
+    <input type="hidden" name="kind" value="${d.kind}">
+    <input type="hidden" name="year" value="${d.year}">
+
+    ${step(1, t4 ? 'The employer' : 'The payer', `
+      ${field('bn', t4 ? 'Payroll account number' : 'Information return account number', f.bn,
+        `required maxlength="17" autocomplete="off" placeholder="123456789${t4 ? 'RP' : 'RZ'}0001"`,
+        t4 ? 'The account your source deductions are remitted to, ending RP0001.'
+          : 'T5s are filed under an RZ account, not the payroll account. If you do not have one, CRA opens it by phone or in your business account.')}
+      ${field('line1', 'Business address', f.line1, 'required maxlength="100"')}
+      <div class="row2">
+        ${field('city', 'City', f.city, 'required maxlength="100"')}
+        <div class="row2">
+          <div class="field"><label for="prov">Province</label>${provSelect('prov', f.prov)}</div>
+          ${field('postal', 'Postal code', f.postal, 'required maxlength="7"')}
+        </div>
+      </div>
+      <div class="row2">
+        ${field('contactName', 'Contact person', f.contactName, 'required maxlength="100"',
+          'Who CRA calls with a question about this return.')}
+        ${field('contactPhone', 'Contact phone', f.contactPhone, 'required inputmode="tel" maxlength="20"')}
+      </div>
+      ${field('contactEmail', 'Contact email', f.contactEmail, 'required inputmode="email" maxlength="60"')}
+      <p class="hint">Kept for next year, so this part is typed once.</p>`)}
+
+    ${step(2, t4 ? 'The employees' : 'The shareholder', `
+      ${t4 ? `<p class="hint">Box 14 is the salary in your ledger. The deductions are what
+      FileClear worked out should have been withheld. A slip reports what actually was, so
+      check each one against your payroll records and change any that differ.</p>
+      ${d.year !== d.rateYear ? `<div class="advisory"><b>Check these closely.</b>
+      FileClear's payroll tables are for ${d.rateYear}, so the deductions below were worked out
+      at ${d.rateYear} rates. The ${d.year} rates and ceilings were different, and the
+      ${d.year} slip has to show what was withheld in ${d.year}.</div>` : ''}` : ''}
+      ${!t4 ? `<p class="hint">All ${esc(String(d.year))} ${d.eligible ? 'eligible' : 'non-eligible'} dividends
+      in the ledger go on one slip. If more than one shareholder was paid, each needs their
+      own slip for their own share, and FileClear cannot split the ledger total between
+      them, so file those through CRA's Web Forms instead.</p>` : ''}
+      ${d.recipients.map(person).join('')}`)}
+
+    ${step(3, 'Download the file', `
+      <button class="btn primary" type="submit">Download the ${name} file</button>
+      <p class="hint">It holds the ${name} slips and the ${name} Summary together, which is
+      everything CRA needs for ${d.year}.</p>`)}
+  </form>` : `
+  <div class="advisory info">Nothing was paid in ${d.year} that goes on a ${name}, so there is
+  no file to make. <a href="/slips?year=${d.year}">Back to the slips</a>.</div>`;
+
+  return shell(`${name} file for ${d.year}`, `
+<span class="label">${esc(companyName)} &middot; ${name} for CRA</span>
+<h1>The ${name} file for ${d.year}.</h1>
+<p class="hint">Due ${esc(fmt(d.deadline))}. FileClear writes the ${name} as the XML file CRA's
+Internet File Transfer accepts, checked against CRA's published schema. You upload it; it
+takes a few minutes. <a href="/slips?year=${d.year}">Back to the slips</a>.</p>
+
+${d.errors.length ? `<div class="err"><b>The file was not made.</b><ul>${
+  d.errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}
+
+<div class="file-steps">
+${form}
+
+${d.recipients.length ? step(4, 'Upload it to CRA', `
+  <ol class="hint">
+    <li>Sign in to Internet File Transfer. From your CRA business account, choose
+      File a return. Without one, <a href="${CRA_IFT}" rel="noopener" target="_blank">sign in
+      with a web access code</a> using the same account number that is in the file.</li>
+    <li>Attach the file you downloaded and submit it.</li>
+    <li>CRA shows a Confirmation of Receipt with a submission number, and a count of
+      returns accepted and rejected. Write the number down before you leave the page:
+      the filing report is only reachable from that screen.</li>
+    <li>Record the submission number against the ${name} on your calendar, so it is marked
+      filed. <a href="/dashboard">Open the calendar</a>.</li>
+  </ol>
+  <p class="hint">No web access code? CRA issues one online or on 1-800-959-5525.
+  <a href="${CRA_IFT_READY}" rel="noopener" target="_blank">What CRA says to have ready</a>.</p>`) : ''}
+
+${d.recipients.length ? step(5, 'Give each person their copy', `
+  <p class="hint">Filing with CRA does not send anyone their slip. Each ${t4 ? 'employee' : 'shareholder'}
+  gets their own copy by the same date, ${esc(fmt(d.deadline))}, with the boxes shown above.</p>`) : ''}
+</div>
+
+<details class="why"><summary>What FileClear keeps from this page</summary>
+  <p>The account number, the business address and the contact, so next year starts filled
+  in. Not the SINs or the home addresses: they go into the file you download and nowhere
+  else, and FileClear holds no record of them.</p>
+</details>
+`, email, '/slips', chrome);
 }

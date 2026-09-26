@@ -447,3 +447,27 @@ CREATE TABLE IF NOT EXISTS filed_records (
   recorded_at  TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (company_id, filing_id)
 );
+
+-- ------------------------------------------------- who files the slips
+
+-- What an information return needs about the business that does not change
+-- from one year to the next: the payroll and information return account
+-- numbers, the address and the person CRA should call.
+--
+-- Kept so it is typed once. What is deliberately not here is anything about
+-- the people on the slips. A SIN is asked for when the file is made, goes into
+-- that one file, and is stored nowhere: a table of SINs is a liability this
+-- product has no need to carry.
+CREATE TABLE IF NOT EXISTS filer_details (
+  company_id    TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  bn_rp         TEXT NOT NULL DEFAULT '',   -- payroll account, 123456789RP0001
+  bn_rz         TEXT NOT NULL DEFAULT '',   -- information return account, for T5s
+  addr_line1    TEXT NOT NULL DEFAULT '',
+  addr_city     TEXT NOT NULL DEFAULT '',
+  addr_prov     TEXT NOT NULL DEFAULT 'ON',
+  addr_postal   TEXT NOT NULL DEFAULT '',
+  contact_name  TEXT NOT NULL DEFAULT '',
+  contact_phone TEXT NOT NULL DEFAULT '',   -- ten digits
+  contact_email TEXT NOT NULL DEFAULT '',
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);

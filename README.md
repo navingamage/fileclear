@@ -693,6 +693,50 @@ onwards, so a missed filing disappeared the morning after its deadline and the
 overdue count could only read zero. It now keeps anything that fell due while
 FileClear was watching and was never ticked off.
 
+### T4 and T5: the one return FileClear hands CRA directly
+
+Information returns are the exception. CRA's Internet File Transfer accepts an
+XML file from "in-house developed software" with no certification, as long as
+the file validates against CRA's published schema. So the slips screen makes
+the T4 or T5, slips and summary together, as that file, and the person uploads
+it with their CRA business account or a web access code. CRA answers with a
+submission number, which goes back on the calendar like any other confirmation.
+
+The generator is tested with `xmllint` against both CRA schema packages, the
+current xmlschm1-26-3 and the draft 1-27-1, vendored under `test/fixtures`. It
+leaves out optional fields with no value, which CRA has rejected since October
+2025, and it fills the recipient fields a T5 schema requires but an individual
+does not have with the values CRA's specification gives for them.
+
+The business details are kept so they are typed once: the RP and RZ account
+numbers, the address and the contact. The SINs are not. They are asked for when
+the file is made, go into that one file, and are stored nowhere, and the
+response carries `Cache-Control: no-store`.
+
+The T4 deduction boxes are editable on that form, box 14 is not. Box 14 is the
+ledger's salary. Boxes 16 to 26 report what was actually withheld, which only
+the payroll records know, and FileClear's payroll tables are for a single year,
+so a slip for any other year says plainly that its deductions were worked out
+at the wrong year's rates and need checking.
+
+### The T2 and the T1: other software, exact figures
+
+The T2 and the T1 still go through certified software. The File it screen names
+products from CRA's own lists, the T2 list for a corporation and the NETFILE
+list for a person, where Better Tax, GenuTax Standard and Wealthsimple Tax are
+free, and links to both lists rather than recommending one. Then it gives the
+figures schedule by schedule in the order the software asks: Schedule 125 and
+Schedule 100 by GIFI code, Schedule 8 class by class, Schedule 1 from amount A
+to line 300, and for a person the T2125 by its own line numbers. Totals the
+software computes are marked as ones to check, never to type. The Schedule 1
+line numbers were checked against CRA's form: recapture is line 107, the meals
+add back 121, capital cost allowance 403 and a terminal loss 404.
+
+The T1 check figures carry the same caveat as the slips. The CPP and tax come
+from one year's tables, so for any other year only lines 13499 and 13500 are
+offered, with a sentence saying why, rather than a tax figure that would be
+confidently wrong.
+
 ## The chart of accounts, checked against RC4088
 
 Six GIFI codes were wrong until they were checked against CRA's guide rather

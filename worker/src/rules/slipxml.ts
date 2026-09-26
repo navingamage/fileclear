@@ -67,9 +67,15 @@ export function validSin(sin: string): boolean {
   return sum % 10 === 0;
 }
 
+/** A1A 1A1 however it was typed, so every slip in a file reads the same. */
+export function cleanPostal(p: string): string {
+  const c = p.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return c.length === 6 ? `${c.slice(0, 3)} ${c.slice(3)}` : c;
+}
+
 const address = (tag: string, a: Party) => `<${tag}>${el('addr_l1_txt', a.line1)}${
   el('cty_nm', a.city)}${el('prov_cd', a.prov)}<cntry_cd>CAN</cntry_cd>${
-  el('pstl_cd', a.postal.toUpperCase())}</${tag}>`;
+  el('pstl_cd', cleanPostal(a.postal))}</${tag}>`;
 
 function t619(bn: string, name: string, c: Contact): string {
   const phone = digits(c.phone);
@@ -137,4 +143,29 @@ export function t5Xml(t: T5Input): string {
     + `<filr_fi_br_nbr>00000</filr_fi_br_nbr><tx_yr>${t.year}</tx_yr><slp_cnt>${t.slips.length}</slp_cnt><rpt_tcd>O</rpt_tcd>`
     + `<T5_TAMT>${amt(totTags[0]!, tot('actual'))}${amt(totTags[1]!, tot('taxable'))}${amt(totTags[2]!, tot('credit'))}</T5_TAMT></T5Summary>`;
   return wrap(t619(t.bn, t.payer.name, t.contact) + `<Return><T5>${slips}${summary}</T5></Return>`);
+}
+
+// ----------------------------------------------------------- checking input
+
+/** 123456789RP0001, for a payroll account; RZ for information returns. */
+export function validBn(bn: string, program: 'RP' | 'RZ'): boolean {
+  return new RegExp(`^\\d{9}${program}\\d{4}$`).test(bn.replace(/\s/g, '').toUpperCase());
+}
+export const cleanBn = (bn: string) => bn.replace(/\s/g, '').toUpperCase();
+
+/** A Canadian postal code, A1A 1A1, with or without the space. */
+export function validPostal(p: string): boolean {
+  return /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$/i.test(p.trim());
+}
+
+/** Ten digits, however they were punctuated. */
+export const validPhone = (p: string) => digits(p).length === 10;
+
+export const PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'];
+
+/** "A. Director" split the way a slip wants it: the last word is the surname. */
+export function splitName(full: string): { given: string; surname: string } {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return { given: '', surname: parts[0] ?? '' };
+  return { surname: parts[parts.length - 1]!, given: parts.slice(0, -1).join(' ') };
 }

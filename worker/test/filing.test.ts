@@ -116,8 +116,15 @@ describe('which guide a filing gets', () => {
     }
   });
 
+  it('sends the slips to the file screen and the income tax returns to theirs', () => {
+    expect(guideFor('t4-slips')).toBe('slips');
+    expect(guideFor('t5-slips')).toBe('slips');
+    expect(guideFor('t2-return')).toBe('t2');
+    expect(guideFor('t1-return')).toBe('t1');
+  });
+
   it('falls back to recording it for anything else', () => {
-    expect(guideFor('t2-return')).toBe('general');
+    expect(guideFor('eht-return')).toBe('general');
   });
 });
 

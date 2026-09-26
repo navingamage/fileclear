@@ -701,3 +701,39 @@ export async function companyAddedOn(db: D1Database, companyId: string): Promise
     .bind(companyId).first<{ created_at: string }>();
   return (row?.created_at ?? '').slice(0, 10);
 }
+
+// ------------------------------------------------------ who files the slips
+
+export interface FilerDetails {
+  bnRp: string; bnRz: string;
+  line1: string; city: string; prov: string; postal: string;
+  contactName: string; contactPhone: string; contactEmail: string;
+}
+
+export async function filerDetailsFor(db: D1Database, companyId: string): Promise<FilerDetails> {
+  const r = await db.prepare('SELECT * FROM filer_details WHERE company_id = ?')
+    .bind(companyId).first<Record<string, string>>();
+  return {
+    bnRp: r?.bn_rp ?? '', bnRz: r?.bn_rz ?? '',
+    line1: r?.addr_line1 ?? '', city: r?.addr_city ?? '', prov: r?.addr_prov ?? 'ON',
+    postal: r?.addr_postal ?? '',
+    contactName: r?.contact_name ?? '', contactPhone: r?.contact_phone ?? '',
+    contactEmail: r?.contact_email ?? '',
+  };
+}
+
+export async function saveFilerDetails(
+  db: D1Database, companyId: string, d: FilerDetails,
+): Promise<void> {
+  await db.prepare(
+    `INSERT INTO filer_details (company_id, bn_rp, bn_rz, addr_line1, addr_city, addr_prov,
+       addr_postal, contact_name, contact_phone, contact_email)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(company_id) DO UPDATE SET bn_rp = excluded.bn_rp, bn_rz = excluded.bn_rz,
+       addr_line1 = excluded.addr_line1, addr_city = excluded.addr_city,
+       addr_prov = excluded.addr_prov, addr_postal = excluded.addr_postal,
+       contact_name = excluded.contact_name, contact_phone = excluded.contact_phone,
+       contact_email = excluded.contact_email, updated_at = datetime('now')`,
+  ).bind(companyId, d.bnRp, d.bnRz, d.line1, d.city, d.prov, d.postal,
+    d.contactName, d.contactPhone, d.contactEmail).run();
+}

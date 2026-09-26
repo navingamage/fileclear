@@ -19,6 +19,7 @@ import {
   subscriptionFor, recordSubscription, startTrial,
   importRules, rememberImportRule, ledgerFingerprints,
   homeOfficeFor, saveHomeOffice, recordFiled, filedRecords, companyAddedOn,
+  filerDetailsFor, saveFilerDetails,
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, recordSweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
@@ -42,12 +43,17 @@ import {
   importPage, importPreviewPage, onboardingStepPage, ONBOARDING_STEPS,
   shell, html,
   type HstPeriodOption, type Chrome,
-  t2125Page, incorporatePage, filePage,
+  t2125Page, incorporatePage, filePage, slipFilePage, type SlipKind, type SlipRecipient,
 } from './views';
 import {
   hstNetfileLines, hstBalance, guideFor, cleanConfirmation, type ReturnLine,
+  t2Figures, t1Figures, flattenSections, sectionsFrom, type FigureSection,
 } from './rules/filing';
+import {
+  t4Xml, t5Xml, validSin, validBn, cleanBn, validPostal, validPhone, splitName, PROVINCES,
+} from './rules/slipxml';
 import { serveDownload, releaseInfo, type DownloadsEnv } from './downloads';
+import { RATE_YEAR } from './rules/personal';
 import { homeOffice, type HomeOfficeInput } from './rules/homeoffice';
 import { statement, selfEmployedYear, t2125Statement } from './rules/selfemployed';
 import { compareIncorporation, crossoverTable } from './rules/incorporate';
@@ -55,7 +61,9 @@ import { fiscalYears, statementsFor, shareholderLoans } from './rules/yearend';
 import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
 import { schedule1, computeTax } from './rules/t2';
 import { compareCompensation } from './rules/compensation';
-import { t4For, t4ForSalary, t5For, slipDeadline, salaryInLedger } from './rules/slips';
+import {
+  t4For, t4ForSalary, t5For, slipDeadline, salaryInLedger, T4_CONFIRMED_BOXES, type SlipBox,
+} from './rules/slips';
 import {
   deductionsFor, remitterAdvice, payrollRun, ontarioEht, type PayFrequency,
 } from './rules/payroll';
@@ -82,7 +90,7 @@ const TRIAL_DAYS = 30;
  * the other is the kind of arbitrary line that makes a paywall feel arbitrary.
  * The thirty day trial is what lets somebody weighing incorporation use it.
  */
-const PAID_PATHS = ['/hst', '/year-end', '/compensation', '/slips', '/incorporate'];
+const PAID_PATHS = ['/hst', '/year-end', '/compensation', '/slips', '/slips/file', '/incorporate'];
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -315,6 +323,63 @@ async function hstLinesFor(
   const rows = await transactionsFor(env.DB, companyId, filing.coversFrom, filing.coversUpTo);
   const r = computeHst(toLedger(rows), filing.coversFrom, filing.coversUpTo);
   return hstNetfileLines(r, p.hst.method, instalments);
+}
+
+/**
+ * The T2 or T1 figures for the fiscal year a return covers, worked out exactly
+ * as the year end screen works them out, so the two can never disagree.
+ */
+async function returnFiguresFor(
+  env: Env, companyId: string, p: CompanyProfile, filing: Filing,
+): Promise<FigureSection[] | undefined> {
+  const years = fiscalYears(p, today());
+  const active = years.find((y) => y.to === filing.coversUpTo)
+    ?? years.find((y) => y.ended && y.to <= filing.coversUpTo);
+  if (!active) return undefined;
+  const chain = [...years].reverse().filter((y) => y.to <= active.to);
+
+  const [rows, assets, claims] = await Promise.all([
+    transactionsFor(env.DB, companyId),
+    assetsFor(env.DB, companyId),
+    ccaClaims(env.DB, companyId, active.to),
+  ]);
+  const ledger = toLedger(rows);
+  const s8 = schedule8(assets, chain, claims);
+
+  if (p.entityType === 'soleProprietorship') {
+    const homeInput = await homeOfficeFor(env.DB, companyId, active.to);
+    const home = homeInput ? homeOffice(homeInput) : null;
+    const t = t2125Statement(ledger, active.from, active.to);
+    const st = statement({
+      grossRevenue: t.grossRevenue, expenses: t.totalExpenses,
+      cca: s8.totalCca, homeOfficeClaim: home?.claim ?? 0,
+    });
+    return t1Figures(t, st, s8, selfEmployedYear(st.netIncome), Number(active.to.slice(0, 4)));
+  }
+
+  const statements = statementsFor(ledger, active, (id) => ACCOUNT_BY_ID.get(id)?.current !== false);
+  const s1 = schedule1(statements, ledger, active, s8);
+  return t2Figures(statements, s1, s8, computeTax(p, active, s1, ledger));
+}
+
+/**
+ * The T4s and the T5 for one calendar year, shared by the slips screen and
+ * the file made from it so the file carries exactly what the screen shows.
+ */
+async function slipsForYear(env: Env, companyId: string, year: number) {
+  const [rows, employees] = await Promise.all([
+    transactionsFor(env.DB, companyId, `${year}-01-01`, `${year}-12-31`),
+    employeesFor(env.DB, companyId),
+  ]);
+  const ledger = toLedger(rows);
+  // With a register, one slip per person. Without one, the ledger's salary
+  // account is the whole payroll, which is what a one person corporation
+  // has and all it needs.
+  const run = employees.length ? payrollRun(employees) : null;
+  const t4s = run
+    ? run.lines.map((l) => t4ForSalary(l.annualSalary, year, l.insurable, l.employee.name))
+    : [t4For(ledger, year)];
+  return { ledger, employees, run, t4s, t5: t5For(ledger, year) };
 }
 
 // -------------------------------------------------------------------- routes
@@ -581,7 +646,7 @@ export default {
       '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete',
       '/compensation', '/slips', '/employees', '/employees/delete',
       '/companies', '/billing', '/billing/checkout', '/billing/portal',
-      '/incorporate', '/file', '/file/record'].includes(path);
+      '/incorporate', '/file', '/file/record', '/slips/file'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
     // Resolved once per request rather than per screen: which corporation is
@@ -782,6 +847,16 @@ export default {
         balance = lines ? hstBalance(lines) : undefined;
       }
 
+      // The T2 and the T1 go through certified software, so what FileClear
+      // gives is the figures to type there. Paid, like the year end screen
+      // they come from, and frozen once recorded, like the HST figures.
+      let sections: FigureSection[] | undefined;
+      if ((kind === 't2' || kind === 't1') && access.allowed) {
+        sections = record?.figures.length
+          ? sectionsFrom(record.figures as ReturnLine[])
+          : await returnFiguresFor(env, company.id, company.profile, filing);
+      }
+
       // When the money is due, which is not always when the return is. An
       // unincorporated annual HST filer files by 15 June and pays by 30 April,
       // the same split as the personal return, and a guide that said "pay by
@@ -794,7 +869,7 @@ export default {
 
       return html(filePage(account.email, company.profile.legalName, {
         kind: kind === 'hst' && !lines ? 'general' : kind,
-        filing, lines, balance, instalments, payBy,
+        filing, lines, balance, instalments, payBy, sections, paid: access.allowed,
         method: company.profile.hst.method, record,
         sole: company.profile.entityType === 'soleProprietorship',
       }, today(), undefined, chrome));
@@ -818,6 +893,11 @@ export default {
       if (guideFor(filing.obligationId) === 'hst' && access.allowed) {
         const instalments = money(form.get('instalments')) ?? 0;
         figures = (await hstLinesFor(env, company.id, company.profile, filing, instalments)) ?? [];
+      }
+      const kind = guideFor(filing.obligationId);
+      if ((kind === 't2' || kind === 't1') && access.allowed) {
+        const sections = await returnFiguresFor(env, company.id, company.profile, filing);
+        figures = sections ? flattenSections(sections) : [];
       }
 
       await recordFiled(env.DB, company.id, {
@@ -1253,6 +1333,157 @@ export default {
         account.email, company.profile.legalName, comparison, available, kind, chrome));
     }
 
+    /**
+     * The T4 or T5 as the XML file CRA's Internet File Transfer takes.
+     *
+     * The one return FileClear can put straight into CRA's hands in CRA's own
+     * format. The business details are kept so they are typed once; the SINs
+     * are asked for every time and go into the file and nowhere else.
+     */
+    if (path === '/slips/file' && account) {
+      if (!company) return redirect('/onboarding');
+      const form = request.method === 'POST' ? await request.formData() : null;
+      const get = (k: string) =>
+        String((form ? form.get(k) : url.searchParams.get(k)) ?? '').trim().slice(0, 100);
+
+      const kind: SlipKind = get('kind') === 't5' ? 't5' : 't4';
+      const sole = company.profile.entityType === 'soleProprietorship';
+      const year = Number(get('year'));
+      const thisYear = Number(today().slice(0, 4));
+      if ((kind === 't5' && sole) || !Number.isInteger(year) || year < 2000 || year >= thisYear + 1) {
+        return redirect('/slips');
+      }
+
+      const { t4s, t5 } = await slipsForYear(env, company.id, year);
+      const amount = (boxes: SlipBox[], box: string) => boxes.find((b) => b.box === box)?.amount ?? 0;
+      const eligible = t5.kind === 'eligible';
+      const slipBoxes: { label: string; boxes: SlipBox[]; insurable: boolean }[] = kind === 't4'
+        ? t4s.filter((t) => amount(t.boxes, '14') > 0)
+          .map((t) => ({ label: t.name, boxes: t.boxes, insurable: amount(t.boxes, '24') > 0 }))
+        : amount(t5.boxes, eligible ? '24' : '10') > 0
+          ? [{ label: '', boxes: t5.boxes, insurable: false }] : [];
+
+      const saved = await filerDetailsFor(env.DB, company.id);
+      const filer = form ? {
+        bn: cleanBn(get('bn')), line1: get('line1'), city: get('city'),
+        prov: get('prov').toUpperCase(), postal: get('postal').toUpperCase(),
+        contactName: get('contactName'), contactPhone: get('contactPhone'),
+        contactEmail: get('contactEmail').slice(0, 60),
+      } : {
+        bn: kind === 't4' ? saved.bnRp : saved.bnRz, line1: saved.line1, city: saved.city,
+        prov: saved.prov, postal: saved.postal, contactName: saved.contactName,
+        contactPhone: saved.contactPhone, contactEmail: saved.contactEmail,
+      };
+
+      const errors: string[] = [];
+      const recipients: SlipRecipient[] = slipBoxes.map((b, i) => {
+        const named = splitName(b.label);
+        const f = (k: string) => get(`s${i}_${k}`);
+        const who = b.label || (slipBoxes.length > 1 ? `slip ${i + 1}` : 'the recipient');
+        // Every deduction box is offered, including the ones FileClear worked
+        // out as nil, and what was posted replaces what was computed.
+        const boxes = kind === 't4'
+          ? [b.boxes.find((x) => x.box === '14')!, ...T4_CONFIRMED_BOXES.map(({ box, label }) => {
+            const posted = form ? money(f(`b${box}`)) : null;
+            if (form && (posted === null || posted < 0)) {
+              errors.push(`Box ${box} for ${who} is not an amount. Enter 0.00 if there is none.`);
+            }
+            return { box, label, amount: form ? Math.max(0, posted ?? 0) : amount(b.boxes, box) };
+          })]
+          : b.boxes;
+        return {
+          label: b.label, boxes, insurable: b.insurable,
+          surname: form ? f('surname') : named.surname,
+          given: form ? f('given') : named.given,
+          sin: form ? f('sin') : '',
+          line1: form ? f('line1') : '', city: form ? f('city') : '',
+          prov: form ? f('prov').toUpperCase() : filer.prov || 'ON',
+          postal: form ? f('postal').toUpperCase() : '',
+          empProv: form ? f('empProv').toUpperCase() : filer.prov || 'ON',
+        };
+      });
+
+      if (form) {
+        const program = kind === 't4' ? 'RP' : 'RZ';
+        if (!validBn(filer.bn, program)) {
+          errors.push(kind === 't4'
+            ? 'The payroll account number is 15 characters: your 9 digit business number, RP, and 4 digits, as in 123456789RP0001.'
+            : 'T5s are filed under an information return account: your 9 digit business number, RZ, and 4 digits, as in 123456789RZ0001.');
+        }
+        if (!filer.line1 || !filer.city) errors.push('Enter the business address.');
+        if (!PROVINCES.includes(filer.prov)) errors.push('Choose the province of the business address.');
+        if (!validPostal(filer.postal)) errors.push('The business postal code does not look right. It reads like A1A 1A1.');
+        if (!filer.contactName) errors.push('Enter the name of the person CRA should contact about this return.');
+        if (!validPhone(filer.contactPhone)) errors.push('The contact phone number needs 10 digits, area code included.');
+        if (!looksLikeEmail(filer.contactEmail)) errors.push('Enter an email address for the contact.');
+        recipients.forEach((r, i) => {
+          const who = r.label || (recipients.length > 1 ? `slip ${i + 1}` : 'the recipient');
+          if (!r.surname) errors.push(`Enter the surname of ${who}.`);
+          if (!validSin(r.sin)) errors.push(`The SIN for ${who} is not a valid social insurance number. Check it against their SIN letter or card.`);
+          if (!r.line1 || !r.city) errors.push(`Enter the home address of ${who}.`);
+          if (!PROVINCES.includes(r.prov)) errors.push(`Choose the province of ${who}'s address.`);
+          if (!validPostal(r.postal)) errors.push(`The postal code for ${who} does not look right.`);
+          if (kind === 't4' && !PROVINCES.includes(r.empProv)) errors.push(`Choose the province ${who} worked in.`);
+        });
+      }
+
+      if (form && !errors.length && recipients.length) {
+        // The business details, kept; the people, not.
+        await saveFilerDetails(env.DB, company.id, {
+          ...saved,
+          ...(kind === 't4' ? { bnRp: filer.bn } : { bnRz: filer.bn }),
+          line1: filer.line1, city: filer.city, prov: filer.prov, postal: filer.postal,
+          contactName: filer.contactName, contactPhone: filer.contactPhone,
+          contactEmail: filer.contactEmail,
+        });
+
+        const phone = filer.contactPhone.replace(/\D/g, '');
+        const contact = { name: filer.contactName, area: phone.slice(0, 3), phone: phone.slice(3), email: filer.contactEmail };
+        const party = { name: company.profile.legalName, line1: filer.line1, city: filer.city, prov: filer.prov, postal: filer.postal };
+        const addressOf = (r: SlipRecipient) =>
+          ({ name: '', line1: r.line1, city: r.city, prov: r.prov, postal: r.postal });
+
+        const xml = kind === 't4'
+          ? t4Xml({
+            year, bn: filer.bn, employer: party, contact,
+            slips: recipients.map((r) => ({
+              surname: r.surname, given: r.given, sin: r.sin, address: addressOf(r),
+              province: r.empProv, eiExempt: !r.insurable,
+              income: amount(r.boxes, '14'), cpp: amount(r.boxes, '16'), cpp2: amount(r.boxes, '16A'),
+              ei: amount(r.boxes, '18'), tax: amount(r.boxes, '22'),
+              insurable: amount(r.boxes, '24'), pensionable: amount(r.boxes, '26'),
+            })),
+            // From the slips as confirmed, not as computed: the employer
+            // matches CPP and CPP2 and pays 1.4 times the EI.
+            employerCpp: recipients.reduce((n, r) => n + amount(r.boxes, '16') + amount(r.boxes, '16A'), 0),
+            employerEi: Math.round(recipients.reduce((n, r) => n + amount(r.boxes, '18'), 0) * 1.4),
+          })
+          : t5Xml({
+            year, bn: filer.bn, payer: party, contact, eligible,
+            slips: recipients.map((r) => ({
+              surname: r.surname, given: r.given, sin: r.sin, address: addressOf(r),
+              actual: amount(r.boxes, eligible ? '24' : '10'),
+              taxable: amount(r.boxes, eligible ? '25' : '11'),
+              credit: amount(r.boxes, eligible ? '26' : '12'),
+            })),
+          });
+
+        return new Response(xml, {
+          headers: {
+            'Content-Type': 'application/xml; charset=utf-8',
+            'Content-Disposition': `attachment; filename="${kind.toUpperCase()}-${year}-${filer.bn}.xml"`,
+            // It carries SINs. Nothing between here and the person should keep it.
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      return html(slipFilePage(account.email, company.profile.legalName, {
+        kind, year, deadline: slipDeadline(year), eligible, filer, recipients, errors,
+        rateYear: RATE_YEAR,
+      }, chrome), errors.length ? 400 : 200);
+    }
+
     if ((path === '/slips' || path === '/employees' || path === '/employees/delete')
         && account) {
       if (!company) return redirect('/onboarding');
@@ -1301,22 +1532,8 @@ export default {
       // has finished, not the one in progress.
       const year = years.includes(asked) ? asked : (years[1] ?? years[0]!);
 
-      const [rows, employees] = await Promise.all([
-        transactionsFor(env.DB, company.id, `${year}-01-01`, `${year}-12-31`),
-        employeesFor(env.DB, company.id),
-      ]);
-      const ledger = toLedger(rows);
-      const t5 = t5For(ledger, year);
+      const { ledger, employees, run, t4s, t5 } = await slipsForYear(env, company.id, year);
       const ledgerSalary = salaryInLedger(ledger, year);
-
-      // With a register, one slip per person. Without one, the ledger's salary
-      // account is the whole payroll, which is what a one person corporation
-      // has and all it needs.
-      const run = employees.length ? payrollRun(employees) : null;
-      const t4s = run
-        ? run.lines.map((l) =>
-          t4ForSalary(l.annualSalary, year, l.insurable, l.employee.name))
-        : [t4For(ledger, year)];
 
       const annualRemittance = run
         ? run.annualRemittance

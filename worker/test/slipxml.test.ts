@@ -70,3 +70,30 @@ describe('SIN check', () => {
     expect(validSin('12345')).toBe(false);
   });
 });
+
+describe('checking what somebody typed', () => {
+  it('knows the payroll account from the information return account', async () => {
+    const { validBn } = await import('../src/rules/slipxml');
+    expect(validBn('123456789 RP 0001', 'RP')).toBe(true);
+    expect(validBn('123456789RP0001', 'RZ')).toBe(false);
+    expect(validBn('12345678RP0001', 'RP')).toBe(false);
+  });
+  it('checks a postal code and a phone number', async () => {
+    const { validPostal, validPhone } = await import('../src/rules/slipxml');
+    expect(validPostal('m5v 1a1')).toBe(true);
+    expect(validPostal('M5V1A1')).toBe(true);
+    expect(validPostal('D5V 1A1')).toBe(false);
+    expect(validPhone('(416) 555-0100')).toBe(true);
+    expect(validPhone('555-0100')).toBe(false);
+  });
+  it('writes a postal code one way however it was typed', async () => {
+    const { cleanPostal } = await import('../src/rules/slipxml');
+    expect(cleanPostal('m5v1a1')).toBe('M5V 1A1');
+    expect(cleanPostal(' M5V-1A1 ')).toBe('M5V 1A1');
+  });
+  it('splits a name with the surname last', async () => {
+    const { splitName } = await import('../src/rules/slipxml');
+    expect(splitName('Mary Jo Smith')).toEqual({ given: 'Mary Jo', surname: 'Smith' });
+    expect(splitName('Smith')).toEqual({ given: '', surname: 'Smith' });
+  });
+});

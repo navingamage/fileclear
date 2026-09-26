@@ -589,7 +589,9 @@ export function html(body: string, status = 200, extra: HeadersInit = {}): Respo
  * a calendar, free until you file. Promising less than the product delivers is
  * a better trade here than the reverse.
  */
-export function authPage(mode: 'in' | 'up', error?: string, email = ''): string {
+export function authPage(
+  mode: 'in' | 'up', error?: string, email = '', signedOut = false,
+): string {
   const up = mode === 'up';
 
   const aside = up
@@ -612,6 +614,7 @@ export function authPage(mode: 'in' | 'up', error?: string, email = ''): string 
 <div class="auth-grid">
   <div class="auth-form">
     <span class="label">${up ? 'New account' : 'Sign in'}</span>
+    ${signedOut && !up ? '<div class="ok"><b>Signed out.</b> Your calendar and your reminders carry on without you; sign in again whenever you want to look.</div>' : ''}
     <h1>${up ? 'Never miss a filing again.' : 'Welcome back.'}</h1>
     <p class="hint">${up
       ? 'Incorporated or not. One account holds every business you run.'
@@ -993,7 +996,7 @@ ${months.map((m) => `<div class="sheet">
 
 import { ACCOUNTS, ACCOUNT_BY_ID, type AccountKind } from './rules/gifi';
 import { dollars, type HstReturn } from './rules/hst';
-import type { Statement, SelfEmployedYear } from './rules/selfemployed';
+import type { Statement, SelfEmployedYear, T2125Statement } from './rules/selfemployed';
 import { SELF_EMPLOYED_CPP_MAX } from './rules/selfemployed';
 import type { HomeOffice, HomeOfficeInput } from './rules/homeoffice';
 import type { IncorporationComparison, Side } from './rules/incorporate';
@@ -2260,7 +2263,7 @@ export function onboardingStepPage(
 export function t2125Page(
   email: string, businessName: string,
   years: FiscalYear[], active: FiscalYear,
-  s: GifiStatements, s8: Schedule8,
+  s: T2125Statement, s8: Schedule8,
   st: Statement & { homeOfficeCarriedForward: number },
   year: SelfEmployedYear,
   home: HomeOffice | null, homeInput: HomeOfficeInput | null,
@@ -2312,10 +2315,8 @@ ${year.instalmentsLikely ? `<div class="advisory">
     ${line('8299', 'Gross business income', st.grossRevenue, true)}
     ${st.costOfSales ? line('8518', 'Cost of goods sold', st.costOfSales) : ''}
     ${st.costOfSales ? line('8519', 'Gross profit', st.grossProfit, true) : ''}
-    ${s.income.expenses.map((l) =>
-      `<div class="frow gifi"><span class="d">${l.gifi}</span>
-       <span class="t">${esc(l.name)}</span>
-       <span class="f num">${dollars(l.amount)}</span></div>`).join('')}
+    ${s.otherIncome.map((l) => line(String(l.line), `of which, ${l.name.toLowerCase()}`, l.amount)).join('')}
+    ${s.expenses.map((l) => line(String(l.line), l.name, l.amount)).join('')}
     ${line('9368', 'Total expenses', st.expenses, true)}
     ${line('9936', 'Capital cost allowance, from Area A', st.cca)}
     ${line('9945', 'Business use of home', st.businessUseOfHome)}
@@ -2439,6 +2440,10 @@ ${st.homeOfficeCarriedForward > 0 ? `<div class="advisory">
   this year.</b> Business use of home cannot create or deepen a loss, so it stops at
   the profit that is left. The rest carries forward indefinitely against this same
   business, so it is worth recording rather than forgetting.</div>` : ''}
+
+${s.mealsDisallowed > 0 ? `<p class="hint">Meals and entertainment are on line 8523 at
+the allowable half. The other ${dollars(s.mealsDisallowed)} is not deductible, so it is
+in the books and not on the return, which is what the form asks for.</p>` : ''}
 
 ${s8.totalCca > 0 ? `<p class="hint">Capital cost allowance of ${dollars(s8.totalCca)}
 is included above, from the asset register. It is Area A of the T2125 rather than

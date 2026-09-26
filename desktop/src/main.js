@@ -57,15 +57,26 @@ const isAllowed = (url) => {
   }
 };
 
-/** The origin's own front page, which is the marketing site. */
-const isRoot = (url) => {
-  try {
-    const u = new URL(url);
-    return u.origin === new URL(ORIGIN).origin && (u.pathname === '/' || u.pathname === '');
-  } catch {
-    return false;
-  }
+/**
+ * The marketing site's pages, which are never shown inside the app.
+ *
+ * The same Worker serves both, so the app can reach the website by any route
+ * that leads to one of these paths: the header logo, a redirect after signing
+ * out, a link in a footer. The front page goes to sign in, because somebody in
+ * the app wanting "home" means the product. The rest are the company's pages
+ * rather than the product's, and they open in the browser where they belong.
+ */
+const WEBSITE_PATHS = ['/support', '/privacy', '/terms', '/download'];
+
+const onOrigin = (url) => {
+  try { return new URL(url).origin === new URL(ORIGIN).origin; } catch { return false; }
 };
+const pathOf = (url) => {
+  try { return new URL(url).pathname.replace(/\.html$/, '').replace(/\/+$/, '') || '/'; }
+  catch { return ''; }
+};
+const isRoot = (url) => onOrigin(url) && pathOf(url) === '/';
+const isWebsitePage = (url) => onOrigin(url) && WEBSITE_PATHS.includes(pathOf(url));
 
 let win = null;
 
@@ -129,20 +140,37 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  win.webContents.on('will-navigate', (event, url) => {
-    // The marketing page is never a destination inside the app. The header
-    // logo points at the origin root, which redirects to the dashboard for
-    // somebody signed in and shows "A CPA charges $2,000 to $4,000 a year" to
-    // somebody who is not. Opening the app there was the complaint; reaching
-    // it by clicking the logo is the same screen by a longer route.
+  /**
+   * One rule for every way the window can be sent somewhere.
+   *
+   * will-navigate covers links and form posts. It does not cover a server
+   * redirect, which Electron reports as will-redirect instead, and signing out
+   * is exactly that: a form post answered with a redirect. Guarding only the
+   * first let the second land on the marketing page, styled for a browser, in
+   * an app window. did-navigate is the last net, for anything that arrives by
+   * a route neither of the first two sees.
+   */
+  const steer = (event, url) => {
     if (isRoot(url)) {
       event.preventDefault();
       win.loadURL(`${ORIGIN}/signin`);
-      return;
+      return true;
     }
-    if (isAllowed(url)) return;
+    if (isWebsitePage(url)) {
+      event.preventDefault();
+      shell.openExternal(url);
+      return true;
+    }
+    if (isAllowed(url)) return false;
     event.preventDefault();
     shell.openExternal(url);
+    return true;
+  };
+
+  win.webContents.on('will-navigate', steer);
+  win.webContents.on('will-redirect', steer);
+  win.webContents.on('did-navigate', (_event, url) => {
+    if (isRoot(url) || isWebsitePage(url)) win.loadURL(`${ORIGIN}/signin`);
   });
 
   /**

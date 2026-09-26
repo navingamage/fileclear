@@ -44,7 +44,7 @@ import {
 } from './views';
 import { serveDownload, releaseInfo, type DownloadsEnv } from './downloads';
 import { homeOffice, type HomeOfficeInput } from './rules/homeoffice';
-import { statement, selfEmployedYear } from './rules/selfemployed';
+import { statement, selfEmployedYear, t2125Statement } from './rules/selfemployed';
 import { compareIncorporation, crossoverTable } from './rules/incorporate';
 import { fiscalYears, statementsFor, shareholderLoans } from './rules/yearend';
 import { schedule8, CLASS_BY_NUMBER } from './rules/cca';
@@ -409,7 +409,10 @@ export default {
     // ------------------------------------------------------------ public
     if (path === '/signup' || path === '/signin') {
       if (account) return redirect('/dashboard');
-      if (request.method === 'GET') return html(authPage(path === '/signup' ? 'up' : 'in'));
+      if (request.method === 'GET') {
+        return html(authPage(path === '/signup' ? 'up' : 'in', undefined, '',
+          url.searchParams.get('out') === '1'));
+      }
 
       const form = await request.formData();
       const email = String(form.get('email') ?? '').trim();
@@ -537,16 +540,22 @@ export default {
       return redirect('/dashboard', { 'Set-Cookie': sessionCookie(session) });
     }
 
+    // To the sign in page rather than the front page. The front page is a sales
+    // pitch, and somebody who has just signed out has already bought; in the
+    // desktop app it was worse, because it put the marketing site in an app
+    // window. The notice says what happened, since a sign in form alone looks
+    // like being thrown out rather than having left.
     if (path === '/signout') {
       await endSession(env.DB, request);
-      return redirect('/', { 'Set-Cookie': clearedCookie() });
+      return redirect('/signin?out=1', { 'Set-Cookie': clearedCookie() });
     }
 
     // ------------------------------------------------------- authenticated
     const needsAccount = ['/dashboard', '/onboarding', '/filing', '/books',
       '/books/delete', '/hst', '/year-end', '/assets', '/assets/delete',
       '/compensation', '/slips', '/employees', '/employees/delete',
-      '/companies', '/billing', '/billing/checkout', '/billing/portal'].includes(path);
+      '/companies', '/billing', '/billing/checkout', '/billing/portal',
+      '/incorporate', '/file', '/file/record'].includes(path);
     if (needsAccount && !account) return redirect('/signin');
 
     // Resolved once per request rather than per screen: which corporation is
@@ -994,9 +1003,13 @@ export default {
         const homeInput = await homeOfficeFor(env.DB, company.id, active.to);
         const home = homeInput ? homeOffice(homeInput) : null;
 
+        // By T2125 line, not by GIFI code, and with meals at the allowable
+        // half: see t2125Statement for why the GIFI statement was the wrong
+        // source for an unincorporated return.
+        const t2125 = t2125Statement(ledger, active.from, active.to);
         const st = statement({
-          grossRevenue: statements.income.totalRevenue,
-          expenses: statements.income.totalExpenses,
+          grossRevenue: t2125.grossRevenue,
+          expenses: t2125.totalExpenses,
           cca: s8.totalCca,
           homeOfficeClaim: home?.claim ?? 0,
         });
@@ -1023,7 +1036,7 @@ export default {
 
         return html(t2125Page(
           account.email, company.profile.legalName, years, active,
-          statements, s8, st, year, home, homeInput,
+          t2125, s8, st, year, home, homeInput,
           problem ?? undefined, chrome, said.text ?? undefined,
         ), problem ? 400 : 200);
       }

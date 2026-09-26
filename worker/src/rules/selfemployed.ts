@@ -28,6 +28,9 @@ import {
   CPP, taxOnTaxableIncome, type PersonalTax, RATE_YEAR, RRSP_RATE, RRSP_LIMIT_NEXT_YEAR,
 } from './personal';
 
+import { ACCOUNT_BY_ID, CLAIMABLE_FRACTION } from './gifi';
+import type { LedgerLine } from './hst';
+
 export { RATE_YEAR };
 
 /**
@@ -207,4 +210,101 @@ function personalTaxOnSelfEmployment(net: number, cpp: SelfEmployedCpp): Persona
     taxableIncome: net - cpp.deductible,
     creditableAmounts: cpp.creditable,
   });
+}
+
+// ------------------------------------------------------ T2125 by its own lines
+
+
+/**
+ * CRA's names for the T2125 lines FileClear's chart reaches, from the expenses
+ * section of the form as CRA publishes it. Printed beside each figure so it can
+ * be typed straight into the return.
+ */
+export const T2125_LINE_NAMES: Record<number, string> = {
+  8230: 'Other income',
+  8299: 'Gross business income',
+  8360: 'Subcontracts',
+  8523: 'Meals and entertainment (allowable part only)',
+  8690: 'Insurance',
+  8710: 'Interest and bank charges',
+  8760: 'Business taxes, licences, and memberships',
+  8810: 'Office expenses',
+  8811: 'Office stationery and supplies',
+  8860: 'Professional fees (includes legal and accounting fees)',
+  8910: 'Rent',
+  9060: "Salaries, wages, and benefits (including employer's contributions)",
+  9200: 'Travel expenses',
+  9220: 'Telephone and utilities',
+  9281: 'Motor vehicle expenses (not including CCA)',
+  9270: 'Other expenses',
+};
+
+export interface T2125Line { line: number; name: string; amount: number }
+
+export interface T2125Statement {
+  /** Line 8230 and anything else that is income but not sales. */
+  otherIncome: T2125Line[];
+  /** Line 8299, everything the business took in, other income included. */
+  grossRevenue: number;
+  /** One row per T2125 line, in the form's order. */
+  expenses: T2125Line[];
+  /** Line 9368, the deductible total: meals already at the allowable part. */
+  totalExpenses: number;
+  /** The half of meals that is not deductible, reported rather than lost. */
+  mealsDisallowed: number;
+}
+
+/**
+ * The ledger rolled up by T2125 line rather than by GIFI code.
+ *
+ * The T2125 screen used to print GIFI codes as though they were T2125 lines.
+ * They coincide more often than not, which is why it looked right, and where
+ * they differ they differ in ways that put a figure in the wrong box.
+ *
+ * Meals go in at the allowable part only, which is what line 8523 asks for.
+ * The corporate path handles the other half in the Schedule 1 add back; the
+ * unincorporated path had no equivalent and was deducting the whole cost,
+ * overstating the deduction by exactly the half CRA disallows.
+ */
+export function t2125Statement(lines: LedgerLine[], from: string, to: string): T2125Statement {
+  const byLine = new Map<number, number>();
+  let grossRevenue = 0;
+  let mealsDisallowed = 0;
+
+  for (const l of lines) {
+    if (l.date < from || l.date > to) continue;
+    const a = ACCOUNT_BY_ID.get(l.accountId);
+    if (!a || (a.kind !== 'revenue' && a.kind !== 'expense')) continue;
+
+    if (a.kind === 'revenue') {
+      grossRevenue += l.amount;
+      if (a.t2125 && a.t2125 !== 8299) byLine.set(a.t2125, (byLine.get(a.t2125) ?? 0) + l.amount);
+      continue;
+    }
+
+    const fraction = CLAIMABLE_FRACTION[a.id] ?? 1;
+    const allowable = Math.round(l.amount * fraction);
+    mealsDisallowed += l.amount - allowable;
+    const line = a.t2125 ?? 9270;
+    byLine.set(line, (byLine.get(line) ?? 0) + allowable);
+  }
+
+  const row = (line: number): T2125Line =>
+    ({ line, name: T2125_LINE_NAMES[line] ?? `Line ${line}`, amount: byLine.get(line) ?? 0 });
+
+  const incomeLines = [8230];
+  const otherIncome = incomeLines.filter((n) => byLine.get(n)).map(row);
+  const expenses = [...byLine.keys()]
+    .filter((n) => !incomeLines.includes(n))
+    .sort((a, b) => a - b)
+    .map(row)
+    .filter((r) => r.amount !== 0);
+
+  return {
+    otherIncome,
+    grossRevenue,
+    expenses,
+    totalExpenses: expenses.reduce((t, r) => t + r.amount, 0),
+    mealsDisallowed,
+  };
 }

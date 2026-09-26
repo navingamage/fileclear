@@ -46,6 +46,15 @@ export interface Filing {
   actionableFrom: string;
   /** The fiscal year this filing settles, labelled by the year the period ended. */
   periodLabel: string;
+  /** ISO yyyy-mm-dd. The last day of the period reported on. */
+  coversUpTo: string;
+  /**
+   * ISO yyyy-mm-dd. The first day of the period reported on, where the filing
+   * is computed over one. Never earlier than the day the business began: a
+   * first HST quarter that started before incorporation starts at
+   * incorporation, because there is no ledger before it.
+   */
+  coversFrom?: string;
 }
 
 // ---------------------------------------------------------------- date helpers
@@ -152,7 +161,21 @@ function quarterEnds(fye: MonthDay, yearEndIso: string): string[] {
  * that corporation be told it owed a T2 for a year ending eleven days before
  * it existed.
  */
-interface Occurrence { due: string; period: string; coversUpTo: string }
+interface Occurrence {
+  due: string;
+  period: string;
+  coversUpTo: string;
+  /**
+   * The first day of the period reported on, where there is a period.
+   *
+   * Needed to file anything that is computed over a period, which a due date
+   * alone cannot say: the HST return for a quarter is the ledger from the day
+   * after the previous quarter closed to the day this one did. Left undefined
+   * for things that are events rather than periods, such as an annual return
+   * to a registry or a one-off registration.
+   */
+  coversFrom?: string;
+}
 
 function occurrencesFor(
   ob: Obligation,
@@ -167,6 +190,7 @@ function occurrencesFor(
         due: addMonths(yearEnd, ob.schedule.months),
         period: `FY${fiscalYear}`,
         coversUpTo: yearEnd,
+        coversFrom: addDays(addMonths(yearEnd, -12), 1),
       }];
 
     case 'afterIncorporationAnniversary': {
@@ -197,6 +221,7 @@ function occurrencesFor(
         period: `${fiscalYear - 1}`,
         // A slip reports the calendar year before the one it is filed in.
         coversUpTo: iso(fiscalYear - 1, 12, 31),
+        coversFrom: iso(fiscalYear - 1, 1, 1),
       }];
 
     case 'lastDayOf':
@@ -204,6 +229,7 @@ function occurrencesFor(
         due: iso(fiscalYear, ob.schedule.month, daysInMonth(fiscalYear, ob.schedule.month)),
         period: `${fiscalYear - 1}`,
         coversUpTo: iso(fiscalYear - 1, 12, 31),
+        coversFrom: iso(fiscalYear - 1, 1, 1),
       }];
 
     case 'monthlyAfter':
@@ -228,6 +254,7 @@ function occurrencesFor(
             ? ob.schedule.months : 1),
           period: `${fiscalYear}-${String(month).padStart(2, '0')}`,
           coversUpTo: monthEnd,
+          coversFrom: iso(fiscalYear, month, 1),
         };
       });
 
@@ -378,6 +405,7 @@ function occurrencesFor(
         due: addMonths(qEnd, months),
         period: `FY${fiscalYear} Q${i + 1}`,
         coversUpTo: qEnd,
+        coversFrom: addDays(addMonths(qEnd, -3), 1),
       }));
     }
   }
@@ -433,6 +461,9 @@ export function filingsFor(
         dueShiftReason: reasonForShift(occ.due),
         actionableFrom: addDays(occ.due, -ob.leadDays),
         periodLabel: occ.period,
+        coversUpTo: occ.coversUpTo,
+        coversFrom: occ.coversFrom && p.incorporationDate && occ.coversFrom < p.incorporationDate
+          ? p.incorporationDate : occ.coversFrom,
       }));
     })
     .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : a.obligationId.localeCompare(b.obligationId)));

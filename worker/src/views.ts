@@ -225,7 +225,7 @@ const CHROME = `<style>
     .frow.filing .d,
     .frow.filing .t { grid-column: 1 / -1; }
     .frow.filing .f { grid-column: 1; align-self: center; }
-    .frow.filing form { grid-column: 2; justify-self: end; }
+    .frow.filing .file-actions { grid-column: 2; justify-self: end; }
 
     /* A statement line is a label and a number, and the number belongs beside
        the label on any width. The generic rule above forces .f into the second
@@ -505,6 +505,47 @@ const CHROME = `<style>
   .pick-card b { font-size: 1.02rem; }
   .pick-card span { display: block; margin-top: .4rem; color: var(--muted);
     font-size: .89rem; line-height: 1.5; }
+
+  /* The two actions on a filing row sit together, so the grid still has one
+     cell for them and nothing shifts on a phone. */
+  .file-actions { display: flex; gap: .4rem; align-items: center; }
+  .filed-note { color: var(--ok, var(--brand)); }
+
+  /* Filing: numbered steps, one thing each. */
+  .file-steps { margin: 1.6rem 0 2rem; }
+  .file-step { display: grid; grid-template-columns: 2.2rem 1fr; gap: .9rem;
+    padding: 1.2rem 0; border-top: 1px solid var(--line); }
+  .file-step:first-child { border-top: 0; }
+  .file-step h3 { margin-bottom: .5rem; }
+  .file-n { width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center;
+    background: var(--band); border: 1px solid var(--line); font-family: var(--font-mono);
+    font-size: .85rem; color: var(--brand); }
+  /* The line number hangs in its own column so the name and every note under
+     it start at the same edge, rather than the notes running back under the
+     number. */
+  .file-line .t { position: relative; padding-left: 2.9rem; }
+  .file-ln { position: absolute; left: 0; top: .1rem; font-family: var(--font-mono);
+    font-size: .8rem; color: var(--muted); }
+  .file-line.calc .t, .file-line.calc .f { color: var(--muted); }
+  .file-line .copy { margin-left: .6rem; font: inherit; font-size: .72rem; cursor: pointer;
+    padding: .15rem .45rem; border-radius: 6px; border: 1px solid var(--line-2);
+    background: var(--surface); color: var(--ink); }
+  /* On a phone the figure goes under its name. CRA's line names are long, and
+     beside a figure and a Copy button in an indented step they had about a
+     hundred pixels, one word to a line. */
+  @media (max-width: 560px) {
+    .file-step { grid-template-columns: 1fr; gap: .55rem; }
+    .file-line.frow.pair { grid-template-columns: 1fr; gap: .3rem; }
+    /* grid-column reset explicitly: the general phone rule for rows puts .f in
+       the second column, which on a one column grid invents a second column
+       and puts the figure back beside the name. */
+    .file-line .f { grid-column: 1; justify-self: start; padding-left: 2.9rem; }
+  }
+  .file-inst { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: .8rem 0 1rem; }
+  .file-inst label { font-size: .88rem; color: var(--muted); }
+  .file-inst input { width: 9rem; }
+  .file-record { margin-top: .6rem; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: .6rem 0 .8rem; }
 
   .steps-bar { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
     text-transform: uppercase; color: var(--muted); margin-bottom: 1.6rem; }
@@ -912,7 +953,7 @@ function fmt(iso: string): string {
 export function dashboardPage(
   email: string, companyId: string, p: CompanyProfile,
   filings: Filing[], states: Map<string, string>, advisories: Advisory[], today: string,
-  chrome: Chrome = {},
+  chrome: Chrome = {}, filed: Map<string, FiledRecord> = new Map(),
 ): string {
   // Grouped by month. A flat list of forty dated rows is a spreadsheet; the
   // month heading is what turns it into something a person can plan against.
@@ -938,7 +979,11 @@ export function dashboardPage(
     return `<div class="frow filing${done ? ' done' : overdue ? ' overdue' : ''}">
       <span class="d">${fmt(f.effectiveDue)}${
         starting ? '<br><span class="now">start now</span>' : ''}</span>
-      <span class="t">${esc(f.title)}
+      <span class="t">${esc(f.title)}${(() => {
+          const rec = filed.get(f.id);
+          return rec ? `<span class="sub filed-note">Filed ${esc(fmt(rec.filedOn))}${
+            rec.confirmation ? `, confirmation ${esc(rec.confirmation)}` : ''}</span>` : '';
+        })()}
         <details class="why"><summary>Why, and what happens if it slips</summary>
           <p>${esc(f.detail)}</p>
           ${f.dueShiftReason ? `<p><b>Moved from ${fmt(f.due)}</b>, which is
@@ -951,12 +996,16 @@ export function dashboardPage(
         </details>
       </span>
       <span class="f">${esc(f.form)}</span>
+      <span class="file-actions">
+      <a class="btn small${done ? '' : ' primary'}" href="/file?filing=${encodeURIComponent(f.id)}">${
+        done ? 'View' : 'File it'}</a>
       <form method="post" action="/filing">
         <input type="hidden" name="company" value="${esc(companyId)}">
         <input type="hidden" name="filing" value="${esc(f.id)}">
         <input type="hidden" name="state" value="${done ? '' : 'done'}">
         <button class="btn small" type="submit">${done ? 'Undo' : 'Done'}</button>
       </form>
+      </span>
     </div>`;
   };
 
@@ -1000,6 +1049,9 @@ import type { Statement, SelfEmployedYear, T2125Statement } from './rules/selfem
 import { SELF_EMPLOYED_CPP_MAX } from './rules/selfemployed';
 import type { HomeOffice, HomeOfficeInput } from './rules/homeoffice';
 import type { IncorporationComparison, Side } from './rules/incorporate';
+import type { GuideKind, ReturnLine } from './rules/filing';
+import type { HstMethod } from './rules/profile';
+import type { FiledRecord } from './db';
 import type { TxnRow } from './db';
 
 const KIND_LABEL: Record<AccountKind, string> = {
@@ -1181,16 +1233,16 @@ ${summary([
     label: r.netTaxRegular < 0 || r.quick.netTax < 0 ? 'refund due' : 'net tax to remit',
     strong: true },
   { value: dollars(r.totalRevenue), label: 'revenue, line 101' },
-  { value: dollars(r.collected), label: 'HST collected, line 105' },
-  { value: dollars(r.itcs), label: 'credits claimed, line 108' },
+  { value: dollars(r.collected), label: 'HST collected, line 103' },
+  { value: dollars(r.itcs), label: 'credits claimed, line 106' },
 ])}
 
 <div class="two">
   <div class="sheet">
     <div class="sheet-head"><span>Regular method</span><span>GST34</span></div>
     <div class="frow"><span class="t">Line 101 &middot; total revenue</span><span class="f num">${dollars(r.totalRevenue)}</span></div>
-    <div class="frow"><span class="t">Line 105 &middot; HST collected</span><span class="f num">${dollars(r.collected)}</span></div>
-    <div class="frow"><span class="t">Line 108 &middot; input tax credits</span><span class="f num">${dollars(r.itcs)}</span></div>
+    <div class="frow"><span class="t">Line 103 &middot; HST collected</span><span class="f num">${dollars(r.collected)}</span></div>
+    <div class="frow"><span class="t">Line 106 &middot; input tax credits</span><span class="f num">${dollars(r.itcs)}</span></div>
     <div class="frow total"><span class="t"><b>Line 109 &middot; net tax</b></span><span class="f num"><b>${dollars(r.netTaxRegular)}</b></span></div>
   </div>
 
@@ -2586,4 +2638,276 @@ ${notes(c.caveats, 'this comparison')}
 ${worksheetFooter('Incorporating is a legal decision with a tax consequence rather '
   + 'than a tax decision, and FileClear does not make it for you.')}
 `, email, '/incorporate', chrome);
+}
+
+// ------------------------------------------------------------------- filing
+
+/**
+ * Filing a return, from FileClear to whoever receives it.
+ *
+ * FileClear cannot submit a GST/HST return, a T2, a T1 or an annual return on
+ * anybody's behalf: CRA only accepts those from certified software, and the
+ * registries have no public filing interface. So this screen does everything
+ * short of the submit button. It says what to have in hand, gives the figures
+ * in the order the form asks for them, links straight to where it is filed,
+ * says how to pay, and then takes the confirmation number back so the filing
+ * is marked done and a copy of what was sent is kept.
+ */
+export interface FilePageData {
+  kind: GuideKind;
+  filing: Filing;
+  lines?: ReturnLine[];
+  balance?: number;
+  instalments?: number;
+  method?: HstMethod;
+  businessNumber?: string;
+  record?: FiledRecord;
+  sole: boolean;
+  /** When the balance has to be paid, which can be earlier than the return. */
+  payBy?: string;
+}
+
+const CRA_NETFILE = 'https://www.canada.ca/en/revenue-agency/services/e-services/digital-services-businesses/gst-hst-netfile.html';
+const CRA_ACCOUNT = 'https://www.canada.ca/en/revenue-agency/services/e-services/digital-services-businesses/business-account.html';
+const CRA_ACCESS_CODE = 'https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/file-gst-hst-return/how-file/get-gst-hst-access-code.html';
+const CRA_PAY = 'https://www.canada.ca/en/revenue-agency/services/payments/payments-cra.html';
+const OBR_ANNUAL = 'https://www.ontario.ca/page/annual-return-filing-corporations-information-act';
+const CC_ANNUAL = 'https://ised-isde.canada.ca/site/corporations-canada/en/annual-return-business-corporations';
+const CC_ISC = 'https://ised-isde.canada.ca/site/corporations-canada/en/individuals-significant-control';
+
+export function filePage(
+  email: string, businessName: string, d: FilePageData, today: string,
+  error?: string, chrome: Chrome = {},
+): string {
+  const f = d.filing;
+  const step = (n: number, title: string, body: string) => `
+  <div class="file-step">
+    <span class="file-n">${n}</span>
+    <div><h3>${esc(title)}</h3>${body}</div>
+  </div>`;
+
+  const copyRow = (l: ReturnLine) => `
+    <div class="frow pair file-line${l.enter ? '' : ' calc'}">
+      <span class="t"><span class="file-ln">${esc(l.line)}</span> ${esc(l.name)}
+        ${l.enter ? '' : '<span class="sub">CRA calculates this one. Check it reads the same.</span>'}
+        ${l.note ? `<span class="sub">${esc(l.note)}</span>` : ''}</span>
+      <span class="f num"><span class="file-v">${(l.value / 100).toFixed(2)}</span>${
+        l.enter ? '<button type="button" class="copy" hidden>Copy</button>' : ''}</span>
+    </div>`;
+
+  const recordForm = `
+  <form method="post" action="/file/record" class="file-record">
+    <input type="hidden" name="filing" value="${esc(f.id)}">
+    ${d.instalments ? `<input type="hidden" name="instalments" value="${(d.instalments / 100).toFixed(2)}">` : ''}
+    <div class="row2">
+      <div class="field">
+        <label for="filedOn">Date you filed it</label>
+        <input id="filedOn" name="filedOn" type="date" required
+          value="${esc(d.record?.filedOn ?? today)}" max="${esc(today)}">
+      </div>
+      <div class="field">
+        <label for="confirmation">Confirmation number</label>
+        <input id="confirmation" name="confirmation" type="text" autocomplete="off"
+          value="${esc(d.record?.confirmation ?? '')}"
+          placeholder="${d.kind === 'hst' ? 'six digits' : 'as shown when you submitted'}">
+        <span class="sub">Keep it. It is the proof that this was sent, and the first thing
+        ${esc(f.authority === 'CRA' ? 'CRA' : 'the registry')} asks for if it is ever questioned.</span>
+      </div>
+    </div>
+    <button class="btn primary" type="submit">${d.record ? 'Update the record' : 'Record it as filed'}</button>
+  </form>`;
+
+  const filed = d.record ? `
+  <div class="ok"><b>Filed ${esc(fmt(d.record.filedOn))}${
+    d.record.confirmation ? `, confirmation ${esc(d.record.confirmation)}` : ''}.</b>
+    ${d.record.figures.length ? 'The figures below are the ones you recorded as filed, kept as they were.' : ''}
+  </div>` : '';
+
+  let body = '';
+
+  if (d.kind === 'hst' && d.lines) {
+    const owing = d.balance ?? 0;
+    body = `
+    ${step(1, 'Have these in hand', `
+      <p class="hint">Your business number, and either your CRA business account or your
+      4-digit GST/HST access code. The code is in your CRA account under GST/HST, or CRA
+      will give it to you by phone. <a href="${CRA_ACCESS_CODE}" rel="noopener" target="_blank">How
+      to get the access code</a>.</p>
+      <p class="hint">The reporting period is <b>${esc(fmt(f.coversFrom ?? f.coversUpTo))}</b> to
+      <b>${esc(fmt(f.coversUpTo))}</b>. NETFILE asks for both dates.</p>
+      <p class="hint">Every GST/HST return for a period that began in 2024 or later has to be
+      filed electronically. Paper is not an option any more, and filing on paper carries a
+      penalty.</p>`)}
+
+    ${step(2, 'Type these into the return', `
+      <p class="hint">In the order the form asks for them. ${d.method === 'quick'
+        ? 'These are Quick Method figures, because that is how you told FileClear you file.'
+        : 'These are regular method figures.'} Only the lines with a figure need attention;
+      the rest are zero.</p>
+      <form method="get" action="/file" class="file-inst">
+        <input type="hidden" name="filing" value="${esc(f.id)}">
+        <label for="instalments">HST instalments you paid for this period</label>
+        <input id="instalments" name="instalments" type="text" inputmode="decimal"
+          value="${d.instalments ? (d.instalments / 100).toFixed(2) : ''}" placeholder="0.00">
+        <button class="btn small" type="submit">Apply</button>
+      </form>
+      <div class="sheet file-lines">
+        <div class="sheet-head"><span>GST/HST return</span><span>${esc(fmt(f.coversUpTo))}</span></div>
+        ${d.lines.filter((l) => l.value !== 0 || !l.enter || ['101', '103', '106'].includes(l.line)).map(copyRow).join('')}
+      </div>`)}
+
+    ${step(3, 'Submit it', `
+      <p class="hint">Either way is electronic and either way is free. Your CRA account is the
+      better of the two if you have one, because the access code is not needed and the
+      return is kept there afterwards.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="${CRA_ACCOUNT}" rel="noopener" target="_blank">CRA business account</a>
+        <a class="btn" href="${CRA_NETFILE}" rel="noopener" target="_blank">GST/HST NETFILE</a>
+      </div>
+      <p class="hint">NETFILE gives you a six digit confirmation number when the return is
+      accepted. Write it down before you close the page.</p>`)}
+
+    ${step(4, owing > 0 ? `Pay ${dollars(owing)} by ${fmt(d.payBy ?? f.effectiveDue)}` : 'Nothing to pay', owing > 0 ? `
+      ${d.payBy && d.payBy < f.effectiveDue ? `<p class="hint"><b>That is earlier than the
+      return.</b> The return is due ${esc(fmt(f.effectiveDue))}, but the money was due
+      ${esc(fmt(d.payBy))}.${today > d.payBy ? ' If it has not been paid, interest has been running since the day after.' : ''}</p>` : ''}
+      <p class="hint">Filing and paying are separate. Filing the return does not pay it. The
+      simplest route is online banking: add the Canada Revenue Agency GST/HST payee, and use
+      your 15 character GST/HST account number, the one ending RT0001, as the account number.
+      <a href="${CRA_PAY}" rel="noopener" target="_blank">Every way to pay CRA</a>.</p>`
+      : `<p class="hint">${(d.balance ?? 0) < 0
+        ? `This return claims a refund of ${dollars(-(d.balance ?? 0))}. CRA pays it once the return is processed.`
+        : 'The return balances to nil, so there is no payment to make.'}</p>`)}
+
+    ${step(5, 'Tell FileClear it is done', recordForm)}`;
+  }
+
+  else if (d.kind === 'annual-on') {
+    body = `
+    ${step(1, 'Have these in hand', `
+      <p class="hint">Your Ontario corporation number and your company key, a 9 digit code
+      the ministry issues free. If you do not have it, request it from the Ontario Business
+      Registry and it arrives by email straight away when there is an address on file. You
+      sign in with an Ontario.ca login.</p>`)}
+    ${step(2, 'Check what the registry holds', `
+      <p class="hint">An annual return is mostly confirmation: the registered office address,
+      the mailing address, and the directors and officers. If anything has changed, the
+      registry wants the change as well, and a director who left and was never removed is the
+      commonest thing out of date.</p>
+      <p class="hint">There is no fee.</p>`)}
+    ${step(3, 'File it', `
+      <div class="cta-row">
+        <a class="btn primary" href="${OBR_ANNUAL}" rel="noopener" target="_blank">Ontario annual return</a>
+      </div>
+      <p class="hint">Due within six months of your fiscal year end: ${esc(fmt(f.effectiveDue))}.</p>`)}
+    ${step(4, 'Tell FileClear it is done', recordForm)}`;
+  }
+
+  else if (d.kind === 'annual-federal') {
+    body = `
+    ${step(1, 'Have these in hand', `
+      <p class="hint">Your corporation number and corporation key, or access to the
+      corporation in Corporations Canada's Online Filing Centre as a full access manager or
+      filing collaborator. The corporation key is a password; if it is lost, Corporations
+      Canada will issue a new one.</p>`)}
+    ${step(2, 'Have the significant control register ready', `
+      <p class="hint">The annual return is now filed together with information on
+      individuals with significant control: anybody who owns or controls 25% or more of the
+      shares, or has direct or indirect influence over the corporation. FileClear does not
+      hold this, so have the corporation's register open before you start.
+      <a href="${CC_ISC}" rel="noopener" target="_blank">What counts as significant control</a>.</p>`)}
+    ${step(3, 'File and pay', `
+      <div class="cta-row">
+        <a class="btn primary" href="${CC_ANNUAL}" rel="noopener" target="_blank">Corporations Canada annual return</a>
+      </div>
+      <p class="hint">$12 online, paid at the end of the filing. Due within 60 days of the
+      anniversary of incorporation: ${esc(fmt(f.effectiveDue))}. A return filed before the
+      anniversary is not accepted.</p>`)}
+    ${step(4, 'Tell FileClear it is done', recordForm)}`;
+  }
+
+  else if (d.kind === 'payment') {
+    body = `
+    ${step(1, 'Work out the amount', `
+      <p class="hint">${f.obligationId.startsWith('t2-balance') || f.obligationId.startsWith('t1-balance')
+        ? `The year end screen has the figure. <a href="/year-end">Open year end</a>.`
+        : 'Your CRA account shows the instalment amounts CRA expects. Paying those amounts exactly protects you from instalment interest even if the year turns out larger.'}</p>`)}
+    ${step(2, `Pay it by ${fmt(f.effectiveDue)}`, `
+      <p class="hint">Online banking is the simplest route. Add the Canada Revenue Agency
+      payee for this kind of tax and use the account number it asks for:
+      ${d.sole ? 'your social insurance number for personal tax, or your GST/HST account ending RT0001 for HST' : 'your corporation account, ending RC0001, for corporate tax, or your GST/HST account, ending RT0001, for HST'}.
+      A payment to the wrong account sits there unapplied while interest runs on the right
+      one. <a href="${CRA_PAY}" rel="noopener" target="_blank">Every way to pay CRA</a>.</p>`)}
+    ${step(3, 'Tell FileClear it is paid', recordForm)}`;
+  }
+
+  else {
+    body = `
+    ${step(1, 'File it', `
+      <p class="hint">${esc(f.detail)}</p>
+      <div class="cta-row">
+        <a class="btn primary" href="${esc(f.linkUrl)}" rel="noopener" target="_blank">${esc(f.linkLabel)}</a>
+        ${f.obligationId === 't2-return' || f.obligationId === 't1-return'
+          ? '<a class="btn" href="/year-end">The figures, on year end</a>' : ''}
+      </div>
+      ${f.obligationId === 't2-return' || f.obligationId === 't1-return' ? `
+      <p class="hint">A ${f.obligationId === 't2-return' ? 'T2' : 'T1'} is filed through
+      CRA-certified tax software or by an accountant. FileClear is not certified to transmit
+      it, so it gives you the figures, with each one's line, to enter there.</p>` : ''}`)}
+    ${step(2, 'Tell FileClear it is done', recordForm)}`;
+  }
+
+  return shell(`File: ${f.title}`, `
+<span class="label">${esc(businessName)} &middot; ${esc(f.form)}</span>
+<h1>${esc(f.title)}</h1>
+<p class="hint">Due ${esc(fmt(f.effectiveDue))}${f.coversFrom
+  ? `, for ${esc(fmt(f.coversFrom))} to ${esc(fmt(f.coversUpTo))}` : ''}. From
+${esc(f.authority)}. <a href="/dashboard">Back to your calendar</a>.</p>
+
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+${filed}
+
+<div class="file-steps">${body}</div>
+
+${d.kind === 'hst' ? `<details class="why"><summary>Why FileClear does not send it for you</summary>
+  <p>CRA only accepts a GST/HST return transmitted on somebody's behalf from software it has
+  certified, and certification is a process with CRA rather than a feature. Until FileClear
+  is certified, the return goes in through your own CRA account or NETFILE, which takes a
+  few minutes with the figures above in front of you.</p>
+</details>` : ''}
+
+${worksheetFooter()}
+
+<script>
+/* Copy buttons, added only where the clipboard is available. Without this
+   script every figure is still plain text that can be selected, which is the
+   point of adding them rather than depending on them. */
+(function () {
+  if (!navigator.clipboard) return;
+  document.querySelectorAll('.file-line .copy').forEach(function (b) {
+    b.hidden = false;
+    b.addEventListener('click', function () {
+      var el = b.parentNode.querySelector('.file-v');
+      var done = function (label) {
+        b.textContent = label;
+        setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+      };
+      navigator.clipboard.writeText(el.textContent).then(function () {
+        done('Copied');
+      }, function () {
+        /* The clipboard can be refused, by a browser setting or a policy.
+           Selecting the figure means one keystroke still copies it, which is
+           better than a button that silently does nothing. */
+        var range = document.createRange();
+        range.selectNodeContents(el);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        done('Selected');
+      });
+    });
+  });
+}());
+</script>
+`, email, '/dashboard', chrome);
 }

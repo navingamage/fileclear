@@ -423,3 +423,27 @@ CREATE TABLE IF NOT EXISTS home_office (
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (company_id, year_end)
 );
+
+-- ------------------------------------------------------------ what was filed
+
+-- A filing somebody has actually submitted, with the confirmation number the
+-- authority gave them and a copy of the figures as they were filed.
+--
+-- The rest of this schema deliberately stores no computed figures, because a
+-- corrected rule should reach everybody the next morning. A filed return is the
+-- exception, and the reason is the same reason turned round: once something has
+-- been sent to CRA it is a fact about the past, not a calculation, and the
+-- ledger changing afterwards must not change what FileClear says was filed.
+-- "What did I file for that quarter" is the first question in a review.
+--
+-- figures is JSON: the lines as they were shown on the filing screen when the
+-- person recorded it. Empty for filings FileClear has no figures for.
+CREATE TABLE IF NOT EXISTS filed_records (
+  company_id   TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  filing_id    TEXT NOT NULL,
+  filed_on     TEXT NOT NULL,                  -- yyyy-mm-dd, as the person says
+  confirmation TEXT NOT NULL DEFAULT '',
+  figures      TEXT NOT NULL DEFAULT '',
+  recorded_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (company_id, filing_id)
+);

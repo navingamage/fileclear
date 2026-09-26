@@ -639,3 +639,65 @@ export async function saveHomeOffice(
     input.utilities, input.maintenance,
   ).run();
 }
+
+// ------------------------------------------------------------ what was filed
+
+export interface FiledRecord {
+  filingId: string;
+  filedOn: string;
+  confirmation: string;
+  /** The lines as they were when filed, or empty. */
+  figures: { line: string; name: string; value: number }[];
+}
+
+/**
+ * Record a filing as submitted, and mark it done in the same batch.
+ *
+ * The two writes go together because a filed return that is not ticked off
+ * keeps the reminders coming, and a ticked one with no record loses the
+ * confirmation number, which is the one thing that proves it was sent.
+ */
+export async function recordFiled(
+  db: D1Database, companyId: string, record: FiledRecord,
+): Promise<void> {
+  await db.batch([
+    db.prepare(
+      `INSERT INTO filed_records (company_id, filing_id, filed_on, confirmation, figures)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(company_id, filing_id) DO UPDATE SET
+         filed_on = excluded.filed_on, confirmation = excluded.confirmation,
+         figures = excluded.figures, recorded_at = datetime('now')`,
+    ).bind(companyId, record.filingId, record.filedOn, record.confirmation,
+      record.figures.length ? JSON.stringify(record.figures) : ''),
+    db.prepare(
+      `INSERT INTO filing_states (company_id, filing_id, state) VALUES (?, ?, 'done')
+       ON CONFLICT(company_id, filing_id) DO UPDATE SET state = 'done',
+         changed_at = datetime('now')`,
+    ).bind(companyId, record.filingId),
+  ]);
+}
+
+export async function filedRecords(
+  db: D1Database, companyId: string,
+): Promise<Map<string, FiledRecord>> {
+  const rows = await db.prepare(
+    'SELECT filing_id, filed_on, confirmation, figures FROM filed_records WHERE company_id = ?',
+  ).bind(companyId).all<{ filing_id: string; filed_on: string; confirmation: string; figures: string }>();
+  return new Map((rows.results ?? []).map((r) => [r.filing_id, {
+    filingId: r.filing_id,
+    filedOn: r.filed_on,
+    confirmation: r.confirmation,
+    figures: r.figures ? JSON.parse(r.figures) : [],
+  }]));
+}
+
+/**
+ * The day a business was added to FileClear, which is where the calendar's
+ * look back for missed filings starts. Anything due before it was handled
+ * somewhere else.
+ */
+export async function companyAddedOn(db: D1Database, companyId: string): Promise<string> {
+  const row = await db.prepare('SELECT created_at FROM companies WHERE id = ?')
+    .bind(companyId).first<{ created_at: string }>();
+  return (row?.created_at ?? '').slice(0, 10);
+}

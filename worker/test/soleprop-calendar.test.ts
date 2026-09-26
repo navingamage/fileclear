@@ -204,3 +204,22 @@ describe('a real first year', () => {
     expect(window.map((f) => f.obligationId)).not.toContain('t1-instalments');
   });
 });
+
+describe('the filing guide can find when the money is due', () => {
+  /**
+   * The HST return guide looks up the payment filing with the same period to
+   * say when to pay. If the two ever stopped sharing a period label the guide
+   * would fall back to the return's 15 June date and send somebody into six
+   * weeks of interest, so the pairing is pinned here.
+   */
+  it('gives the HST payment and the HST return the same period', () => {
+    const p = soleProp({
+      hst: { registered: true, period: 'annual', method: 'regular', lastYearNetTax: 0 },
+    });
+    const fs = filingsFor(p, 2027);
+    const pay = fs.find((f) => f.obligationId === 'hst-annual-individual-payment')!;
+    const ret = fs.find((f) => f.obligationId === 'hst-annual-individual-return')!;
+    expect(pay.periodLabel).toBe(ret.periodLabel);
+    expect(pay.due < ret.due).toBe(true);
+  });
+});

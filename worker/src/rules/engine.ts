@@ -607,3 +607,30 @@ export function advisoriesFor(p: CompanyProfile): Advisory[] {
 
   return out;
 }
+
+/**
+ * What the calendar shows: everything coming up, and anything that fell due
+ * while FileClear was watching and was never ticked off.
+ *
+ * The calendar used to ask the engine for filings from today onwards and
+ * nothing earlier, so a filing that was missed disappeared from it the morning
+ * after its deadline, and the overdue count could only ever read zero. For a
+ * product whose purpose is deadlines that is the worst way to be wrong: the
+ * one filing that most needs attention is the one that silently goes.
+ *
+ * `watchingSince` bounds the look back to the day the business was added.
+ * Without it a company set up today with a 2019 incorporation would open on
+ * years of payroll remittances and HST returns marked overdue, every one of
+ * which was filed somewhere else before FileClear existed for it. Past filings
+ * that were ticked off are left out: they are done, and the calendar is for
+ * what is not.
+ */
+export function visibleFilings(
+  p: CompanyProfile, today: string, watchingSince: string,
+  done: (id: string) => boolean,
+  rules: Obligation[] = OBLIGATIONS,
+): Filing[] {
+  const since = watchingSince > today ? today : watchingSince;
+  return filingsBetween(p, since, addDays(today, 365), rules)
+    .filter((f) => f.effectiveDue >= today || (f.effectiveDue >= since && !done(f.id)));
+}

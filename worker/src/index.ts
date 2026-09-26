@@ -1,7 +1,9 @@
 import {
   blankProfile, normalise, type CompanyProfile, type Jurisdiction,
 } from './rules/profile';
-import { filingsBetween, advisoriesFor, addDays, yearEndFor } from './rules/engine';
+import {
+  filingsBetween, advisoriesFor, addDays, yearEndFor, visibleFilings, type Filing,
+} from './rules/engine';
 import {
   accountForRequest, createSession, endSession, hashPassword, verifyPassword,
   randomId, sessionCookie, clearedCookie, looksLikeEmail, passwordProblem,
@@ -16,7 +18,7 @@ import {
   employeesFor, addEmployee, deleteEmployee,
   subscriptionFor, recordSubscription, startTrial,
   importRules, rememberImportRule, ledgerFingerprints,
-  homeOfficeFor, saveHomeOffice,
+  homeOfficeFor, saveHomeOffice, recordFiled, filedRecords, companyAddedOn,
 } from './db';
 import { computeHst } from './rules/hst';
 import { sweep, recordSweep, torontoNow, SEND_HOUR, type CronEnv } from './cron';
@@ -40,8 +42,11 @@ import {
   importPage, importPreviewPage, onboardingStepPage, ONBOARDING_STEPS,
   shell, html,
   type HstPeriodOption, type Chrome,
-  t2125Page, incorporatePage,
+  t2125Page, incorporatePage, filePage,
 } from './views';
+import {
+  hstNetfileLines, hstBalance, guideFor, cleanConfirmation, type ReturnLine,
+} from './rules/filing';
 import { serveDownload, releaseInfo, type DownloadsEnv } from './downloads';
 import { homeOffice, type HomeOfficeInput } from './rules/homeoffice';
 import { statement, selfEmployedYear, t2125Statement } from './rules/selfemployed';
@@ -289,6 +294,27 @@ function profileFromForm(form: FormData): { profile: CompanyProfile; error?: str
   // And normalise has the last word, because a sole proprietorship cannot be a
   // CCPC at all whatever the form said.
   return { profile: normalise(p) };
+}
+
+/**
+ * A filing by its stable id, which carries its own statutory due date: the
+ * obligation, the period and the date, joined by bars. Searching the day
+ * either side of that date finds it without recomputing every year there is.
+ */
+function findFiling(p: CompanyProfile, id: string): Filing | undefined {
+  const due = id.split('|')[2] ?? '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return undefined;
+  return filingsBetween(p, addDays(due, -1), addDays(due, 1)).find((f) => f.id === id);
+}
+
+/** The GST/HST return for exactly the period a filing covers. */
+async function hstLinesFor(
+  env: Env, companyId: string, p: CompanyProfile, filing: Filing, instalments: number,
+): Promise<ReturnLine[] | undefined> {
+  if (!filing.coversFrom) return undefined;
+  const rows = await transactionsFor(env.DB, companyId, filing.coversFrom, filing.coversUpTo);
+  const r = computeHst(toLedger(rows), filing.coversFrom, filing.coversUpTo);
+  return hstNetfileLines(r, p.hst.method, instalments);
 }
 
 // -------------------------------------------------------------------- routes
@@ -693,11 +719,13 @@ export default {
       if (!company) return redirect('/onboarding');
 
       const from = today();
-      const filings = filingsBetween(company.profile, from, addDays(from, 365));
-      const [states, txns] = await Promise.all([
+      const [states, txns, addedOn] = await Promise.all([
         filingStates(env.DB, company.id),
         transactionsFor(env.DB, company.id),
+        companyAddedOn(env.DB, company.id),
       ]);
+      const filings = visibleFilings(company.profile, from, addedOn || from,
+        (id) => states.get(id) === 'done');
 
       // A shareholder loan is the one thing the ledger knows about that the
       // calendar cannot see, because its deadline comes from a balance rather
@@ -717,10 +745,88 @@ export default {
         ...advisoriesFor(company.profile),
       ];
 
+      const filed = await filedRecords(env.DB, company.id);
       return html(dashboardPage(
         account.email, company.id, company.profile, filings, states,
-        advisories, from, chrome,
+        advisories, from, chrome, filed,
       ));
+    }
+
+    /**
+     * Filing a return: the guide for one filing, and recording it as filed.
+     *
+     * Open after a trial ends, like the calendar it hangs off, because the
+     * step that stops a penalty is not the place to put a paywall. The HST
+     * figures inside it are the exception, since those are the HST screen's
+     * figures and the HST screen is paid: without a subscription the guide
+     * still walks through filing and points at where the figures are.
+     */
+    if (path === '/file' && account) {
+      if (!company) return redirect('/onboarding');
+      const filing = findFiling(company.profile, url.searchParams.get('filing') ?? '');
+      if (!filing) return redirect('/dashboard');
+
+      const kind = guideFor(filing.obligationId);
+      const record = (await filedRecords(env.DB, company.id)).get(filing.id);
+      const instalments = money(url.searchParams.get('instalments')) ?? 0;
+
+      let lines: ReturnLine[] | undefined;
+      let balance: number | undefined;
+      if (kind === 'hst' && access.allowed) {
+        if (record?.figures.length) {
+          // What was filed stays what was filed, whatever the ledger does now.
+          lines = record.figures as ReturnLine[];
+        } else {
+          lines = await hstLinesFor(env, company.id, company.profile, filing, instalments);
+        }
+        balance = lines ? hstBalance(lines) : undefined;
+      }
+
+      // When the money is due, which is not always when the return is. An
+      // unincorporated annual HST filer files by 15 June and pays by 30 April,
+      // the same split as the personal return, and a guide that said "pay by
+      // 15 June" would walk somebody straight into six weeks of interest.
+      const payBy = filing.obligationId === 'hst-annual-individual-return'
+        ? filingsBetween(company.profile, addDays(filing.due, -60), filing.due)
+          .find((f) => f.obligationId === 'hst-annual-individual-payment'
+            && f.periodLabel === filing.periodLabel)?.effectiveDue ?? filing.effectiveDue
+        : filing.effectiveDue;
+
+      return html(filePage(account.email, company.profile.legalName, {
+        kind: kind === 'hst' && !lines ? 'general' : kind,
+        filing, lines, balance, instalments, payBy,
+        method: company.profile.hst.method, record,
+        sole: company.profile.entityType === 'soleProprietorship',
+      }, today(), undefined, chrome));
+    }
+
+    if (path === '/file/record' && account && request.method === 'POST') {
+      if (!company) return redirect('/onboarding');
+      const form = await request.formData();
+      const filing = findFiling(company.profile, String(form.get('filing') ?? ''));
+      if (!filing) return redirect('/dashboard');
+
+      const filedOn = String(form.get('filedOn') ?? '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(filedOn) || filedOn > today()) {
+        return redirect(`/file?filing=${encodeURIComponent(filing.id)}`);
+      }
+
+      // The figures are recomputed here rather than taken from the form, so the
+      // record is what FileClear computed and not whatever came back in a
+      // hidden field.
+      let figures: ReturnLine[] = [];
+      if (guideFor(filing.obligationId) === 'hst' && access.allowed) {
+        const instalments = money(form.get('instalments')) ?? 0;
+        figures = (await hstLinesFor(env, company.id, company.profile, filing, instalments)) ?? [];
+      }
+
+      await recordFiled(env.DB, company.id, {
+        filingId: filing.id,
+        filedOn,
+        confirmation: cleanConfirmation(String(form.get('confirmation') ?? '')),
+        figures,
+      });
+      return redirect(`/file?filing=${encodeURIComponent(filing.id)}`);
     }
 
     if (path === '/filing' && account && request.method === 'POST') {

@@ -46,9 +46,28 @@ export interface HstReturn {
 
   /** Line 101. Total revenue, HST excluded. */
   totalRevenue: number;
-  /** Line 105. HST collected or collectible. */
+  /**
+   * Revenue that is not a taxable supply made in Canada: exempt income such as
+   * interest, and zero-rated sales, which FileClear treats as exports because
+   * for a service business that is what they almost always are. Line 91 on an
+   * electronic return; everything else is line 90.
+   */
+  exemptRevenue: number;
+  zeroRatedRevenue: number;
+  /**
+   * Line 103. HST collected or collectible.
+   *
+   * This was labelled line 105, which is the total after adjustments. With no
+   * adjustments the two are the same number, which is why it looked right, but
+   * a person filing electronically types into 103 and CRA works out 105.
+   */
   collected: number;
-  /** Line 108. Input tax credits. */
+  /**
+   * Line 106. Input tax credits.
+   *
+   * Labelled line 108 until September 2026. 108 is 106 plus adjustments, and
+   * on an electronic return CRA calculates it; 106 is where the figure goes.
+   */
   itcs: number;
   /** Line 109. Net tax under the regular method. */
   netTaxRegular: number;
@@ -96,6 +115,7 @@ export function computeHst(lines: LedgerLine[], from: string, to: string): HstRe
   let itcs = 0;
   let capitalItcs = 0;
   let exemptSales = 0;
+  let zeroRatedSales = 0;
   let sawGoodsForResale = false;
 
   for (const line of inPeriod) {
@@ -107,6 +127,7 @@ export function computeHst(lines: LedgerLine[], from: string, to: string): HstRe
       totalRevenue += line.amount;
       collected += line.hst;
       if (account.hst === 'exempt') exemptSales += line.amount;
+      if (account.hst === 'zero-rated') zeroRatedSales += line.amount;
       continue;
     }
 
@@ -158,7 +179,8 @@ export function computeHst(lines: LedgerLine[], from: string, to: string): HstRe
 
   return {
     from, to,
-    totalRevenue, collected, itcs, netTaxRegular,
+    totalRevenue, exemptRevenue: exemptSales, zeroRatedRevenue: zeroRatedSales,
+    collected, itcs, netTaxRegular,
     quick: {
       eligible,
       rate: QUICK_RATE_ON_SERVICES,

@@ -652,3 +652,59 @@ Application certificate, which costs nothing beyond the Apple Developer
 membership already held and is the one step Apple reserves for the Account
 Holder: an App Store Connect API key is refused whatever role it holds. Windows
 needs a certificate that has to be bought, and is parked until then.
+
+
+## Filing, and what FileClear is allowed to send
+
+Whether FileClear can file something for you has a different answer for each
+authority, and the answers are theirs rather than a choice made here.
+
+GST/HST, the T2 and the T1 can only be transmitted on somebody's behalf by
+software CRA has certified. CRA lists GST/HST Internet File Transfer as needing
+certified software, and certification is a process a developer applies for with
+CRA's GST/HST Electronic Filing Services Section, not a feature. Ontario's
+annual return can be filed for a client only through its Partner Portal, a web
+portal for approved intermediaries such as accountants and lawyers. Corporations
+Canada files through its Online Filing Centre. None of them has a public filing
+interface.
+
+So every filing on the calendar has a File it screen that does everything short
+of the submit button. For an HST return that is the figures in the order GST/HST
+NETFILE asks for them, lines 90 and 91 included, with CRA's own line names, the
+lines CRA calculates itself marked as ones to check rather than type, where to
+file, how to pay and by when. For an annual return it is what to have in hand,
+what the registry will ask, the fee and the link. Then the confirmation number
+comes back here, which marks the filing done and keeps a copy of the figures as
+they were filed.
+
+That copy is the one place this product stores a computed figure, and the
+reason is the usual reason turned round. A correction should reach everybody the
+next morning because a calculation is not a fact; once a return has gone to CRA
+it is a fact about the past, and the ledger changing afterwards must not change
+what FileClear says was filed.
+
+The screen found three things wrong on the way. The HST screen labelled HST
+collected as line 105 and input tax credits as line 108, which are the totals
+after adjustments that CRA calculates; the figures go on 103 and 106. An
+unincorporated annual HST filer was told to pay by the return's 15 June
+deadline, when the money is due on 30 April, which is the six weeks of interest
+this product exists to prevent. And the calendar fetched filings from today
+onwards, so a missed filing disappeared the morning after its deadline and the
+overdue count could only read zero. It now keeps anything that fell due while
+FileClear was watching and was never ticked off.
+
+## The chart of accounts, checked against RC4088
+
+Six GIFI codes were wrong until they were checked against CRA's guide rather
+than recalled. Travel sat on 8242, Subsidies and grants, an income code, so a
+corporation copying Schedule 125 would have reported its airfare as government
+assistance. Software was on 8523, Meals and entertainment; telephone on 8914,
+Equipment rental; HST recoverable on 1067, Interest receivable; the employer's
+CPP and EI on 9061, Commissions; and source deductions payable on 2650, which is
+not a GIFI code.
+
+Underneath that, the unincorporated year end printed GIFI codes as though they
+were T2125 lines. The two coincide more often than not, which is why it looked
+right, and where they differ a figure lands in the wrong box: telephone is 9225
+in GIFI and 9220 on the T2125. Each account now carries both. The T2125 was also
+deducting meals in full when line 8523 asks for the allowable part only.

@@ -325,7 +325,10 @@ export const OBLIGATIONS: Obligation[] = [
     title: 'Federal annual return',
     detail:
       'A corporation incorporated federally files its annual return with Corporations '
-      + 'Canada within sixty days of the anniversary of the date it was incorporated. '
+      + 'Canada within sixty days of the anniversary of the date it was incorporated, '
+      + 'together with information on individuals with significant control: anybody '
+      + 'holding or controlling 25% or more of the shares, or with influence over the '
+      + 'corporation. The fee is $12 online. '
       + 'This has nothing to do with the fiscal year end, which is why it is the '
       + 'deadline federal corporations miss most: everything else runs off the year end '
       + 'and this one does not.',

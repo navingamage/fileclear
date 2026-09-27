@@ -1,6 +1,6 @@
 import { words, type CompanyProfile, type EntityType } from './rules/profile';
 import type { Filing, Advisory } from './rules/engine';
-import { DEFAULT_COUNTER } from './rules/postings';
+import { DEFAULT_COUNTER, rowFlow } from './rules/postings';
 import type { FiscalYear, GifiStatements, StatementLine } from './rules/yearend';
 import { GIFI } from './rules/yearend';
 import { CCA_CLASSES, type Schedule8, type AssetRecord } from './rules/cca';
@@ -80,50 +80,51 @@ const CHROME = `<style>
   p { margin: 0 0 1rem; }
 
   .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  /* A form that asks one thing at a time reads better in a column than
+     across the page. Screens that show figures use the full width. */
   .narrow { max-width: 640px; }
+  /* The single form pages around signing in: the sign in column on its own,
+     at the same width and the same distance from the header. */
+  .auth { max-width: 27rem; margin-top: clamp(1rem, 4vw, 3rem); }
+  .auth h1 { font-size: clamp(1.9rem, 3.4vw, 2.5rem); }
 
   header.app { border-bottom: 1px solid var(--line); background: var(--bg);
     position: sticky; top: 0; z-index: 40; }
-  .app-in { display: flex; align-items: center; gap: 1.4rem; padding: .9rem 0;
-    flex-wrap: wrap; row-gap: .6rem; }
+  /* Two rows when signed in: who and which business on top, the sections as
+     tabs underneath. One row fitted the brand, eight sections, the business
+     switcher and the address only on a very wide screen; anywhere else the
+     address and Sign out wrapped under the logo at whatever point they ran
+     out of room, so the header was a different shape on every machine. The
+     side padding is the page's own, so the logo lines up with the headings. */
+  .app-in { display: flex; flex-wrap: wrap; align-items: center; column-gap: 1rem;
+    padding-top: .75rem; padding-bottom: .75rem; }
+  .app-in.has-nav { padding-bottom: 0; }
   .brand { display: flex; align-items: center; gap: .55rem; color: var(--ink);
     font-family: var(--font-display); font-weight: 800; font-size: 1.1rem;
-    letter-spacing: -.04em; }
-  .brand:hover { text-decoration: none; }
+    letter-spacing: -.04em; text-decoration: none; }
+  .brand:hover { text-decoration: none; color: var(--ink); }
   .brand img { width: 30px; height: 30px; border-radius: 8px; }
-  .app-nav { display: flex; gap: 1.3rem; margin-left: 1rem; }
-  /* "Year end" was breaking across two lines and taking the header's height
-     with it. A navigation item is a label, not a paragraph. */
-  .app-nav a { color: var(--muted); font-size: .95rem; font-weight: 500;
-    white-space: nowrap; }
-  .app-nav a:hover { color: var(--ink); text-decoration: none; }
-  .app-nav a.on { color: var(--ink); font-weight: 600; }
+  .app-nav { order: 3; flex-basis: 100%; display: flex; gap: 1.5rem; margin-top: .45rem;
+    overflow-x: auto; overscroll-behavior-x: contain;
+    /* The overflow on a phone is obvious from the cut off item, so a
+       scrollbar under the tabs is noise. */
+    scrollbar-width: none; -ms-overflow-style: none; }
+  .app-nav::-webkit-scrollbar { display: none; }
+  /* A navigation item is a label, not a paragraph: never two lines. */
+  .app-nav a { color: var(--muted); font-size: .93rem; font-weight: 500;
+    white-space: nowrap; text-decoration: none; padding: .45rem 0 .6rem;
+    border-bottom: 2px solid transparent; }
+  .app-nav a:hover { color: var(--ink); }
+  .app-nav a.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--brand); }
+  .switcher { margin: 0 0 0 auto; }
   .app-right { margin-left: auto; display: flex; align-items: center; gap: .9rem;
     font-size: .9rem; color: var(--muted); }
-  /* Below this the navigation moves to a row of its own and scrolls sideways.
-     It used to be display:none with nothing in its place, so on a phone a
-     signed in person could reach the dashboard through the logo and no other
-     screen at all: not the books, not the HST return, not their own company
-     details. Hiding navigation is only a reasonable answer when something
-     replaces it. */
-  @media (max-width: 860px) {
-    .app-nav {
-      order: 3; width: 100%; margin-left: 0;
-      overflow-x: auto; overscroll-behavior-x: contain;
-      padding-bottom: .15rem;
-      /* The bar is short and the overflow is obvious from the cut off item, so
-         a scrollbar under seven links is noise. */
-      scrollbar-width: none; -ms-overflow-style: none;
-    }
-    .app-nav::-webkit-scrollbar { display: none; }
-    .app-in { padding-bottom: .5rem; }
-  }
-  /* The address is who you are signed in as, which matters on a shared machine
-     and not much otherwise. On a phone it was wrapping to two lines and pushing
-     the sign out button off the screen entirely. */
-  @media (max-width: 620px) { .app-right span { display: none; } }
+  .switcher + .app-right { margin-left: 0; }
   .app-right span { max-width: 18rem; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; }
+  /* The address matters on a shared machine and not much otherwise. On a
+     phone it pushed Sign out off the screen. */
+  @media (max-width: 720px) { .app-right span { display: none; } }
 
   .label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .15em;
     text-transform: uppercase; color: var(--brand); display: block;
@@ -143,13 +144,29 @@ const CHROME = `<style>
   .field .sub { display: block; color: var(--muted); font-size: .85rem;
     font-weight: 400; margin-top: .15rem; }
   input[type=text], input[type=email], input[type=password], input[type=date],
-  input[type=number], select {
+  input[type=number], input[type=tel], input[type=url], input[type=search],
+  select, textarea {
     width: 100%; padding: .68rem .8rem; font: inherit; font-size: .97rem;
     color: var(--ink); background: var(--surface);
     border: 1px solid var(--line-2); border-radius: 10px;
   }
-  input:focus, select:focus { border-color: var(--brand); }
+  input:focus, select:focus, textarea:focus { border-color: var(--brand); }
+  /* The browser's own file button is grey and square on every theme; this is
+     the same button as everywhere else. */
+  input[type=file] { font: inherit; font-size: .9rem; color: var(--muted); max-width: 100%; }
+  input[type=file]::file-selector-button { font: inherit; font-weight: 600; font-size: .88rem;
+    margin-right: .8rem; padding: .45rem .95rem; cursor: pointer; color: var(--ink);
+    background: var(--surface); border: 1.5px solid var(--line-2); border-radius: 6px; }
+  input[type=file]::file-selector-button:hover { background: var(--sunk); }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  /* Paired fields whose hints sit in the label: the labels stretch so both
+     inputs share a baseline, however long either hint runs. Rows with a hint
+     under an input are left alone, since stretching there would push the
+     other input down past it. */
+  .row2:not(:has(> .field > .sub)) > .field { display: flex; flex-direction: column; }
+  .row2:not(:has(> .field > .sub)) > .field > label { flex: 1 0 auto; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--brand);
+    width: 1.05rem; height: 1.05rem; margin: .2rem 0 0; flex: none; }
   @media (max-width: 560px) { .row2 { grid-template-columns: 1fr; } }
   .check { display: flex; gap: .65rem; align-items: flex-start; margin-bottom: .85rem; }
   .check input { margin-top: .35rem; flex: none; }
@@ -164,8 +181,10 @@ const CHROME = `<style>
   .btn { display: inline-flex; align-items: center; justify-content: center;
     padding: .68rem 1.25rem; font: inherit; font-weight: 600; font-size: .95rem;
     cursor: pointer; border: 1.5px solid var(--line-2); background: var(--surface);
-    color: var(--ink); border-radius: 6px; white-space: nowrap; }
-  .btn:hover { text-decoration: none; background: var(--sunk); }
+    color: var(--ink); border-radius: 6px; white-space: nowrap; text-decoration: none; }
+  /* A link styled as a button is a button: no underline, and no link colour
+     on hover, or "File it" and "Subscribe" look like two different things. */
+  .btn:hover { text-decoration: none; background: var(--sunk); color: var(--ink); }
   .btn.primary { background: var(--primary); border-color: var(--primary);
     color: var(--primary-ink); }
   .btn.primary:hover { filter: brightness(1.15); background: var(--primary); }
@@ -196,6 +215,9 @@ const CHROME = `<style>
     gap: .9rem; align-items: center; padding: .85rem 1.25rem;
     border-bottom: 1px solid var(--line); }
   .frow:last-child { border-bottom: 0; }
+  /* A row with nothing but text, "Nothing yet." and the like, spans the card
+     rather than wrapping inside the narrow first column. */
+  .frow > .t:only-child { grid-column: 1 / -1; }
   .frow.overdue { background: var(--danger-tint); }
   .frow.done { opacity: .5; }
   .frow.done .t { text-decoration: line-through; }
@@ -230,15 +252,9 @@ const CHROME = `<style>
     /* A statement line is a label and a number, and the number belongs beside
        the label on any width. The generic rule above forces .f into the second
        column, which on a three column GIFI row dropped every amount onto a line
-       of its own: the same bug that was fixed for desktop and reintroduced
-       here. */
-    .two .frow,
-  /* A label and a figure in a full width card. Without this the default four
-     column row leaves its last track empty and the number stops short of the
-     edge it should be aligned to. */
-  .frow.pair { grid-template-columns: 1fr auto; }
-    .two .frow .f { grid-column: auto; }
-    .two .frow.gifi { grid-template-columns: 2.8rem 1fr auto; }
+       of its own. The columns themselves are set after the base rules below,
+       so they are not overridden by them. */
+    .two .frow .f, .frow.pair .f { grid-column: auto; }
   }
 
   details.why { margin-top: .4rem; }
@@ -247,8 +263,11 @@ const CHROME = `<style>
   details.why p { font-size: .9rem; color: var(--ink-2); margin: .5rem 0 0; }
 
   .advisory { border: 1px solid var(--line); border-left: 3px solid var(--warn);
-    background: var(--warn-tint); padding: .9rem 1.1rem; margin-bottom: .8rem;
+    background: var(--warn-tint); padding: .9rem 1.1rem; margin-bottom: 1.4rem;
     border-radius: 0 12px 12px 0; font-size: .93rem; }
+  /* Advisories in a run read as one list; the space before whatever follows
+     the run is what separates them from the page. */
+  .advisory + .advisory { margin-top: -.6rem; }
   .advisory.info { border-left-color: var(--line-2); background: var(--band);
     color: var(--ink-2); }
   .advisory b { display: block; margin-bottom: .2rem; }
@@ -272,11 +291,15 @@ const CHROME = `<style>
   .frow.total { background: var(--band); }
   /* The corporation switcher, which only appears once there is more than one.
      Sized to sit in the header without pushing the nav around. */
-  .switcher { margin: 0 0 0 auto; }
   .switcher select { width: auto; max-width: 15rem; padding: .3rem .5rem;
     font-size: .88rem; border-radius: 8px; }
-  .switcher + .app-right { margin-left: 1rem; }
   @media (max-width: 720px) { .switcher select { max-width: 9rem; } }
+  @media (max-width: 420px) {
+    .switcher select { max-width: 8.5rem; }
+    /* The icon, the business and Sign out on one row: the word is what gives
+       way, since the icon already says whose app this is. */
+    .app-in:has(.switcher) .brand-name { display: none; }
+  }
 
   /* A secondary action set apart from the form it follows, so it reads as a
      different thing to do rather than another field. */
@@ -353,6 +376,8 @@ const CHROME = `<style>
   .brow.head { background: var(--band); border-bottom: 1px solid var(--line);
     font-family: var(--font-mono); font-size: .68rem; letter-spacing: .1em;
     text-transform: uppercase; color: var(--muted); padding: .7rem 1.25rem; }
+  /* The column headings share the numbers' alignment, not their type. */
+  .brow.head .brow-n { font-size: inherit; color: inherit; font-weight: inherit; }
   .brow-d { font-family: var(--font-mono); font-size: .8rem; color: var(--muted);
     font-variant-numeric: tabular-nums; white-space: nowrap; }
   .brow-a { font-size: .93rem; font-weight: 500; min-width: 0; }
@@ -458,7 +483,7 @@ const CHROME = `<style>
     border-top: 1px solid var(--line); }
   h2.sec + .hint { margin-top: .6rem; }
   .frow .t.muted { color: var(--muted); }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 2rem; }
   @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
   .two .sheet { margin-bottom: 0; }
   .two .sheet.win { border-color: var(--brand); box-shadow: var(--shadow-lg); }
@@ -471,6 +496,7 @@ const CHROME = `<style>
      column back. Without this the amount wrapped to a line of its own and every
      statement row stood 90 pixels tall. */
   .two .frow.gifi { grid-template-columns: 3.2rem 1fr auto; }
+  @media (max-width: 660px) { .two .frow.gifi { grid-template-columns: 2.8rem 1fr auto; } }
   .frow.gifi .d { font-size: .76rem; }
   .verdict { margin: 1.5rem 0; padding: 1.1rem 1.3rem; border-radius: 16px;
     background: var(--band); font-size: .97rem; }
@@ -480,7 +506,6 @@ const CHROME = `<style>
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
     gap: 1rem;
     margin: 1.6rem 0; }
-  @media (max-width: 660px) { .stats { grid-template-columns: 1fr; } }
   .stat { background: var(--band); border: 1px solid var(--line);
     border-radius: 16px; padding: 1.1rem 1.2rem; }
   .stat b { display: block; font-family: var(--font-mono); font-weight: 500;
@@ -488,6 +513,15 @@ const CHROME = `<style>
     font-variant-numeric: tabular-nums; }
   .stat span { display: block; color: var(--muted); font-size: .88rem; margin-top: .2rem; }
   .stat.bad b { color: var(--danger); }
+  /* Two to a row on a phone. One to a row put four figures a screen tall
+     between the heading and anything that could be acted on. */
+  @media (max-width: 660px) {
+    .stats { grid-template-columns: 1fr 1fr; gap: .7rem; }
+    .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .stat { padding: .85rem .95rem; border-radius: 14px; }
+    .stat b { font-size: clamp(1.05rem, 5.2vw, 1.4rem); overflow-wrap: anywhere; }
+    .stat span { font-size: .8rem; }
+  }
   .frow .now { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .08em;
     text-transform: uppercase; color: var(--brand); }
 
@@ -550,6 +584,11 @@ const CHROME = `<style>
   .frow.file-note { display: block; }
   .slip-box .f input { width: 8.5rem; text-align: right; font-family: var(--font-mono); }
   .cta-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: .6rem 0 .8rem; }
+  .plan-body { padding: 1.2rem 1.25rem 1.3rem; }
+  .plan-price { margin: 0 0 .35rem; color: var(--muted); }
+  .plan-price b { font-family: var(--font-display); font-size: 2.2rem; color: var(--ink);
+    letter-spacing: -.03em; }
+  .plan form { margin: 0; }
 
   .steps-bar { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em;
     text-transform: uppercase; color: var(--muted); margin-bottom: 1.6rem; }
@@ -582,8 +621,8 @@ export function shell(
   const link = (href: string, label: string) =>
     `<a href="${href}"${active === href ? ' class="on"' : ''}>${label}</a>`;
   return `${HEAD(title)}
-<header class="app"><div class="wrap app-in">
-  <a class="brand" href="/"><img src="/brand/icon-192.png" alt="" width="30" height="30">FileClear</a>
+<header class="app"><div class="wrap app-in${email && !hideNav ? ' has-nav' : ''}">
+  <a class="brand" href="/" aria-label="FileClear"><img src="/brand/icon-192.png" alt="" width="30" height="30"><span class="brand-name">FileClear</span></a>
   ${email && !hideNav ? `<nav class="app-nav" aria-label="Sections">
     ${link('/dashboard', 'Filings')}${link('/books', 'Books')}${link('/hst', 'HST')}
     ${chrome.entityType === 'soleProprietorship'
@@ -719,10 +758,10 @@ export function onboardingPage(
   const w = words(p.entityType);
   return shell(sole ? 'Your business' : 'Your corporation', `
 <div class="narrow">
-  <div class="steps-bar"><b>${adding ? `Adding a ${w.entity}` : 'Step 1 of 1'}</b>
+  <div class="steps-bar"><b>${adding ? `Adding a ${w.entity}` : 'Details'}</b>
     &middot; about the ${esc(w.entity)}</div>
   <h1>${adding ? 'Tell us about the new one.'
-    : `Tell us about the ${esc(w.entity)}.`}</h1>
+    : `Your ${esc(w.entity)} details.`}</h1>
   <p class="hint">Every answer changes which filings exist for you, so none of this
   is a formality. ${sole
     ? 'The fields that only apply to a corporation are not shown, because they do '
@@ -935,21 +974,21 @@ export function onboardingPage(
         <label for="pe-${c}">${n}</label></div>`).join('')}
     </fieldset>
 
-    <button class="btn primary" type="submit">${adding ? 'Add this corporation' : 'Build my calendar'}</button>
+    <button class="btn primary" type="submit">${adding ? `Add this ${esc(w.entity)}` : 'Save changes'}</button>
   </form>
 
   ${adding ? '' : `<div class="also">
-    <h2>Another corporation?</h2>
-    <p class="hint">One account can hold as many as you own. Each keeps its own
-    calendar, books and filings, and the header switches between them.</p>
-    <a class="btn" href="/onboarding?new=1">Add a corporation</a>
+    <h2>Another business?</h2>
+    <p class="hint">One account can hold as many as you run, incorporated or not. Each
+    keeps its own calendar, books and filings, and the header switches between them.</p>
+    <a class="btn" href="/onboarding?new=1">Add a business</a>
   </div>`}
 </div>`, email, '/onboarding', chrome);
 }
 
 // ---------------------------------------------------------------- dashboard
 
-function fmt(iso: string): string {
+export function fmt(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
   return `${String(d).padStart(2, '0')} ${MONTHS[m - 1]!.slice(0, 3)} ${y}`;
 }
@@ -1022,7 +1061,7 @@ export function dashboardPage(
 <h1>What you owe, and when.</h1>
 
 <div class="stats">
-  <div class="stat"><b>${outstanding.length}</b><span>outstanding this year</span></div>
+  <div class="stat"><b>${outstanding.length}</b><span>due in the next 12 months</span></div>
   <div class="stat${overdue ? ' bad' : ''}"><b>${overdue}</b><span>overdue</span></div>
   <div class="stat"><b>${next ? fmt(next.effectiveDue).replace(/ \d{4}$/, '') : 'None'}</b>
     <span>${next ? esc(next.title) : 'nothing coming up'}</span></div>
@@ -1052,7 +1091,7 @@ import { dollars, type HstReturn } from './rules/hst';
 import type { Statement, SelfEmployedYear, T2125Statement } from './rules/selfemployed';
 import type { HomeOffice, HomeOfficeInput } from './rules/homeoffice';
 import type { IncorporationComparison, Side } from './rules/incorporate';
-import type { GuideKind, ReturnLine, FigureSection } from './rules/filing';
+import { reportsOnPeriod, type GuideKind, type ReturnLine, type FigureSection } from './rules/filing';
 import type { HstMethod } from './rules/profile';
 import type { FiledRecord } from './db';
 import { PROVINCES as PROVINCE_CODES } from './rules/slipxml';
@@ -1098,17 +1137,19 @@ export function booksPage(
     .map((a) => `<option value="${a.id}"${a.id === DEFAULT_COUNTER ? ' selected' : ''}>${esc(a.name)}</option>`)
     .join('');
 
-  // The four figures somebody actually reconciles against a statement. Revenue
-  // is money arriving and everything else is money leaving, which is the same
-  // rule the import uses to read a bank file.
+  // The four figures somebody actually reconciles against a statement. Which
+  // way a row moved money comes from the posting rules rather than from the
+  // account's kind: a dividend is money out and a shareholder's loan is money
+  // in, and neither is revenue or an expense.
   let moneyIn = 0;
   let moneyOut = 0;
   let hstCollected = 0;
   let hstPaid = 0;
   for (const t of txns) {
-    const inflow = ACCOUNT_BY_ID.get(t.account_id)?.kind === 'revenue';
-    if (inflow) { moneyIn += t.amount_cents; hstCollected += t.hst_cents; }
-    else { moneyOut += t.amount_cents; hstPaid += t.hst_cents; }
+    const flow = rowFlow(t.account_id, t.amount_cents);
+    if (flow > 0) moneyIn += flow; else moneyOut -= flow;
+    if (ACCOUNT_BY_ID.get(t.account_id)?.kind === 'revenue') hstCollected += t.hst_cents;
+    else hstPaid += t.hst_cents;
   }
 
   // Newest first, grouped by the month the transaction fell in, because
@@ -1126,10 +1167,7 @@ export function booksPage(
   };
 
   const ledger = [...months.entries()].map(([key, rows]) => {
-    const net = rows.reduce((sum, t) => {
-      const inflow = ACCOUNT_BY_ID.get(t.account_id)?.kind === 'revenue';
-      return sum + (inflow ? t.amount_cents : -t.amount_cents);
-    }, 0);
+    const net = rows.reduce((sum, t) => sum + rowFlow(t.account_id, t.amount_cents), 0);
 
     return `<div class="brow-month">
       <span>${esc(monthName(key))}</span>
@@ -1138,13 +1176,14 @@ export function booksPage(
     </div>
     ${rows.map((t) => {
       const a = ACCOUNT_BY_ID.get(t.account_id);
-      const inflow = a?.kind === 'revenue';
+      const flow = rowFlow(t.account_id, t.amount_cents);
+      const inflow = flow > 0;
       return `<div class="brow">
         <span class="brow-d">${esc(t.txn_date.slice(8))} ${esc(MONTHS[Number(t.txn_date.slice(5, 7)) - 1]!.slice(0, 3))}</span>
         <span class="brow-a">${esc(a?.name ?? t.account_id)}${
           t.description ? `<span class="brow-desc">${esc(t.description)}</span>` : ''}</span>
         <span class="brow-c">${esc(ACCOUNT_BY_ID.get(t.counter_account_id)?.name ?? t.counter_account_id)}</span>
-        <span class="brow-n${inflow ? ' in' : ''}">${inflow ? '+' : ''}${dollars(t.amount_cents)}</span>
+        <span class="brow-n${inflow ? ' in' : ''}">${inflow ? '+' : ''}${dollars(Math.abs(t.amount_cents))}</span>
         <span class="brow-n hst">${t.hst_cents ? dollars(t.hst_cents) : '&middot;'}</span>
         <form method="post" action="/books/delete">
           <input type="hidden" name="company" value="${esc(companyId)}">
@@ -1178,10 +1217,10 @@ ${txns.length ? `<div class="stats">
       <input id="date" name="date" type="date" required value="${esc(today)}"></div>
     <div class="field"><label for="account">Account</label>
       <select id="account" name="account" required>${options}</select></div>
-    <div class="field"><label for="amount">Amount</label>
-      <input id="amount" name="amount" type="text" inputmode="decimal" required placeholder="1000.00 before HST"></div>
-    <div class="field"><label for="hst">HST</label>
-      <input id="hst" name="hst" type="text" inputmode="decimal" placeholder="130.00 as charged"></div>
+    <div class="field"><label for="amount">Before HST</label>
+      <input id="amount" name="amount" type="text" inputmode="decimal" required placeholder="1000.00"></div>
+    <div class="field"><label for="hst">HST charged</label>
+      <input id="hst" name="hst" type="text" inputmode="decimal" placeholder="130.00"></div>
     <div class="field"><label for="counter">From or to</label>
       <select id="counter" name="counter" required>${counterOptions}</select></div>
     <div class="field"><label for="description">Description</label>
@@ -1223,6 +1262,7 @@ export function hstPage(
   active: string, chrome: Chrome = {},
 ): string {
   const better = r.quickSaves > 0;
+  const same = r.quickSaves === 0;
   return shell(`${companyName} HST`, `
 <span class="label">${esc(companyName)} &middot; HST</span>
 <h1>Your HST return.</h1>
@@ -1262,7 +1302,11 @@ ${summary([
 
 <div class="verdict ${better ? 'good' : ''}">
   ${r.quick.eligible
-    ? (better
+    ? (same
+      ? `<b>Both methods come to the same over this period.</b>
+         ${r.totalRevenue ? 'There is nothing to choose between them on these figures.'
+           : 'There is no revenue recorded for it yet, so there is nothing to compare.'}`
+      : better
       ? `<b>The Quick Method would have cost ${dollars(r.quickSaves)} less</b>
          over this period. That is the difference between the two columns above,
          computed from your own ledger rather than from a rule of thumb.`
@@ -1556,8 +1600,8 @@ small enough that something other than tax decides it.</p>
         value="${(available / 100).toFixed(0)}"></div>
     <div class="field"><label for="kind">Dividend type</label>
       <select id="kind" name="kind">
-        <option value="nonEligible"${kind === 'nonEligible' ? ' selected' : ''}>Non-eligible, from small business income</option>
-        <option value="eligible"${kind === 'eligible' ? ' selected' : ''}>Eligible, from generally taxed income</option>
+        <option value="nonEligible"${kind === 'nonEligible' ? ' selected' : ''}>Non-eligible (small business)</option>
+        <option value="eligible"${kind === 'eligible' ? ' selected' : ''}>Eligible (general rate)</option>
       </select></div>
     <div class="field"><button class="btn primary" type="submit">Compare</button></div>
   </div>
@@ -1614,12 +1658,13 @@ ${notes(c.considerations, 'what the arithmetic cannot see')}
 
 <h2 class="sec">What this does not include</h2>
 ${notes(c.caveats, 'the limits of this comparison')}
-${worksheetFooter()}
 
 <div class="advisory info"><b>FileClear does not tell you which to pick.</b>
   It computes both so the decision is made on numbers rather than on folklore.
   Whether you want CPP in thirty years, or RRSP room, or employment income a
   lender will underwrite, are not questions a tax calculation can answer.</div>
+
+${worksheetFooter()}
 `, email, '/compensation', chrome);
 }
 
@@ -1709,8 +1754,7 @@ ${nothing ? `<div class="advisory info">${sole
 <p class="hint">Needed once more than one person is paid, because a single salary
 total cannot be split back into separate slips. ${sole
   ? 'Everyone you employ is at arm\'s length and insurable, so EI is withheld and '
-    + 'you pay 1.4 times what they do on top. Leave the voting share box at zero; '
-    + 'there are no shares in an unincorporated business.'
+    + 'you pay 1.4 times what they do on top.'
   : 'Voting shares decide EI: over 40% and the employment is not insurable, '
     + 'whatever anybody would prefer.'}</p>
 
@@ -1719,11 +1763,11 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 <form method="post" action="/employees" class="txn-form">
   <div class="ask-grid wide">
     <div class="field"><label for="e-name">Name</label>
-      <input id="e-name" name="name" type="text" required placeholder="A. Director"></div>
+      <input id="e-name" name="name" type="text" required placeholder="Full name"></div>
     <div class="field"><label for="e-salary">Annual salary</label>
       <input id="e-salary" name="salary" type="text" inputmode="decimal" required placeholder="60000"></div>
-    <div class="field"><label for="e-shares">Voting shares held</label>
-      <input id="e-shares" name="shares" type="text" inputmode="decimal" value="0" placeholder="%"></div>
+    ${sole ? '<input type="hidden" name="shares" value="0">' : `<div class="field"><label for="e-shares">Voting shares held</label>
+      <input id="e-shares" name="shares" type="text" inputmode="decimal" value="0" placeholder="%"></div>`}
     <div class="field"><label for="e-freq">Paid</label>
       <select id="e-freq" name="frequency">
         <option value="monthly">Monthly</option>
@@ -1738,7 +1782,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 ${employees.length ? `<div class="sheet">
   <div class="sheet-head"><span>Register</span><span>${employees.length} on payroll</span></div>
   ${run!.lines.map((l) => `<div class="frow">
-    <span class="d">${l.employee.votingSharePct}%</span>
+    <span class="d">${sole ? '' : `${l.employee.votingSharePct}%`}</span>
     <span class="t">${esc(l.employee.name)}
       <span class="sub">${dollars(l.annualSalary)} a year &middot; ${esc(l.deductions.frequency)}
       &middot; ${l.insurable ? 'insurable, EI applies' : 'not insurable, no EI'}</span></span>
@@ -1838,67 +1882,71 @@ export function billingPage(
   justPaid: boolean, error?: string,
   chrome: Chrome = {},
 ): string {
-  const when = (seconds: number) => new Date(seconds * 1000).toISOString().slice(0, 10);
+  const when = (seconds: number) => fmt(new Date(seconds * 1000).toISOString().slice(0, 10));
+  // Stripe's own words for a subscription's state are identifiers, not prose.
+  const status: Record<string, string> = {
+    active: 'Active', trialing: 'Trial', past_due: 'Payment overdue', unpaid: 'Unpaid',
+    canceled: 'Cancelled', incomplete: 'Payment not finished',
+    incomplete_expired: 'Payment not finished', paused: 'Paused',
+  };
+  const plan = (name: string, price: number, per: string, note: string, value: string) => `
+  <div class="sheet plan">
+    <div class="sheet-head"><span>${name}</span><span>${note}</span></div>
+    <div class="plan-body">
+      <p class="plan-price"><b>$${(price / 100).toFixed(0)}</b> <span>CAD ${per}</span></p>
+      <p class="hint">Every business on your account, and every screen in FileClear.</p>
+      <form method="post" action="/billing/checkout">
+        <input type="hidden" name="plan" value="${value}">
+        <button class="btn primary" type="submit">Subscribe ${value}</button>
+      </form>
+    </div>
+  </div>`;
 
   return shell('Billing', `
-<div class="narrow">
 <span class="label">Billing</span>
 <h1>${sub ? 'Your subscription.' : 'Keep using FileClear.'}</h1>
+<p class="hint">${sub
+  ? 'What you pay, when it renews, and where to change it.'
+  : 'One price for every business on the account. Cancel whenever you like.'}</p>
 
 ${justPaid ? '<div class="ok"><b>Thank you.</b> Your subscription is active. If this page '
   + 'still shows a trial, give it a moment: Stripe confirms it in the background.</div>' : ''}
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
-${sub ? `<div class="sheet">
-  <div class="sheet-head"><span>Status</span><span>${esc(sub.status)}</span></div>
-  <div class="frow"><span class="t">Plan</span>
-    <span class="f num">${esc(planLabel)}</span></div>
-  <div class="frow"><span class="t">${sub.cancelAtPeriodEnd ? 'Runs until' : 'Renews on'}
-    <span class="sub">${sub.cancelAtPeriodEnd
-      ? 'Cancelled. Everything keeps working until this date, which is what the terms promise.'
-      : 'Cancel any time; cancelling stops the next renewal.'}</span></span>
-    <span class="f num">${sub.currentPeriodEnd ? when(sub.currentPeriodEnd) : '&mdash;'}</span></div>
-</div>` : ''}
-
 ${state.reason === 'trial' ? `<div class="advisory"><b>${state.trialDaysLeft}
   day${state.trialDaysLeft === 1 ? '' : 's'} left in your trial.</b>
-  It ends on ${esc(trialEndsAt ?? '')}. Nothing is locked until then, and no card is
-  needed to keep looking around.</div>` : ''}
+  It ends on ${esc(trialEndsAt ? fmt(trialEndsAt) : '')}. Nothing is locked until then, and
+  no card is needed to keep looking around.</div>` : ''}
 
 ${!state.allowed ? `<div class="advisory"><b>Your trial has ended.</b>
   The calendar and reminders keep running. The screens that compute money, the HST
   return, the year end and the slips, need a subscription.</div>` : ''}
 
-${!sub ? `<div class="two">
-  <div class="sheet">
-    <div class="sheet-head"><span>Monthly</span><span>CAD</span></div>
-    <div class="frow"><span class="t"><b style="font-size:1.6rem">$${(monthly / 100).toFixed(0)}</b>
-      <span class="sub">a month, every corporation you own</span></span></div>
-    <form method="post" action="/billing/checkout" style="padding:0 1.25rem 1.25rem">
-      <input type="hidden" name="plan" value="monthly">
-      <button class="btn primary" type="submit">Subscribe monthly</button>
-    </form>
-  </div>
-  <div class="sheet">
-    <div class="sheet-head"><span>Yearly</span><span>two months free</span></div>
-    <div class="frow"><span class="t"><b style="font-size:1.6rem">$${(yearly / 100).toFixed(0)}</b>
-      <span class="sub">a year, every corporation you own</span></span></div>
-    <form method="post" action="/billing/checkout" style="padding:0 1.25rem 1.25rem">
-      <input type="hidden" name="plan" value="yearly">
-      <button class="btn primary" type="submit">Subscribe yearly</button>
-    </form>
-  </div>
-</div>` : ''}
+${sub ? `<div class="sheet">
+  <div class="sheet-head"><span>Subscription</span><span>${esc(status[sub.status] ?? sub.status)}</span></div>
+  <div class="frow pair"><span class="t">Plan</span>
+    <span class="f num">${esc(planLabel)}</span></div>
+  <div class="frow pair"><span class="t">${sub.cancelAtPeriodEnd ? 'Runs until' : 'Renews on'}
+    <span class="sub">${sub.cancelAtPeriodEnd
+      ? 'Cancelled. Everything keeps working until this date, which is what the terms promise.'
+      : 'Cancel any time; cancelling stops the next renewal.'}</span></span>
+    <span class="f num">${sub.currentPeriodEnd ? when(sub.currentPeriodEnd) : 'Not set'}</span></div>
+</div>` : `<div class="two">
+  ${plan('Monthly', monthly, 'a month', 'billed monthly', 'monthly')}
+  ${plan('Yearly', yearly, 'a year', 'two months free', 'yearly')}
+</div>`}
 
-${hasCustomer ? `<form method="post" action="/billing/portal" style="margin-top:1.5rem">
-  <button class="btn" type="submit">Manage billing, cards and invoices</button>
-</form>` : ''}
+${hasCustomer ? `<div class="cta-row">
+  <form method="post" action="/billing/portal">
+    <button class="btn" type="submit">Manage billing, cards and invoices</button>
+  </form>
+</div>` : ''}
 
 <div class="advisory info"><b>Your card never touches FileClear.</b>
   It is entered on Stripe's own page and what comes back here is an identifier.
   Cancelling stops the next renewal and leaves everything running to the end of
   the period you have paid for.</div>
-</div>`, email, '/billing', chrome);
+`, email, '/billing', chrome);
 }
 
 // ---------------------------------------------------------- password reset
@@ -1907,14 +1955,14 @@ ${hasCustomer ? `<form method="post" action="/billing/portal" style="margin-top:
 export function forgotPage(sent = false, email = '', error?: string): string {
   return shell('Reset your password', `
 <div class="auth">
-  <span class="label">FileClear</span>
+  <span class="label">Password reset</span>
   <h1>${sent ? 'Check your email.' : 'Forgotten password'}</h1>
   ${sent
     ? `<p class="hint">If ${esc(email)} has an account here, a link is on its way.
        It works once and stops working in an hour.</p>
        <p class="hint">Nothing arrived? Check the address, and look in spam. We do not
        say whether an address has an account, so this page looks the same either way.</p>
-       <p><a href="/signin">Back to sign in</a></p>`
+       <p class="auth-alt"><a href="/signin">Back to sign in</a></p>`
     : `<p class="hint">We will send a link that lets you choose a new one.</p>
       ${error ? `<div class="err">${esc(error)}</div>` : ''}
       <form method="post" action="/forgot">
@@ -1923,9 +1971,9 @@ export function forgotPage(sent = false, email = '', error?: string): string {
           <input id="email" name="email" type="email" required autocomplete="username"
             value="${esc(email)}">
         </div>
-        <button class="btn primary" type="submit">Send the link</button>
+        <button class="btn primary wide" type="submit">Send the link</button>
       </form>
-      <p class="hint" style="margin-top:1.4rem"><a href="/signin">Back to sign in</a></p>`}
+      <p class="auth-alt"><a href="/signin">Back to sign in</a></p>`}
 </div>`);
 }
 
@@ -1933,12 +1981,12 @@ export function forgotPage(sent = false, email = '', error?: string): string {
 export function resetPage(token: string, error?: string, dead = false): string {
   return shell('Choose a new password', `
 <div class="auth">
-  <span class="label">FileClear</span>
+  <span class="label">Password reset</span>
   ${dead
     ? `<h1>That link has expired.</h1>
        <p class="hint">Reset links work once and last an hour. Ask for a fresh one and
        it will arrive in a moment.</p>
-       <p><a class="btn primary" href="/forgot">Send me another</a></p>`
+       <p><a class="btn primary wide" href="/forgot">Send me another</a></p>`
     : `<h1>Choose a new password.</h1>
        <p class="hint">Signing in everywhere else will stop working, which is the point
        if somebody else had your old one.</p>
@@ -1951,7 +1999,7 @@ export function resetPage(token: string, error?: string, dead = false): string {
              autocomplete="new-password" minlength="10">
            <span class="sub">At least ten characters.</span>
          </div>
-         <button class="btn primary" type="submit">Set it and sign in</button>
+         <button class="btn primary wide" type="submit">Set it and sign in</button>
        </form>`}
 </div>`);
 }
@@ -2377,7 +2425,7 @@ ${year.instalmentsLikely ? `<div class="advisory">
   CRA will ask for quarterly instalments, on 15 March, June, September and December.
   They appear on your calendar once the second year passes the threshold.</div>` : ''}
 
-<h2>The statement of business activities</h2>
+<h2 class="sec">The statement of business activities</h2>
 <div class="two">
   <div class="sheet">
     <div class="sheet-head"><span>Income and expenses</span><span>T2125</span></div>
@@ -2417,6 +2465,14 @@ ${year.instalmentsLikely ? `<div class="advisory">
   </div>
 </div>
 
+${s.mealsDisallowed > 0 ? `<p class="hint">Meals and entertainment are on line 8523 at
+the allowable half. The other ${dollars(s.mealsDisallowed)} is not deductible, so it is
+in the books and not on the return, which is what the form asks for.</p>` : ''}
+
+${s8.totalCca > 0 ? `<p class="hint">Capital cost allowance of ${dollars(s8.totalCca)}
+is included above, from the asset register. It is Area A of the T2125 rather than
+Schedule 8, but the arithmetic is the same one.</p>` : ''}
+
 <details class="why"><summary>Why CPP is so much larger than it was on a payslip</summary>
   <p>An employee pays 5.95% and their employer pays the matching 5.95%. Self-employed,
   you are both, so the rate is 11.9% and the maximum for ${year.cpp.atMaximum
@@ -2431,7 +2487,7 @@ ${year.instalmentsLikely ? `<div class="advisory">
   before tax. Only ${dollars(year.cpp.creditable)} is a credit.</p>
 </details>
 
-<h2>Business use of home</h2>
+<h2 class="sec">Business use of home</h2>
 <p class="hint">The deduction most often understated, because people share the
 utilities and forget the rent or the mortgage interest, which is usually the
 largest number on the page. It is also the one expense that cannot create a loss:
@@ -2509,14 +2565,6 @@ ${st.homeOfficeCarriedForward > 0 ? `<div class="advisory">
   this year.</b> Business use of home cannot create or deepen a loss, so it stops at
   the profit that is left. The rest carries forward indefinitely against this same
   business, so it is worth recording rather than forgetting.</div>` : ''}
-
-${s.mealsDisallowed > 0 ? `<p class="hint">Meals and entertainment are on line 8523 at
-the allowable half. The other ${dollars(s.mealsDisallowed)} is not deductible, so it is
-in the books and not on the return, which is what the form asks for.</p>` : ''}
-
-${s8.totalCca > 0 ? `<p class="hint">Capital cost allowance of ${dollars(s8.totalCca)}
-is included above, from the asset register. It is Area A of the T2125 rather than
-Schedule 8, but the arithmetic is the same one.</p>` : ''}
 
 ${plain ? `<div class="verdict"><b>In plain words</b>${esc(plain)}</div>` : ''}
 
@@ -2637,7 +2685,7 @@ ${summary([
   answers it once you have incorporated.</p>
 </details>
 
-<h2>At what profit, rather than at this profit</h2>
+<h2 class="sec">At what profit, rather than at this profit</h2>
 <p class="hint">The same comparison, drawing ${dollars(c.drawnOut)} a year at each
 level. The advantage grows with what is left behind, which is the whole mechanism:
 it is not that higher income is taxed more kindly inside a corporation, it is that
@@ -2962,6 +3010,10 @@ ${esc(f.authority)}. <a href="/dashboard">Back to your calendar</a>.</p>
 
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
 ${filed}
+${!d.record && reportsOnPeriod(d.kind) && today <= f.coversUpTo ? `<div class="advisory info">
+  <b>This period has not ended yet.</b> It runs to ${esc(fmt(f.coversUpTo))}, and the
+  return can be filed from the day after. The figures below are as the books stand
+  today and will change with them until then.</div>` : ''}
 
 <div class="file-steps">${body}</div>
 

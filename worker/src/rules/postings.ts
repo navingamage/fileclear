@@ -74,6 +74,26 @@ function equationSign(kind: AccountKind): number {
 }
 
 /**
+ * The same, for one account rather than a kind, because a contra account sits
+ * on the other side from the rest of its kind: dividends declared is equity
+ * that grows with a debit.
+ */
+export function accountSign(accountId: string, kind: AccountKind): number {
+  return ACCOUNT_BY_ID.get(accountId)?.contra ? 1 : equationSign(kind);
+}
+
+/**
+ * Which way money moved on a row, from the named account's point of view:
+ * positive when it came in, negative when it went out. A sale is in and rent
+ * is out, but so is a dividend, and money a shareholder lends the business is
+ * in, which is why this cannot be read off the account's kind alone.
+ */
+export function rowFlow(accountId: string, amount: number): number {
+  const a = ACCOUNT_BY_ID.get(accountId);
+  return a ? -accountSign(accountId, a.kind) * amount : 0;
+}
+
+/**
  * Expand one row into balanced postings.
  *
  * An unknown account produces nothing rather than throwing. A row referring to
@@ -113,16 +133,16 @@ export function postingsFor(line: LedgerLine): Posting[] {
   // coming in even though equity is not revenue, and buying a laptop on the
   // director's own card increases what the company owes rather than reducing
   // the bank.
-  const named = equationSign(account.kind) * line.amount
+  const named = accountSign(line.accountId, account.kind) * line.amount
     + (line.hst ? equationSign(taxKind) * line.hst : 0);
-  at(counterId, counter.kind, -named * equationSign(counter.kind));
+  at(counterId, counter.kind, -named * accountSign(counterId, counter.kind));
 
   return out;
 }
 
 /** Zero when a set of postings balances. Anything else is a bug, not a warning. */
 export function outOfBalance(postings: Posting[]): number {
-  return postings.reduce((sum, p) => sum + p.amount * equationSign(p.kind), 0);
+  return postings.reduce((sum, p) => sum + p.amount * accountSign(p.accountId, p.kind), 0);
 }
 
 export interface Balance {

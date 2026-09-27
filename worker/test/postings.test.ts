@@ -100,3 +100,35 @@ describe('balances over a window', () => {
     expect(outOfBalance(all)).toBe(0);
   });
 });
+
+describe('a dividend', () => {
+  const rows = [
+    line('sales', 100_000_00, 0, 'bank', '2026-02-01'),
+    line('dividends-paid', 15_000_00, 0, 'bank', '2026-03-01'),
+  ];
+
+  it('takes money out of the bank', () => {
+    const bank = postingsFor(rows[1]!).find((p) => p.accountId === 'bank')!;
+    expect(bank.amount).toBe(-15_000_00);
+    expect(outOfBalance(postingsFor(rows[1]!))).toBe(0);
+  });
+
+  it('leaves the bank at what came in less what was paid out', () => {
+    const b = balances(rows, '2026-12-31');
+    expect(b.find((r) => r.accountId === 'bank')!.amount).toBe(85_000_00);
+    // Recorded as a positive amount of dividends, which is what the T5 reads.
+    expect(b.find((r) => r.accountId === 'dividends-paid')!.amount).toBe(15_000_00);
+  });
+});
+
+describe('which way a row moved money', () => {
+  it('reads direction from the posting, not the kind', async () => {
+    const { rowFlow } = await import('../src/rules/postings');
+    expect(rowFlow('sales', 100_00)).toBeGreaterThan(0);
+    expect(rowFlow('rent', 100_00)).toBeLessThan(0);
+    expect(rowFlow('dividends-paid', 100_00)).toBeLessThan(0);
+    expect(rowFlow('share-capital', 100_00)).toBeGreaterThan(0);
+    expect(rowFlow('due-shareholder', 100_00)).toBeGreaterThan(0);
+    expect(rowFlow('due-shareholder', -100_00)).toBeLessThan(0);
+  });
+});

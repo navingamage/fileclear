@@ -1,3 +1,4 @@
+import { ACCOUNT_BY_ID } from './gifi';
 import type { CompanyProfile, MonthDay } from './profile';
 import { addDays, daysInMonth } from './engine';
 import type { LedgerLine } from './hst';
@@ -195,7 +196,10 @@ export function statementsFor(
 
   const assets = cumulative.filter((r) => r.kind === 'asset');
   const liabilities = cumulative.filter((r) => r.kind === 'liability');
-  const statedEquity = roll(cumulative.filter((r) => r.kind === 'equity'));
+  // A contra account reduces equity, so it is shown as the negative it is on
+  // the balance sheet: dividends declared come off what the owners have in.
+  const statedEquity = roll(cumulative.filter((r) => r.kind === 'equity')
+    .map((r) => (ACCOUNT_BY_ID.get(r.accountId)?.contra ? { ...r, amount: -r.amount } : r)));
 
   const currentAssets = roll(assets.filter((r) => accountIsCurrent(r.accountId)));
   const capitalAssets = roll(assets.filter((r) => !accountIsCurrent(r.accountId)));

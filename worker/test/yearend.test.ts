@@ -137,3 +137,23 @@ describe('the statements', () => {
     expect(empty.balance.difference).toBe(0);
   });
 });
+
+describe('a dividend on the balance sheet', () => {
+  const ledger: LedgerLine[] = [
+    line('sales', 160_000_00, 0, '2025-05-10'),
+    line('salaries', 60_000_00, 0, '2025-06-15'),
+    line('dividends-paid', 15_000_00, 0, '2025-12-10'),
+  ];
+  const fy = fiscalYears(profile(), '2026-06-01').find((y) => y.to === '2025-12-31')!;
+  const s = statementsFor(ledger, fy, isCurrent);
+
+  it('leaves the bank at what is actually in it', () => {
+    expect(s.balance.currentAssets.find((l) => l.gifi === 1001)!.amount).toBe(85_000_00);
+  });
+
+  it('takes the dividend off equity and still balances', () => {
+    expect(s.balance.equity.find((l) => l.gifi === 3701)!.amount).toBe(-15_000_00);
+    expect(s.balance.totalEquity).toBe(85_000_00);
+    expect(s.balance.difference).toBe(0);
+  });
+});

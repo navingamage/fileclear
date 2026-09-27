@@ -35,7 +35,7 @@ import { send, welcomeMail, resetMail } from './email';
 import { ACCOUNT_BY_ID, HST_RATE } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
 import {
-  parseCsv, buildPreview, unidentified, applySuggestions, type ImportRow,
+  parseCsv, buildPreview, unidentified, applySuggestions, ledgerAmounts, type ImportRow,
 } from './rules/csv';
 import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
@@ -43,10 +43,10 @@ import {
   importPage, importPreviewPage, onboardingStepPage, ONBOARDING_STEPS,
   shell, html,
   type HstPeriodOption, type Chrome,
-  t2125Page, incorporatePage, filePage, slipFilePage, type SlipKind, type SlipRecipient,
+  t2125Page, incorporatePage, filePage, fmt, slipFilePage, type SlipKind, type SlipRecipient,
 } from './views';
 import {
-  hstNetfileLines, hstBalance, guideFor, cleanConfirmation, type ReturnLine,
+  hstNetfileLines, hstBalance, guideFor, cleanConfirmation, reportsOnPeriod, type ReturnLine,
   t2Figures, t1Figures, flattenSections, sectionsFrom, type FigureSection,
 } from './rules/filing';
 import {
@@ -303,6 +303,11 @@ function profileFromForm(form: FormData): { profile: CompanyProfile; error?: str
   // CCPC at all whatever the form said.
   return { profile: normalise(p) };
 }
+
+const BILLING_ERRORS: Record<string, string> = {
+  checkout: 'Could not reach Stripe. Nothing was charged.',
+  portal: 'Could not open the billing portal. Try again in a moment.',
+};
 
 /**
  * A filing by its stable id, which carries its own statutory due date: the
@@ -678,14 +683,16 @@ export default {
 
     if (path === '/billing' && account) {
       // A price identifier means nothing to the person paying it.
-      const planLabel = !billing.sub?.plan ? '\u2014'
+      const planLabel = !billing.sub?.plan ? 'Not set'
         : billing.sub.plan === env.FC_PRICE_YEARLY ? 'Yearly, $290 CAD'
         : billing.sub.plan === env.FC_PRICE_MONTHLY ? 'Monthly, $29 CAD'
         : 'Subscribed';
       return html(billingPage(
         account.email, access, billing.sub, !!billing.customerId, billing.trialEndsAt,
         2900, 29000, planLabel, url.searchParams.get('paid') === '1',
-        url.searchParams.get('error') ?? undefined, chrome));
+        // A code rather than a message in the URL, so a link cannot make this
+        // page say something FileClear did not write.
+        BILLING_ERRORS[url.searchParams.get('error') ?? ''], chrome));
     }
 
     if (path === '/billing/checkout' && account && request.method === 'POST') {
@@ -695,7 +702,7 @@ export default {
         env, account.id, account.email, plan, billing.customerId ?? undefined);
       if ('error' in result) {
         console.log(`checkout failed for ${account.id}: ${result.error}`);
-        return redirect('/billing?error=Could+not+reach+Stripe.+Nothing+was+charged.');
+        return redirect('/billing?error=checkout');
       }
       return redirect(result.url);
     }
@@ -705,7 +712,7 @@ export default {
       const result = await portalUrl(env, billing.customerId);
       if ('error' in result) {
         console.log(`portal failed for ${account.id}: ${result.error}`);
-        return redirect('/billing?error=Could+not+open+the+billing+portal.');
+        return redirect('/billing?error=portal');
       }
       return redirect(result.url);
     }
@@ -873,7 +880,9 @@ export default {
         filing, lines, balance, instalments, payBy, sections, paid: access.allowed,
         method: company.profile.hst.method, record,
         sole: company.profile.entityType === 'soleProprietorship',
-      }, today(), undefined, chrome));
+      }, today(), url.searchParams.get('error') === 'early'
+        ? `A return for a period cannot be filed until the period has ended, so the filing date has to be after ${fmt(filing.coversUpTo)}.`
+        : undefined, chrome));
     }
 
     if (path === '/file/record' && account && request.method === 'POST') {
@@ -885,6 +894,11 @@ export default {
       const filedOn = String(form.get('filedOn') ?? '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(filedOn) || filedOn > today()) {
         return redirect(`/file?filing=${encodeURIComponent(filing.id)}`);
+      }
+      // A return reports on a period, and cannot be filed before the period
+      // has ended. Payments and registry returns have no such rule.
+      if (reportsOnPeriod(guideFor(filing.obligationId)) && filedOn <= filing.coversUpTo) {
+        return redirect(`/file?filing=${encodeURIComponent(filing.id)}&error=early`);
       }
 
       // The figures are recomputed here rather than taken from the form, so the
@@ -1058,20 +1072,23 @@ export default {
           }
 
           const account = ACCOUNT_BY_ID.get(chosen)!;
-          // The HST split was computed for the guessed account. A different
-          // account can have a different treatment, so it is recomputed rather
-          // than carried over.
-          const gross = Math.abs(row.signed);
-          const carries = account.hst === 'standard';
-          const amount = carries ? Math.round(gross / (1 + HST_RATE)) : gross;
+          // The rows come back from the browser, so they are checked again
+          // rather than trusted: a date, a finite amount, a description.
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(String(row.date))
+              || !Number.isFinite(row.signed) || row.signed === 0
+              || Math.abs(row.signed) > 100_000_000_00) continue;
+          // The HST split and the sign were computed for the guessed account.
+          // A different account can have a different treatment and sits on a
+          // different side, so both are recomputed rather than carried over.
+          const { amount, hst } = ledgerAmounts(row.signed, account);
 
           writes.push({
             txn_date: row.date,
             account_id: chosen,
             amount_cents: amount,
-            hst_cents: carries ? gross - amount : 0,
+            hst_cents: hst,
             counter_account_id: DEFAULT_COUNTER,
-            description: row.description.slice(0, 200),
+            description: String(row.description ?? '').slice(0, 200),
           });
         }
 
@@ -1295,7 +1312,11 @@ export default {
       // than an assumption. Defaulting it to the whole profit would make
       // incorporating look pointless at every level, which is the case where it
       // genuinely is and not the case most people are in.
-      const askedDraw = money(url.searchParams.get('draw'));
+      // Absent is not zero: money() reads an empty field as 0, which here
+      // would open the screen with nothing drawn and incorporating looking
+      // far better than it is for anybody who needs to live on the profit.
+      const rawDraw = (url.searchParams.get('draw') ?? '').trim();
+      const askedDraw = rawDraw ? money(rawDraw) : null;
       const draw = askedDraw !== null && askedDraw >= 0
         ? Math.min(askedDraw, profit)
         : Math.min(profit, 80_000_00);

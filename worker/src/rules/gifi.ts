@@ -52,6 +52,15 @@ export interface Account {
    * Only meaningful on assets and liabilities.
    */
   current?: boolean;
+  /**
+   * An equity account whose balance reduces equity rather than adding to it,
+   * so it grows with a debit like an asset. Dividends declared is the one in
+   * this chart: paying a dividend takes money out of the bank and out of
+   * equity together. Treated as ordinary equity, a $15,000 dividend was booked
+   * as $15,000 arriving in the bank and $15,000 more equity, which balanced and
+   * was wrong on both sides of Schedule 100.
+   */
+  contra?: boolean;
   hint?: string;
 }
 
@@ -71,7 +80,7 @@ export const ACCOUNTS: Account[] = [
     hint: 'Money you put in, or took out, that is not salary or a dividend.' },
   { id: 'share-capital',   name: 'Share capital',              kind: 'equity',    gifi: 3500, hst: 'none' },
   { id: 'retained',        name: 'Retained earnings',          kind: 'equity',    gifi: 3600, hst: 'none' },
-  { id: 'dividends-paid',  name: 'Dividends declared',         kind: 'equity',    gifi: 3701, hst: 'none' },
+  { id: 'dividends-paid',  name: 'Dividends declared',         kind: 'equity',    gifi: 3701, hst: 'none', contra: true },
 
   // Income statement, GIFI 8000 to 9999. Schedule 125.
   { id: 'sales',           name: 'Sales',                      kind: 'revenue',   gifi: 8000, t2125: 8299, hst: 'standard' },

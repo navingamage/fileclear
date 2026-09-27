@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseCsv, detectColumns, detectDateOrder, toIsoDate, toCents,
-  accountFor, descriptionKey, rowFingerprint, buildPreview,
+  accountFor, descriptionKey, rowFingerprint, buildPreview, ledgerAmounts,
 } from '../src/rules/csv';
+import { ACCOUNT_BY_ID } from '../src/rules/gifi';
+import { postingsFor } from '../src/rules/postings';
 
 const opts = (over = {}) => ({ remembered: [], existing: new Set<string>(), ...over });
 
@@ -259,5 +261,29 @@ describe('building the preview', () => {
     const before = JSON.stringify(parseCsv(file));
     buildPreview(parseCsv(file), opts());
     expect(JSON.stringify(parseCsv(file))).toBe(before);
+  });
+});
+
+describe('the sign an imported row is stored with', () => {
+  const acct = (id: string) => ACCOUNT_BY_ID.get(id)!;
+  const bankMove = (signed: number, id: string) => {
+    const { amount, hst } = ledgerAmounts(signed, acct(id));
+    return postingsFor({ date: '2026-01-01', accountId: id, amount, hst, counterAccountId: 'bank' })
+      .find((p) => p.accountId === 'bank')!.amount;
+  };
+
+  it('moves the bank the way the statement says, whatever the account', () => {
+    expect(bankMove(-113_00, 'software')).toBe(-113_00);
+    expect(bankMove(1_130_00, 'sales')).toBe(1_130_00);
+    expect(bankMove(-5_000_00, 'due-shareholder')).toBe(-5_000_00);
+    expect(bankMove(5_000_00, 'due-shareholder')).toBe(5_000_00);
+    expect(bankMove(-15_000_00, 'dividends-paid')).toBe(-15_000_00);
+    // A refund filed under the expense it refunds.
+    expect(bankMove(113_00, 'software')).toBe(113_00);
+  });
+
+  it('keeps the usual cases positive, so the books read as before', () => {
+    expect(ledgerAmounts(-113_00, acct('software'))).toEqual({ amount: 100_00, hst: 13_00 });
+    expect(ledgerAmounts(1_130_00, acct('sales'))).toEqual({ amount: 1_000_00, hst: 130_00 });
   });
 });

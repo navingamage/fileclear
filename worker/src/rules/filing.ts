@@ -408,6 +408,15 @@ export function sectionsFrom(lines: ReturnLine[]): FigureSection[] {
 }
 
 /**
+ * Whether a filing is a return about a period that has to be over before it
+ * can be filed. A payment can be made early and a registry return confirms
+ * details as they stand, so neither is held back.
+ */
+export function reportsOnPeriod(kind: GuideKind): boolean {
+  return kind === 'hst' || kind === 't2' || kind === 't1' || kind === 'slips';
+}
+
+/**
  * A confirmation number as a person pastes it: trimmed, internal whitespace
  * collapsed, and bounded. Not validated against a format, because each
  * authority issues its own and a format check that rejected a real one would

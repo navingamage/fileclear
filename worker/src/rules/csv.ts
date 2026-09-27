@@ -256,7 +256,8 @@ export function toCents(value: string): number | null {
 
 // ------------------------------------------------------------ to the ledger
 
-import { ACCOUNT_BY_ID, ACCOUNTS, HST_RATE } from './gifi';
+import { ACCOUNT_BY_ID, ACCOUNTS, HST_RATE, type Account } from './gifi';
+import { accountSign } from './postings';
 
 export interface ImportRow {
   line: number;
@@ -441,10 +442,7 @@ export function buildPreview(
     // A bank row is the gross. The ledger holds the amount before tax and the
     // tax beside it, so standard rated accounts have the HST backed out of the
     // total rather than added to it.
-    const gross = Math.abs(signed);
-    const carriesHst = account?.hst === 'standard';
-    const amount = carriesHst ? Math.round(gross / (1 + HST_RATE)) : gross;
-    const hst = carriesHst ? gross - amount : 0;
+    const { amount, hst } = account ? ledgerAmounts(signed, account) : { amount: Math.abs(signed), hst: 0 };
 
     const fingerprint = rowFingerprint(date, signed, description);
     const duplicate = options.existing.has(fingerprint) || seen.has(fingerprint);
@@ -482,12 +480,30 @@ export function applySuggestions(
     if (!account) return row;
 
     // The HST split follows the account, so it is recomputed rather than kept.
-    const gross = Math.abs(row.signed);
-    const carries = account.hst === 'standard';
-    const amount = carries ? Math.round(gross / (1 + HST_RATE)) : gross;
     return { ...row, accountId: suggested, reason: 'suggested' as const,
-      amount, hst: carries ? gross - amount : 0 };
+      ...ledgerAmounts(row.signed, account) };
   });
+}
+
+/**
+ * A bank row as a ledger row: the amount before tax, the tax beside it, and
+ * the sign that makes the bank move the way the statement says it did.
+ *
+ * The amount used to be the gross with its sign dropped, which is right for
+ * the two cases the import guesses by itself, a sale coming in and an expense
+ * going out, and backwards for every other one a person can choose: money
+ * taken out and filed under due to shareholder was booked as money arriving,
+ * and so was a refund filed under the expense it refunded.
+ */
+export function ledgerAmounts(signed: number, account: Account): { amount: number; hst: number } {
+  const gross = Math.abs(signed);
+  const carries = account.hst === 'standard';
+  const net = carries ? Math.round(gross / (1 + HST_RATE)) : gross;
+  const tax = carries ? gross - net : 0;
+  // The bank moves by -accountSign x amount, so this sign makes it move by
+  // the row's own signed amount.
+  const direction = -Math.sign(signed || -1) * accountSign(account.id, account.kind);
+  return { amount: direction * net, hst: direction * tax };
 }
 
 /** The rows worth asking a model about: the ones nothing else identified. */

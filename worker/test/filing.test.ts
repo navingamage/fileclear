@@ -138,3 +138,13 @@ describe('a confirmation number as pasted', () => {
     expect(cleanConfirmation('x'.repeat(500))).toHaveLength(80);
   });
 });
+
+describe('which filings wait for their period to end', () => {
+  it('holds back returns and not payments or registry returns', async () => {
+    const { reportsOnPeriod } = await import('../src/rules/filing');
+    for (const k of ['hst', 't2', 't1', 'slips'] as const) expect(reportsOnPeriod(k)).toBe(true);
+    for (const k of ['payment', 'annual-on', 'annual-federal', 'general'] as const) {
+      expect(reportsOnPeriod(k)).toBe(false);
+    }
+  });
+});

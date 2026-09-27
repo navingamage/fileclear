@@ -92,11 +92,14 @@ export async function accountForRequest(db: D1Database, request: Request): Promi
   const match = cookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([a-f0-9]+)`));
   if (!match) return null;
 
+  // expires_at is written as an ISO string, so it is compared with one.
+  // Against datetime('now'), whose format differs at the tenth character,
+  // the string comparison kept an expired session alive until the day ended.
   const row = await db.prepare(
     `SELECT a.id AS id, a.email AS email
        FROM sessions s JOIN accounts a ON a.id = s.account_id
-      WHERE s.id = ? AND s.expires_at > datetime('now')`,
-  ).bind(match[1]).first<Account>();
+      WHERE s.id = ? AND s.expires_at > ?`,
+  ).bind(match[1], new Date().toISOString()).first<Account>();
   return row ?? null;
 }
 

@@ -1,12 +1,18 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Resolved from this file, so the test passes from the repo root and from
+// worker/, which is where CI runs it.
+const SCHEMA = join(dirname(fileURLToPath(import.meta.url)), '..', 'schema.sql');
 import { describe, expect, it } from 'vitest';
 import { SESSION_COOKIE, accountForRequest, createSession } from '../src/auth';
 
 /** The real schema in Node's SQLite, with just the D1 calls auth.ts makes. */
 function db(): { d1: D1Database; raw: DatabaseSync } {
   const raw = new DatabaseSync(':memory:');
-  raw.exec(readFileSync('worker/schema.sql', 'utf8'));
+  raw.exec(readFileSync(SCHEMA, 'utf8'));
   const stmt = (sql: string, args: unknown[] = []) => ({
     bind: (...a: unknown[]) => stmt(sql, a),
     first: async () => (raw.prepare(sql).get(...(args as never[])) as object | undefined) ?? null,

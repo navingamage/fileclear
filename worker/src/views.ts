@@ -610,6 +610,7 @@ const HEAD = (title: string) => `<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="/app.js" defer></script>
 ${CHROME}
 </head>
 <body>`;
@@ -633,7 +634,7 @@ export function shell(
     ${link('/billing', 'Billing')}</nav>` : ''}
   ${!hideNav && companies && companies.length > 1 ? `<form method="post" action="/companies" class="switcher">
     <input type="hidden" name="back" value="${esc(active)}">
-    <select name="id" onchange="this.form.submit()" aria-label="Business">
+    <select name="id" data-autosubmit aria-label="Business">
       ${companies.map((c) => `<option value="${esc(c.id)}"${
         c.id === activeCompanyId ? ' selected' : ''}>${esc(c.legalName || 'Unnamed')}</option>`).join('')}
     </select>
@@ -997,6 +998,7 @@ export function dashboardPage(
   email: string, companyId: string, p: CompanyProfile,
   filings: Filing[], states: Map<string, string>, advisories: Advisory[], today: string,
   chrome: Chrome = {}, filed: Map<string, FiledRecord> = new Map(),
+  feedUrl: string | null = null,
 ): string {
   // Grouped by month. A flat list of forty dated rows is a spreadsheet; the
   // month heading is what turns it into something a person can plan against.
@@ -1080,8 +1082,40 @@ ${months.map((m) => `<div class="sheet">
   <div class="sheet-head"><span>${esc(m.label)}</span><span>${m.items.length} ${
     m.items.length === 1 ? 'filing' : 'filings'}</span></div>
   ${m.items.map(row).join('')}
-</div>`).join('') || '<div class="sheet"><div class="frow"><span class="t">Nothing due in the next twelve months.</span></div></div>'}`,
+</div>`).join('') || '<div class="sheet"><div class="frow"><span class="t">Nothing due in the next twelve months.</span></div></div>'}
+
+${feedPanel(feedUrl)}`,
   email, '/dashboard', chrome);
+}
+
+/**
+ * Subscribing to the calendar from Outlook, Google or Apple.
+ *
+ * A subscription rather than a download, so the events move when the profile
+ * or a rule does, without anybody importing anything again.
+ */
+function feedPanel(feedUrl: string | null): string {
+  const form = (action: string, label: string, cls = 'btn small') =>
+    `<form method="post" action="/calendar-feed" style="margin:0">
+      <input type="hidden" name="action" value="${action}">
+      <button class="${cls}" type="submit">${label}</button></form>`;
+  return `<div class="sheet" id="feed">
+  <div class="sheet-head"><span>In your own calendar</span><span>${feedUrl ? 'on' : 'off'}</span></div>
+  <div class="sheet-body">${feedUrl
+    ? `<p class="hint">Subscribe to this address in Outlook (Add calendar, then Subscribe
+      from web), Google Calendar (Other calendars, then From URL) or Apple Calendar.
+      Anyone with it can read the dates, so keep it as you would the books.</p>
+      <input type="text" readonly value="${esc(feedUrl)}" aria-label="Calendar feed address"
+        style="width:100%;margin:0 0 12px;font:500 13px var(--font-mono)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn small primary" href="${esc(feedUrl.replace(/^https?:/, 'webcal:'))}">Open in your calendar</a>
+        ${form('new', 'New address')}${form('off', 'Turn off')}</div>
+      <p class="hint" style="margin:10px 0 0">A new address stops the old one working.</p>`
+    : `<p class="hint">Every filing here, on the day it is due, in Outlook, Google
+      Calendar or Apple Calendar, and moving when anything here changes.</p>
+      ${form('on', 'Get a calendar address', 'btn small primary')}`}
+  </div>
+</div>`;
 }
 
 // -------------------------------------------------------------------- books
@@ -2162,7 +2196,7 @@ function progress(step: number): string {
 
 export function onboardingStepPage(
   email: string, step: number, p: CompanyProfile, error?: string,
-  welcomed = false, chrome: Chrome = {},
+  welcomed = false, chrome: Chrome = {}, adding = false,
 ): string {
   const here = ONBOARDING_STEPS.find((s) => s.n === step) ?? ONBOARDING_STEPS[0]!;
   const sel = (v: boolean) => (v ? ' checked' : '');
@@ -2338,7 +2372,7 @@ export function onboardingStepPage(
 
   ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
-  <form method="post" action="/onboarding?step=${step}">
+  <form method="post" action="/onboarding?step=${step}${adding ? '&amp;new=1' : ''}">
     ${body}
     <div class="step-actions">
       <button class="btn primary" type="submit">${
@@ -3032,38 +3066,6 @@ ${d.kind === 'hst' ? `<details class="why"><summary>Why FileClear does not send 
 </details>` : ''}
 
 ${worksheetFooter()}
-
-<script>
-/* Copy buttons, added only where the clipboard is available. Without this
-   script every figure is still plain text that can be selected, which is the
-   point of adding them rather than depending on them. */
-(function () {
-  if (!navigator.clipboard) return;
-  document.querySelectorAll('.file-line .copy').forEach(function (b) {
-    b.hidden = false;
-    b.addEventListener('click', function () {
-      var el = b.parentNode.querySelector('.file-v');
-      var done = function (label) {
-        b.textContent = label;
-        setTimeout(function () { b.textContent = 'Copy'; }, 1600);
-      };
-      navigator.clipboard.writeText(el.textContent).then(function () {
-        done('Copied');
-      }, function () {
-        /* The clipboard can be refused, by a browser setting or a policy.
-           Selecting the figure means one keystroke still copies it, which is
-           better than a button that silently does nothing. */
-        var range = document.createRange();
-        range.selectNodeContents(el);
-        var sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-        done('Selected');
-      });
-    });
-  });
-}());
-</script>
 `, email, '/dashboard', chrome);
 }
 

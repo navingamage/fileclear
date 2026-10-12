@@ -471,3 +471,17 @@ CREATE TABLE IF NOT EXISTS filer_details (
   contact_email TEXT NOT NULL DEFAULT '',
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ------------------------------------------------------------ calendar feed
+--
+-- One private calendar feed per business: its filings as events, subscribed to
+-- from Outlook, Google or Apple so a date that moves here moves there. A
+-- calendar app cannot sign in, so the token in the address is the whole of the
+-- access control; making a new address replaces it, and turning the feed off
+-- deletes the row.
+CREATE TABLE IF NOT EXISTS calendar_feeds (
+  company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  token      TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS calendar_feeds_token ON calendar_feeds (token);

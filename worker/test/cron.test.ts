@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { torontoNow, SEND_HOUR, sweep, type CronEnv } from '../src/cron';
+import {
+  torontoNow, SEND_HOUR, sweep, enqueueSweep, remindBatch, REMIND_BATCH, type CronEnv, type RemindMessage,
+} from '../src/cron';
+import { realDb } from './d1';
 import { reminderMail, welcomeMail, formatDue, send } from '../src/email';
 
 /**
@@ -305,5 +308,114 @@ describe('the sweep', () => {
     }), '2027-03-20');
     expect(r.emailed).toBe(0);
     expect(r.skipped).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------- off the queue
+
+describe('the sweep off the queue', () => {
+  const MAIL = { ZEPTOMAIL_TOKEN: 'z', FC_MAIL_FROM: 'FileClear <reminders@fileclear.ca>' };
+
+  function seed(raw: ReturnType<typeof realDb>['raw'], n: number) {
+    for (let i = 0; i < n; i++) {
+      raw.prepare('INSERT INTO accounts (id, email, password) VALUES (?, ?, ?)').run(`a${i}`, `owner${i}@example.com`, 'x');
+      raw.prepare(`INSERT INTO companies (id, account_id, legal_name, jurisdiction, incorporation_date, fye_month, fye_day,
+        hst_registered, hst_period, remind_lead_days) VALUES (?, ?, ?, 'ON', '2024-03-15', 12, 31, 1, 'annual', 30)`)
+        .run(`c${i}`, `a${i}`, `Company ${i} Inc.`);
+    }
+  }
+
+  function fakeQueue() {
+    const sent: Array<{ body: RemindMessage }> = [];
+    return { sent, queue: { sendBatch: async (m: Array<{ body: RemindMessage }>) => { sent.push(...m); } } as unknown as Queue<RemindMessage> };
+  }
+
+  function batchOf(bodies: RemindMessage[], attempts = 1) {
+    const acked: string[] = [];
+    const retried: string[] = [];
+    const batch = {
+      queue: 'fileclear-reminders',
+      messages: bodies.map((body) => ({
+        body, attempts,
+        ack: () => acked.push(body.companyId),
+        retry: () => retried.push(body.companyId),
+      })),
+    } as unknown as MessageBatch<RemindMessage>;
+    return { batch, acked, retried };
+  }
+
+  it('records the run, hands out one message per company, and fills the run in batch by batch', async () => {
+    const { d1, raw } = realDb();
+    seed(raw, 45);
+    const mails: string[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_u: RequestInfo | URL, init?: RequestInit) => {
+      mails.push(JSON.parse(String(init?.body)).to[0].email_address.address);
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    try {
+      const env = { DB: d1, ...MAIL } as CronEnv;
+      const { sent, queue } = fakeQueue();
+      const r = await enqueueSweep(env, queue, '2027-03-20');
+      expect(r.companies).toBe(45);
+      expect(sent).toHaveLength(45);
+
+      for (let i = 0; i < sent.length; i += REMIND_BATCH) {
+        const { batch, acked } = batchOf(sent.slice(i, i + REMIND_BATCH).map((m) => m.body));
+        await remindBatch(env, batch);
+        expect(acked.length).toBe(Math.min(REMIND_BATCH, sent.length - i));
+      }
+      expect(new Set(mails).size).toBe(45);
+
+      const run = raw.prepare('SELECT * FROM sweep_runs WHERE id = ?').get(r.runId) as Record<string, number>;
+      expect(run).toMatchObject({ companies: 45, emailed: 45, failed: 0 });
+      expect(run.filings).toBeGreaterThan(45);
+      // Recorded, so tomorrow's run does not send them again.
+      const again = batchOf([sent[0]!.body]);
+      mails.length = 0;
+      await remindBatch(env, again.batch);
+      expect(mails).toHaveLength(0);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it('counts a refused send as a failure for /readyz and leaves it for tomorrow', async () => {
+    const { d1, raw } = realDb();
+    seed(raw, 2);
+    const env = { DB: d1 } as CronEnv;  // no mail secrets
+    const { sent, queue } = fakeQueue();
+    const { runId } = await enqueueSweep(env, queue, '2027-03-20');
+    const { batch, acked, retried } = batchOf(sent.map((m) => m.body));
+    await remindBatch(env, batch);
+    expect(acked).toHaveLength(2);
+    expect(retried).toHaveLength(0);
+    const run = raw.prepare('SELECT * FROM sweep_runs WHERE id = ?').get(runId) as Record<string, unknown>;
+    expect(run).toMatchObject({ emailed: 0, failed: 2 });
+    expect(String(run.first_failure)).toMatch(/ZEPTOMAIL_TOKEN/);
+    expect((raw.prepare('SELECT COUNT(*) AS n FROM reminders_sent').get() as { n: number }).n).toBe(0);
+  });
+
+  it('retries an error, and counts it rather than losing it on the last attempt', async () => {
+    const { d1, raw } = realDb();
+    seed(raw, 1);
+    const broken = { ...d1, prepare: (sql: string) => {
+      if (sql.includes('company_provinces')) throw new Error('D1 went away');
+      return d1.prepare(sql);
+    } } as unknown as D1Database;
+    const env = { DB: broken } as CronEnv;
+    const { sent, queue } = fakeQueue();
+    const { runId } = await enqueueSweep({ DB: d1 } as CronEnv, queue, '2027-03-20');
+
+    const first = batchOf(sent.map((m) => m.body), 1);
+    await remindBatch(env, first.batch);
+    expect(first.retried).toEqual(['c0']);
+
+    const last = batchOf(sent.map((m) => m.body), 3);
+    await remindBatch(env, last.batch);
+    expect(last.acked).toEqual(['c0']);
+    const run = raw.prepare('SELECT failed, first_failure FROM sweep_runs WHERE id = ?').get(runId) as Record<string, unknown>;
+    expect(run.failed).toBe(1);
+    expect(String(run.first_failure)).toContain('D1 went away');
   });
 });

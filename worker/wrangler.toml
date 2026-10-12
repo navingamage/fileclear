@@ -71,7 +71,24 @@ database_id = "95918583-9d63-4186-a3f8-507439e0d12a"
 # winter and 11:00 through the summer. Scheduling both is what avoids editing
 # this file twice a year.
 [triggers]
-crons = ["0 11 * * *", "0 12 * * *"]
+# Both hours in one expression. The Free plan allows five cron triggers per
+# account rather than per Worker, and a list of hours is one of them.
+crons = ["0 11,12 * * *"]
+
+# The morning's reminders, one message per company. The Free plan allows fifty
+# outside requests per invocation and each reminder is an email, so the cron
+# hands the work out and each batch of forty runs on its own. A send that fails
+# is counted in sweep_runs and left for tomorrow, as it always was; only an
+# error is retried. See RemindMessage in src/cron.ts.
+[[queues.producers]]
+binding = "REMIND"
+queue = "fileclear-reminders"
+
+[[queues.consumers]]
+queue = "fileclear-reminders"
+max_batch_size = 40
+max_batch_timeout = 5
+max_retries = 3
 
 # Secrets, set with `wrangler secret put <name>`, never written to this file:
 #   ZEPTOMAIL_TOKEN        transactional mail

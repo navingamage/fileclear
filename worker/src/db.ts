@@ -737,3 +737,41 @@ export async function saveFilerDetails(
   ).bind(companyId, d.bnRp, d.bnRz, d.line1, d.city, d.prov, d.postal,
     d.contactName, d.contactPhone, d.contactEmail).run();
 }
+
+// ------------------------------------------------------------ calendar feed
+
+export async function feedTokenFor(db: D1Database, companyId: string): Promise<string | null> {
+  const row = await db.prepare('SELECT token FROM calendar_feeds WHERE company_id = ?')
+    .bind(companyId).first<{ token: string }>();
+  return row?.token ?? null;
+}
+
+/** Makes the feed, or gives it a new address, which stops the old one working. */
+export async function setFeedToken(db: D1Database, companyId: string, token: string): Promise<void> {
+  await db.prepare(
+    `INSERT INTO calendar_feeds (company_id, token) VALUES (?, ?)
+     ON CONFLICT(company_id) DO UPDATE SET token = excluded.token, created_at = datetime('now')`,
+  ).bind(companyId, token).run();
+}
+
+export async function dropFeed(db: D1Database, companyId: string): Promise<void> {
+  await db.prepare('DELETE FROM calendar_feeds WHERE company_id = ?').bind(companyId).run();
+}
+
+/** The business a feed address belongs to, with no account in hand. */
+export async function companyForFeed(
+  db: D1Database, token: string,
+): Promise<{ id: string; profile: CompanyProfile; addedOn: string } | null> {
+  const row = await db.prepare(
+    'SELECT c.* FROM calendar_feeds f JOIN companies c ON c.id = f.company_id WHERE f.token = ?',
+  ).bind(token).first<CompanyRow>();
+  if (!row) return null;
+  const provinces = await db.prepare(
+    'SELECT jurisdiction FROM company_provinces WHERE company_id = ?').bind(row.id)
+    .all<{ jurisdiction: string }>();
+  return {
+    id: row.id,
+    profile: rowToProfile(row, (provinces.results ?? []).map((r) => r.jurisdiction)),
+    addedOn: String((row as unknown as { created_at?: string }).created_at ?? '').slice(0, 10),
+  };
+}

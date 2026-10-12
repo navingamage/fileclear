@@ -52,7 +52,7 @@ the date, and the link is how you check us.
 cd worker && npm test
 ```
 
-594 tests. The ones worth knowing about pin the differences above, plus the date
+707 tests. The ones worth knowing about pin the differences above, plus the date
 arithmetic, which is where the first real bug was: a month end has to stay a
 month end. A 30 June year end plus six months is 31 December, not 30 December.
 Clamping only downward moved every deadline a day early for any corporation
@@ -90,13 +90,38 @@ goes out again. That is right, because the date changed.
 Cloudflare crons are UTC and Ontario changes offset twice a year, so both
 candidate hours are scheduled and `src/cron.ts` returns immediately unless the
 local hour in Toronto is 07. That is 12:00 UTC through the winter and 11:00
-through the summer, with no edit to the config in March or November.
+through the summer, with no edit to the config in March or November. Both hours
+are one expression, `0 11,12 * * *`, because the Workers Free plan allows five
+cron triggers per account, not per Worker.
+
+The cron does not send the mail itself. The Free plan allows fifty outside
+requests in one invocation and every reminder is an email, so a morning with a
+fifty-first company due would have had that company's mail refused by the
+platform, and every one after it. Instead the cron writes the morning's row in
+`sweep_runs` and puts one message per company on the `fileclear-reminders`
+queue; each batch of forty is an invocation of its own and adds its counts to
+that row, so `/readyz` reads the same single row per morning it always did. A
+send that fails is counted and left for tomorrow, as before. Only an error is
+retried, and a company that fails its last attempt is counted as a failure
+rather than lost. Three queue operations a company a day sits well inside the
+Free plan's ten thousand.
 
 Mail goes through ZeptoMail, the transactional side of the Zoho arrangement
 Antipode already has. Without `ZEPTOMAIL_TOKEN` and `FC_MAIL_FROM` the sweep
 still runs, works out what is due, and reports that it could not send: a
 scheduled job that throws on a missing secret takes every other company's
 reminder down with it.
+
+### In your own calendar
+
+Every business can also have a private calendar feed, turned on from the
+bottom of the filings page: each filing on the day it is due, with the penalty
+and a link back to its File it screen, subscribed to from Outlook, Google or
+Apple so a date that moves here moves there. It is computed from the profile on
+every fetch like the dashboard, and ticked-off filings drop out. A calendar app
+cannot sign in, so the random token in the address is the access control;
+asking for a new address revokes the old one, and turning the feed off deletes
+it.
 
 ## Year end
 
@@ -193,6 +218,22 @@ HTML that no longer matches its source. `.github/workflows/site.yml` regenerates
 on every push and fails if anything moved, which is where Python is available.
 Same shape as TradeClear's layout job: the half that cannot run where the deploy
 runs, runs where it can.
+
+## Headers, and the one script
+
+Until October 2026 every page the Worker rendered went out with no security
+headers at all, on a product whose slips screen takes SINs. Any site could have
+framed the filing screens under a transparent layer and had a signed-in person
+click through them. They now carry the same set TradeClear and Peaberry do,
+from `src/headers.ts`: a Content-Security-Policy that refuses inline script and
+framing, HSTS, `nosniff`, a referrer policy, and `no-store` on every rendered
+page. Google Fonts and Cloudflare Web Analytics are named in the policy, and
+Stripe is a form target because the billing buttons are answered with a
+redirect to it.
+
+Refusing inline script meant moving the two bits there were into `/app.js`: the
+copy buttons on the File it screens and the business switcher, which used an
+inline `onchange`. Both still work without it.
 
 ## Getting back in, and not being battered
 
@@ -453,6 +494,17 @@ Everything above, plus billing. Ahead: password reset and sign in throttling,
 which matter before real customers, and Quebec and Alberta corporate tax, which
 needs their own returns rather than their rates.
 
+
+## Adding a second business
+
+"Add a business" overwrote the business already there until October 2026. The
+first step's form posted to `/onboarding?step=1` without the `new=1` that
+opened it, so the server read it as an edit to the active business, renamed it,
+and left its books and filings attached under the new name. The flag now rides
+on the first step and nowhere else: once that step is saved the new business is
+the active one, and the later steps edit it. `test/routes.test.ts` drives the
+whole thing through the Worker's own fetch handler over the real schema, which
+is how it should have been tested in the first place.
 
 ## Businesses that were never incorporated
 

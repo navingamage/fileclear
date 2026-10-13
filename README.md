@@ -52,7 +52,7 @@ the date, and the link is how you check us.
 cd worker && npm test
 ```
 
-707 tests. The ones worth knowing about pin the differences above, plus the date
+710 tests. The ones worth knowing about pin the differences above, plus the date
 arithmetic, which is where the first real bug was: a month end has to stay a
 month end. A 30 June year end plus six months is 31 December, not 30 December.
 Clamping only downward moved every deadline a day early for any corporation
@@ -218,6 +218,22 @@ HTML that no longer matches its source. `.github/workflows/site.yml` regenerates
 on every push and fails if anything moved, which is where Python is available.
 Same shape as TradeClear's layout job: the half that cannot run where the deploy
 runs, runs where it can.
+
+## Confirming the address
+
+The reminders are the product, and they go to the address somebody typed at
+signup. Until October 2026 nothing showed that address received mail: the
+welcome email went out and the product assumed it arrived. Now the welcome
+carries a link, and until it is opened every screen says that nobody has shown
+the reminders arrive, with a button to send the link again. It gates nothing.
+Signing in, the calendar and the reminders all work before it, because a
+director who never clicks still needs the 30 April email more than anybody.
+
+The link is a random token stored only as its SHA-256, lasts a week because a
+welcome email is often opened days later, and works without a session because
+it is usually opened on a phone. Asking again replaces it, three times an hour
+at most. A resend the mail service refuses says so on screen rather than
+claiming it was sent, since that is also the first sign reminders are failing.
 
 ## Headers, and the one script
 

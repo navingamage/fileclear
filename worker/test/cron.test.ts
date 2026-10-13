@@ -129,8 +129,14 @@ describe('the welcome mail', () => {
     expect(mail.html).toContain('https://fileclear.ca/onboarding');
   });
 
-  it('carries no verification link, because nothing is gated on one', () => {
-    expect(mail.text).not.toMatch(/verif|confirm your email|activate/i);
+  it('carries the confirmation link when given one, and none otherwise', () => {
+    // The link proves the address receives mail, which is what the reminders
+    // depend on. Nothing is gated on it: the account works before it is opened.
+    const link = 'https://fileclear.ca/confirm?token=abc';
+    const withLink = welcomeMail('director@example.ca', 'https://fileclear.ca', link);
+    expect(withLink.text).toContain(link);
+    expect(withLink.html).toContain('Confirm this address');
+    expect(mail.text).not.toMatch(/confirm\?token/);
   });
 
   it('escapes an address that contains markup', () => {

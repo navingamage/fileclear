@@ -44,6 +44,9 @@ export const LIMITS = {
   signupByIp: { max: 5, windowSeconds: 3600 },
   resetByIp: { max: 5, windowSeconds: 3600 },
   resetByAccount: { max: 3, windowSeconds: 3600 },
+  // Asking for the confirmation link again sends mail, so it is held to the
+  // same few an hour as a reset.
+  confirmByAccount: { max: 3, windowSeconds: 3600 },
 } as const satisfies Record<string, Limit>;
 
 export interface RateEnv { DB: D1Database; }

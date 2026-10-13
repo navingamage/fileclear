@@ -8,6 +8,7 @@ import {
   accountForRequest, createSession, endSession, hashPassword, verifyPassword,
   randomId, sessionCookie, clearedCookie, looksLikeEmail, passwordProblem,
   issueReset, consumeReset, pruneResets, RESET_TOKEN_MINUTES,
+  issueConfirmation, confirmAddress, addressConfirmed,
 } from './auth';
 import { hit, clear, prune, addressOf, waitMessage, LIMITS } from './ratelimit';
 import {
@@ -35,7 +36,7 @@ import {
   entitled, checkoutUrl, portalUrl, verifyWebhook, subscriptionFromEvent,
   fetchSubscription, type StripeEnv,
 } from './stripe';
-import { send, welcomeMail, resetMail } from './email';
+import { send, welcomeMail, resetMail, confirmMail } from './email';
 import { ACCOUNT_BY_ID, HST_RATE } from './rules/gifi';
 import { DEFAULT_COUNTER } from './rules/postings';
 import {
@@ -45,7 +46,7 @@ import {
   authPage, onboardingPage, dashboardPage, booksPage, hstPage, yearEndPage,
   compensationPage, slipsPage, billingPage, forgotPage, resetPage,
   importPage, importPreviewPage, onboardingStepPage, ONBOARDING_STEPS,
-  shell, html,
+  shell, html, confirmedPage,
   type HstPeriodOption, type Chrome,
   t2125Page, incorporatePage, filePage, fmt, slipFilePage, type SlipKind, type SlipRecipient,
 } from './views';
@@ -621,8 +622,9 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       // an unsendable welcome is not a reason to fail a signup that already
       // succeeded. The outcome is logged either way.
       const origin = env.FC_PUBLIC_ORIGIN ?? url.origin;
+      const confirmLink = `${origin}/confirm?token=${await issueConfirmation(env.DB, id)}`;
       ctx.waitUntil(
-        send(env, { to: email, ...welcomeMail(email, origin) })
+        send(env, { to: email, ...welcomeMail(email, origin, confirmLink) })
           .then((r) => { if (!r.sent) console.log(`welcome mail to ${email}: ${r.reason}`); }));
 
       await startTrial(env.DB, id, TRIAL_DAYS, today());
@@ -732,8 +734,38 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       companies: await companiesFor(env.DB, account.id),
       activeCompanyId: company?.id,
       entityType: company?.profile.entityType,
+      unconfirmed: await addressConfirmed(env.DB, account.id)
+        ? undefined
+        : {
+          email: account.email,
+          sent: url.searchParams.get('confirm') === 'sent',
+          failed: url.searchParams.get('confirm') === 'failed',
+        },
     }
     : {};
+
+  // The link from the welcome email. Signed in or not, because it is often
+  // opened on a phone that has never seen the dashboard.
+  if (path === '/confirm' && request.method === 'GET') {
+    const ok = !!(await confirmAddress(env.DB, url.searchParams.get('token') ?? ''));
+    return html(confirmedPage(ok, !!account), ok ? 200 : 400);
+  }
+
+  if (path === '/confirm/resend' && account && request.method === 'POST') {
+    const limited = await hit(env, `confirm:acct:${account.id}`, LIMITS.confirmByAccount);
+    if (limited.allowed && !(await addressConfirmed(env.DB, account.id))) {
+      const origin = env.FC_PUBLIC_ORIGIN ?? url.origin;
+      const link = `${origin}/confirm?token=${await issueConfirmation(env.DB, account.id)}`;
+      const sent = await send(env, { to: account.email, ...confirmMail(account.email, link) });
+      if (!sent.sent) {
+        // Said on screen, because "sent" when it was not is the one thing a
+        // notice about whether mail arrives must never say.
+        console.log(`confirmation to ${account.email}: ${sent.reason}`);
+        return redirect('/dashboard?confirm=failed');
+      }
+    }
+    return redirect('/dashboard?confirm=sent');
+  }
 
   // Entitlement, checked once. The calendar and the reminders stay open past
   // the trial on purpose: switching off the thing that stops somebody missing

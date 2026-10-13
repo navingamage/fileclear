@@ -13,9 +13,22 @@ const ORIGIN = 'https://fileclear.ca';
 let env: Parameters<typeof worker.fetch>[1];
 let raw: ReturnType<typeof realDb>['raw'];
 let cookie = '';
-const ctx = { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext;
+const ctx = {
+  waitUntil: (p: Promise<unknown>) => { waits.push(p); },
+  passThroughOnException: () => {},
+} as unknown as ExecutionContext;
+
+let mails: Array<{ to: string; body: string }> = [];
+let waits: Promise<unknown>[] = [];
 
 beforeEach(() => {
+  mails = [];
+  waits = [];
+  globalThis.fetch = (async (_u: RequestInfo | URL, init?: RequestInit) => {
+    const sent = JSON.parse(String(init?.body ?? '{}'));
+    mails.push({ to: sent.to?.[0]?.email_address?.address ?? '', body: `${sent.subject}\n${sent.textbody}` });
+    return new Response('{}', { status: 200 });
+  }) as typeof fetch;
   const db = realDb();
   raw = db.raw;
   cookie = '';
@@ -23,6 +36,8 @@ beforeEach(() => {
     DB: db.d1,
     ASSETS: { fetch: async () => new Response('not found', { status: 404 }) } as unknown as Fetcher,
     FC_PUBLIC_ORIGIN: ORIGIN,
+    ZEPTOMAIL_TOKEN: 'z',
+    FC_MAIL_FROM: 'FileClear <reminders@fileclear.ca>',
   } as unknown as Parameters<typeof worker.fetch>[1];
 });
 
@@ -150,5 +165,58 @@ describe('the calendar feed', () => {
     const after = await (await call(path, undefined, false)).text();
     expect(after).not.toContain(`UID:${/UID:(.+?)@fileclear\.ca/.exec(before)![1]}@`);
     expect(after.split('BEGIN:VEVENT').length).toBe(before.split('BEGIN:VEVENT').length - 1);
+  });
+});
+
+describe('confirming the signup address', () => {
+  const link = () => {
+    const m = [...mails].reverse().find((x) => x.body.includes('/confirm?token='));
+    return /https:\/\/fileclear\.ca(\/confirm\?token=[a-f0-9]+)/.exec(m?.body ?? '')?.[1] ?? '';
+  };
+
+  it('sends the link with the welcome, says so on every screen until it is opened, and gates nothing', async () => {
+    await signUpWithCompany('Northwind Analytics Inc.');
+    await Promise.all(waits);
+    expect(mails[0]!.to).toBe('owner@example.com');
+    const path = link();
+    expect(path).not.toBe('');
+
+    const before = await call('/dashboard');
+    expect(before.status).toBe(200);
+    expect(await before.text()).toContain('Confirm your address.');
+
+    // Opened on another device, with no session.
+    const opened = await call(path, undefined, false);
+    expect(opened.status).toBe(200);
+    expect(await opened.text()).toContain('That address works.');
+    expect(await (await call('/dashboard')).text()).not.toContain('Confirm your address.');
+
+    // Once only.
+    expect((await call(path, undefined, false)).status).toBe(400);
+  });
+
+  it('sends it again on request, replacing the old link, a few times an hour at most', async () => {
+    await signUpWithCompany('Northwind Analytics Inc.');
+    await Promise.all(waits);
+    const first = link();
+    mails = [];
+    const again = await call('/confirm/resend', {});
+    expect(again.headers.get('Location')).toBe('/dashboard?confirm=sent');
+    expect(await (await call('/dashboard?confirm=sent')).text()).toContain('A new link is on its way');
+    const second = link();
+    expect(second).not.toBe(first);
+    expect((await call(first, undefined, false)).status).toBe(400);
+
+    for (let i = 0; i < 5; i++) await call('/confirm/resend', {});
+    expect(mails.filter((m) => m.body.includes('/confirm?token=')).length).toBe(3);
+    expect((await call(second, undefined, false)).status).toBe(400);
+  });
+
+  it('says so when the mail service refuses, rather than saying it was sent', async () => {
+    await signUpWithCompany('Northwind Analytics Inc.');
+    globalThis.fetch = (async () => new Response('{}', { status: 429 })) as typeof fetch;
+    const res = await call('/confirm/resend', {});
+    expect(res.headers.get('Location')).toBe('/dashboard?confirm=failed');
+    expect(await (await call('/dashboard?confirm=failed')).text()).toContain('That could not be sent.');
   });
 });

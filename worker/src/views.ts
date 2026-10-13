@@ -43,6 +43,12 @@ export interface Chrome {
    * that was extended rather than built for both.
    */
   entityType?: EntityType;
+  /**
+   * The signed-in address, when nobody has yet shown it receives mail. The
+   * reminders go there, so every screen says so until the link is opened.
+   * 'sent' when the link has just been sent again.
+   */
+  unconfirmed?: { email: string; sent: boolean; failed?: boolean };
 }
 import type { T4, T5, SlipBox } from './rules/slips';
 import type {
@@ -645,6 +651,15 @@ export function shell(
       <button class="btn small" type="submit">Sign out</button></form></div>` : ''}
 </div></header>
 <main><div class="wrap">
+${chrome.unconfirmed ? `<div class="advisory${chrome.unconfirmed.failed ? '' : ' info'}"><b>${chrome.unconfirmed.sent
+  ? 'Sent.' : chrome.unconfirmed.failed ? 'That could not be sent.' : 'Confirm your address.'}</b> ${chrome.unconfirmed.sent
+  ? `A new link is on its way to ${esc(chrome.unconfirmed.email)}. Open it and this goes away.`
+  : chrome.unconfirmed.failed
+    ? 'Our mail service refused it, which may mean reminders are not going out either. Try again shortly.'
+    : `Reminders go to ${esc(chrome.unconfirmed.email)}, and nobody has shown yet that they
+    arrive there. Open the link in the welcome email to confirm it.`}
+  ${chrome.unconfirmed.sent ? '' : `<form method="post" action="/confirm/resend" style="display:inline;margin:0">
+    <button class="btn small" type="submit">Send the link again</button></form>`}</div>` : ''}
 ${rates?.message ? `<div class="advisory${rates.stale ? '' : ' info'}">
   <b>${rates.stale ? 'These rates are out of date.' : 'New rates are due.'}</b>
   ${esc(rates.message)}</div>` : ''}
@@ -3249,4 +3264,20 @@ ${d.recipients.length ? step(5, 'Give each person their copy', `
   else, and FileClear holds no record of them.</p>
 </details>
 `, email, '/slips', chrome);
+}
+
+// ---------------------------------------------------------- confirmation
+
+export function confirmedPage(ok: boolean, signedIn: boolean): string {
+  return shell(ok ? 'Address confirmed' : 'Link not valid', `
+<div class="narrow">
+  <span class="label">${ok ? 'Confirmed' : 'Not confirmed'}</span>
+  <h1>${ok ? 'That address works.' : 'That link has expired or been used.'}</h1>
+  <p class="hint">${ok
+    ? 'Reminders will reach you there, in the morning, before each window closes.'
+    : signedIn
+      ? 'Ask for a new one from the notice at the top of any screen.'
+      : 'Sign in and ask for a new one from the notice at the top of any screen.'}</p>
+  <a class="btn primary" href="${signedIn ? '/dashboard' : '/signin'}">${signedIn ? 'Back to your filings' : 'Sign in'}</a>
+</div>`);
 }

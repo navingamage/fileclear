@@ -230,12 +230,16 @@ export function reminderMail(
  * and a link that must be clicked before the product works is a wall in front
  * of somebody who has just decided to try it.
  */
-export function welcomeMail(email: string, origin: string): Omit<Mail, 'to'> {
+export function welcomeMail(email: string, origin: string, confirmLink?: string): Omit<Mail, 'to'> {
   const subject = 'Your FileClear account is ready';
 
   const text =
     'Your FileClear account is ready.\n\n'
     + `Signed up as ${email}.\n\n`
+    + (confirmLink
+      ? 'Reminders come to this address, so confirm that it reaches you:\n'
+        + `${confirmLink}\n\n`
+      : '')
     + 'Next: tell FileClear whether the business is incorporated, where it is and\n'
     + 'when it started. Every answer changes which filings exist for you, and the\n'
     + 'calendar is built from those answers rather than from a template.\n\n'
@@ -247,6 +251,9 @@ export function welcomeMail(email: string, origin: string): Omit<Mail, 'to'> {
   <p style="margin:0 0 6px;font:600 20px ${SANS};color:${C.ink};letter-spacing:-.02em">Your account is ready</p>
   <p style="margin:0 0 18px;font:400 15px ${SANS};color:${C.muted}">Signed up as
     <span style="font:500 14px ${MONO};color:${C.body}">${escape(email)}</span>.</p>
+  ${confirmLink ? `<p style="margin:0 0 14px;font:400 15px ${SANS};color:${C.body};line-height:1.55">
+    Reminders come to this address, so confirm that it reaches you.</p>
+  <p style="margin:0 0 22px">${button(confirmLink, 'Confirm this address')}</p>` : ''}
   <p style="margin:0 0 20px;font:400 15px ${SANS};color:${C.body};line-height:1.55">
     Next, tell FileClear whether the business is incorporated, where it is and when
     it started. Every answer changes which filings exist for you, so the calendar is
@@ -255,6 +262,23 @@ export function welcomeMail(email: string, origin: string): Omit<Mail, 'to'> {
     'Reminders arrive in the morning, before a window closes rather than after. '
     + 'If this was not you, reply to this message and we will remove the account.');
 
+  return { subject, text, html };
+}
+
+/** The confirmation link on its own, for somebody who asked for it again. */
+export function confirmMail(email: string, confirmLink: string): Omit<Mail, 'to'> {
+  const subject = 'Confirm your address for FileClear';
+  const text =
+    `Confirm that ${email} reaches you, so FileClear's reminders do too:\n\n`
+    + `${confirmLink}\n\n`
+    + 'The link works for a week. If you did not ask for it, ignore this.\n';
+  const html = wrapper(`
+  <p style="margin:0 0 6px;font:600 20px ${SANS};color:${C.ink};letter-spacing:-.02em">Confirm your address</p>
+  <p style="margin:0 0 20px;font:400 15px ${SANS};color:${C.body};line-height:1.55">Confirm that
+    <span style="font:500 14px ${MONO};color:${C.body}">${escape(email)}</span> reaches you,
+    so FileClear's reminders do too.</p>
+  <p style="margin:0 0 0">${button(confirmLink, 'Confirm this address')}</p>`,
+    'The link works for a week. If you did not ask for it, ignore this.');
   return { subject, text, html };
 }
 

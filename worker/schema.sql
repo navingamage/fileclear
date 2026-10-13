@@ -485,3 +485,21 @@ CREATE TABLE IF NOT EXISTS calendar_feeds (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS calendar_feeds_token ON calendar_feeds (token);
+
+-- --------------------------------------------------- confirming an address
+--
+-- Whether the address an account signed up with has been shown to receive
+-- mail, by somebody opening the link in the welcome email. Nothing is gated on
+-- it: signing in, the calendar and the reminders all work before it. It exists
+-- because the reminders are the product, and an address nobody confirmed is an
+-- address they may silently never reach, so the app says so until it is done.
+--
+-- The token is stored only as its SHA-256, like a reset token, and is cleared
+-- once spent.
+CREATE TABLE IF NOT EXISTS address_confirmations (
+  account_id   TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  token_hash   TEXT,
+  expires_at   TEXT,
+  confirmed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS address_confirmations_token ON address_confirmations (token_hash);

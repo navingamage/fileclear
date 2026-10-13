@@ -226,3 +226,50 @@ export async function pruneResets(db: D1Database, now: Date = new Date()): Promi
   await db.prepare('DELETE FROM password_resets WHERE expires_at < ?')
     .bind(now.toISOString()).run();
 }
+
+// ------------------------------------------------------- confirming an address
+
+/**
+ * Proving the signup address receives mail.
+ *
+ * Gates nothing. A director who never clicks still gets the calendar and the
+ * reminders; what they also get is a notice saying the reminders may not be
+ * reaching them, until they do. The link lasts a week, because the welcome
+ * mail is often opened days after the signup, and asking again replaces it.
+ */
+export const CONFIRM_TOKEN_DAYS = 7;
+
+export async function issueConfirmation(
+  db: D1Database, accountId: string, now: Date = new Date(),
+): Promise<string> {
+  const token = randomId(32);
+  const expiresAt = new Date(now.getTime() + CONFIRM_TOKEN_DAYS * 86_400_000).toISOString();
+  await db.prepare(
+    `INSERT INTO address_confirmations (account_id, token_hash, expires_at) VALUES (?, ?, ?)
+     ON CONFLICT(account_id) DO UPDATE SET token_hash = excluded.token_hash, expires_at = excluded.expires_at`,
+  ).bind(accountId, await sha256Hex(token), expiresAt).run();
+  return token;
+}
+
+/** Spends a confirmation link. The account it confirmed, or null. */
+export async function confirmAddress(
+  db: D1Database, token: string, now: Date = new Date(),
+): Promise<string | null> {
+  if (!token) return null;
+  const row = await db.prepare(
+    'SELECT account_id, expires_at FROM address_confirmations WHERE token_hash = ?',
+  ).bind(await sha256Hex(token)).first<{ account_id: string; expires_at: string }>();
+  if (!row || new Date(row.expires_at).getTime() <= now.getTime()) return null;
+  await db.prepare(
+    `UPDATE address_confirmations SET confirmed_at = COALESCE(confirmed_at, ?),
+       token_hash = NULL, expires_at = NULL WHERE account_id = ?`,
+  ).bind(now.toISOString(), row.account_id).run();
+  return row.account_id;
+}
+
+export async function addressConfirmed(db: D1Database, accountId: string): Promise<boolean> {
+  const row = await db.prepare(
+    'SELECT confirmed_at FROM address_confirmations WHERE account_id = ?',
+  ).bind(accountId).first<{ confirmed_at: string | null }>();
+  return !!row?.confirmed_at;
+}

@@ -609,6 +609,11 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       if (problem) return html(authPage(mode, problem, email), 400);
       const existing = await env.DB.prepare(
         'SELECT id FROM accounts WHERE lower(email) = lower(?)').bind(email).first();
+      // This tells a stranger the address has an account, which the reset page
+      // is careful not to do. Kept on purpose: the only way to answer the same
+      // either way is to hold every new account until its address is
+      // confirmed, and signing straight in to a calendar is worth more here
+      // than hiding who has an account. Decided October 2026.
       if (existing) {
         return html(authPage(mode, 'An account already exists for that address.', email), 400);
       }

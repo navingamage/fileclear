@@ -11,9 +11,8 @@
  *
  * The policy allows scripts from this origin only, which is why the copy
  * buttons and the business switcher moved out of inline markup into APP_JS.
- * Two outside origins are named on purpose:
+ * One outside origin is named on purpose:
  *
- * - Google Fonts, which the page head loads its type from.
  * - Cloudflare Web Analytics, whose beacon is injected at the edge and posts
  *   back to /cdn-cgi/rum on this host, so it needs both the script origin and
  *   'self' in connect-src. Blocking it would quietly stop the visit counts.
@@ -31,8 +30,10 @@ export const CSP = [
   "script-src 'self' https://static.cloudflareinsights.com",
   // Inline <style> is how every page is styled, and the desktop app's preload
   // adds one of its own for the title bar.
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline'",
+  // The three faces are served from site/fonts, so no font service sees who
+  // is doing their books. They used to come from Google Fonts.
+  "font-src 'self'",
   "img-src 'self' data:",
   "connect-src 'self' https://cloudflareinsights.com",
   "form-action 'self' https://checkout.stripe.com https://billing.stripe.com",

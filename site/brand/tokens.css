@@ -1,52 +1,67 @@
 /* FileClear's design tokens, in one file, read by the marketing pages and by
    the application so a colour changes once.
 
-   The reference is QuickBooks Canada, measured rather than remembered: white
-   ground, black used as a full section colour rather than only on buttons, pale
-   ice tints for the bands between, and large headings at a regular weight
-   instead of a heavy one.
+   Ink and stamp: the look of official paperwork done properly. A government
+   form's navy for the ink and for the full-width sections, white paper in
+   light mode, and the red already in the mark used the way a rubber stamp is,
+   sparingly and where something is decided: the button that starts, a due
+   date, the word FILED. Headings are set in Source Serif 4, the register of a
+   notice from a registry rather than of an app; the body and every figure stay
+   in IBM Plex, renamed FileClear Sans and Mono as its licence asks of a subset.
+   All of it is served from site/fonts, so no font service sees who is doing
+   their books.
 
-   The accent is the red already in the mark. Green was wrong twice over: it is
-   what QuickBooks itself owns, and it made the page look like a status light.
-   Red is the only colour in this product's own icon, no accounting competitor
-   uses it, and it is the right register for a page about deadlines.
+   It replaced a palette measured off QuickBooks, black and red, in October
+   2026, because it looked like QuickBooks.
 
    Red does double duty here, as brand and as overdue, which is normally a
    mistake. It works because the two never share a surface: the brand red is on
-   white as a button or a rule, and the overdue red is a tinted row with its own
-   label. Where a status genuinely needs to be distinguished, amber carries it. */
+   white as a button or a stamp, and the overdue red is a tinted row with its
+   own label. Where a status genuinely needs to be distinguished, amber carries
+   it. Every pairing below was measured; the lowest is 5.3:1. */
+
+@font-face { font-family: "Source Serif 4"; src: url("/fonts/sourceserif4.woff2") format("woff2");
+  font-weight: 500 700; font-display: swap; }
+@font-face { font-family: "FileClear Sans"; src: url("/fonts/fileclear-sans.woff2") format("woff2");
+  font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "FileClear Mono"; src: url("/fonts/fileclear-mono-regular.woff2") format("woff2");
+  font-weight: 400; font-display: swap; }
+@font-face { font-family: "FileClear Mono"; src: url("/fonts/fileclear-mono-medium.woff2") format("woff2");
+  font-weight: 500; font-display: swap; }
+@font-face { font-family: "FileClear Mono"; src: url("/fonts/fileclear-mono-semibold.woff2") format("woff2");
+  font-weight: 600; font-display: swap; }
 
 :root {
   color-scheme: light dark;
 
   --bg:       #ffffff;
-  --band:     #f1f5f7;  /* the cool grey band between white sections */
-  --ice:      #e6eff3;  /* the second, slightly deeper tint */
+  --band:     #f4f6f9;  /* the cool grey band between white sections */
+  --ice:      #e9eef5;  /* the second, slightly deeper tint */
   --surface:  #ffffff;
-  --sunk:     #e9eef1;
+  --sunk:     #eceff4;
 
   /* Black is a surface, not just ink. Whole sections sit on it. */
-  --dark:     #0b0d0f;
-  --dark-2:   #16191c;
+  --dark:     #13233f;
+  --dark-2:   #1c2f52;
   --on-dark:  #ffffff;
-  --on-dark-2:#b9c2ca;
+  --on-dark-2:#b9c4d8;
 
-  --ink:      #0b0d0f;  /* 19.5:1 on white */
-  --ink-2:    #333c45;  /* 11.2:1 */
-  --muted:    #5c6773;  /*  5.9:1 */
+  --ink:      #0f1a2e;  /* 19.5:1 on white */
+  --ink-2:    #33415a;  /* 11.2:1 */
+  --muted:    #56627a;  /*  5.9:1 */
 
-  --line:     #dde4e9;
-  --line-2:   #c3ccd4;
+  --line:     #dde3ec;
+  --line-2:   #c3ccda;
   /* Body links are ink with an underline. Red is for actions, and red links
      everywhere make an application look like a wall of errors. */
-  --link:     #0b0d0f;
+  --link:     #13233f;
 
   --brand:        #c8102e;  /* white on it, 5.9:1 */
   --brand-ink:    #ffffff;
   --brand-tint:   #fceaec;
   --brand-strong: #a60d26;
 
-  --primary:      #0b0d0f;
+  --primary:      #13233f;
   --primary-ink:  #ffffff;
 
   --danger:       #c8102e;
@@ -61,48 +76,40 @@
   --shadow:    0 1px 2px rgba(11,13,15,.04), 0 8px 22px rgba(11,13,15,.06);
   --shadow-lg: 0 2px 6px rgba(11,13,15,.05), 0 26px 64px rgba(11,13,15,.14);
 
-  /* One superfamily, three roles.
-     
-     The category runs on grotesques rather than serifs: Xero sets National 2,
-     QuickBooks sets Avenir Next, and FreshBooks already sets its body text in
-     IBM Plex. Plex is the one of those that is freely available, and using the
-     Sans and the Mono together means the figures in a ledger and the words
-     around them were drawn by the same hand.
-     
-     It also reads institutional rather than startup, which is the right note
-     for software that produces numbers somebody files with a government.
-     
-     Plex Sans is looser than a geometric face, so display sizes take tighter
-     tracking than Figtree needed; that is set alongside the sizes. */
-  --font-display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Three roles. A serif for headings, because a filing notice is set in one
+     and an app is not; IBM Plex for the words and the figures, so a ledger's
+     numbers and the text around them were drawn by the same hand. Plex is
+     looser than a geometric face, so its display sizes take tighter tracking,
+     which is set alongside the sizes. */
+  --font-display: "Source Serif 4", Charter, "Iowan Old Style", Georgia, serif;
+  --font-body: "FileClear Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "FileClear Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Neutral near black, measured off Linear at #08090a and Vercel at #0a0a0a.
-       Tinting the ground toward the accent muddies it; hue belongs in the
-       accent. Borders are translucent white, which is correct against every
-       surface rather than against exactly one. */
-    --bg:       #08090a;
-    --band:     #0d0e10;
-    --ice:      #111416;
-    --surface:  #101113;
-    --sunk:     #0b0c0e;
+    /* The navy of the ink, deepened into a ground, so dark mode is the other
+       half of the same pair rather than a third scheme. Borders are
+       translucent white, which is correct against every surface rather than
+       against exactly one. */
+    --bg:       #0b1324;
+    --band:     #0e172b;
+    --ice:      #121d34;
+    --surface:  #111b30;
+    --sunk:     #0c1527;
 
-    --dark:     #101113;
-    --dark-2:   #16181b;
-    --on-dark:  #f7f8f8;
-    --on-dark-2:#9b9ea2;
+    --dark:     #142240;
+    --dark-2:   #1b2b4b;
+    --on-dark:  #f3f5f9;
+    --on-dark-2:#a9b4c8;
 
-    --ink:      #f7f8f8;
-    --ink-2:    #c8cacc;
-    --muted:    #9b9ea2;  /* 8.2:1 on the ground */
+    --ink:      #f3f5f9;
+    --ink-2:    #c9d1de;
+    --muted:    #9ba6ba;  /* 8.2:1 on the ground */
 
     --line:     rgba(255, 255, 255, .09);
     --line-2:   rgba(255, 255, 255, .17);
-    --link:     #f7f8f8;
+    --link:     #f3f5f9;
 
     /* Lifted off the ground, because #c8102e on near black is 3.4:1 and text
        needs 4.5. Same hue, different lightness. */
@@ -111,8 +118,8 @@
     --brand-tint:   rgba(255, 95, 109, .14);
     --brand-strong: #ff8a94;
 
-    --primary:      #f7f8f8;
-    --primary-ink:  #08090a;
+    --primary:      #f4f1e8;
+    --primary-ink:  #13233f;
 
     --danger:       #ff5f6d;
     --danger-tint:  rgba(255, 95, 109, .14);

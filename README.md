@@ -240,17 +240,13 @@ claiming it was sent, since that is also the first sign reminders are failing.
 Ink and stamp: official paperwork done properly. A government form's navy for
 the ink and the full-width sections, white paper in light mode and the same
 navy deepened in dark, and the red of the mark used like a rubber stamp, on the
-button that starts and on the word FILED. Headings are Source Serif 4, the
-register of a registry's notice rather than an app's; the words and figures
-stay in IBM Plex. It replaced a palette measured off QuickBooks in October
-2026, because it looked like QuickBooks.
+button that starts and on the word FILED. It replaced a palette measured off
+QuickBooks in October 2026, because it looked like QuickBooks.
 
-All three faces are served from `site/fonts` and declared once in
-`site/brand/tokens.css`, which the site and the application both read. They
-used to come from Google Fonts, which saw every visit. Plex's licence reserves
-its name for unmodified fonts and a subset is a modification, so the Latin
-subsets are renamed FileClear Sans and FileClear Mono; the licences sit beside
-the files.
+Type is the system's own, as on antipodetech.com. A serif for headings and
+self-hosted IBM Plex were tried and taken out within days because they read as
+heavy. Plex used to come from Google Fonts, which saw every visit; now nothing
+is fetched, and the policy allows no fonts at all.
 
 ## Headers, and the one script
 

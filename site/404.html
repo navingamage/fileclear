@@ -13,8 +13,7 @@
 <link rel="apple-touch-icon" href="/brand/icon-180.png">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b1324" media="(prefers-color-scheme: dark)">
-<link rel="preload" href="/fonts/sourceserif4.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/fileclear-sans.woff2" as="font" type="font/woff2" crossorigin>
+
 <style>
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
@@ -31,15 +30,15 @@
   .wrap { max-width: 1220px; margin: 0 auto; padding: 0 28px; }
   .narrow { max-width: 660px; }
 
-  /* Serif and semibold, the weight a registry's notice is set in. A serif
-     needs far less tightening at display sizes than Plex did. */
+  /* The heading weight and tracking antipodetech.com uses. */
   h1, h2, h3 {
-    font-family: var(--font-display); letter-spacing: -.018em;
-    line-height: 1.1; margin: 0; text-wrap: balance; font-weight: 600;
+    font-family: var(--font-display); letter-spacing: -.033em;
+    line-height: 1.08; margin: 0; text-wrap: balance; font-weight: 640;
   }
+  h1 { letter-spacing: -.042em; }
   h1 { font-size: clamp(2.5rem, 5.1vw, 3.7rem); }
   h2 { font-size: clamp(1.8rem, 3.4vw, 2.5rem); }
-  h3 { font-size: 1.16rem; font-weight: 600; letter-spacing: -.005em; line-height: 1.32; }
+  h3 { font-size: 1.13rem; font-weight: 620; letter-spacing: -.02em; line-height: 1.32; }
   p { margin: 0 0 1.1rem; }
   .lead { font-size: clamp(1.06rem, 1.5vw, 1.22rem); color: var(--ink-2); line-height: 1.55; }
   /* Headings carry no margins of their own, which is right inside the grids,
@@ -63,8 +62,8 @@
   .nav-in { display: flex; align-items: center; gap: 2rem; padding: .85rem 0;
     flex-wrap: wrap; row-gap: .55rem; }
   .brand { display: flex; align-items: center; gap: .6rem;
-    font-family: var(--font-display); font-weight: 700; font-size: 1.2rem;
-    letter-spacing: -.01em; }
+    font-family: var(--font-display); font-weight: 680; font-size: 1.12rem;
+    letter-spacing: -.03em; }
   .brand:hover { text-decoration: none; }
   .brand img { width: 32px; height: 32px; border-radius: 8px; }
   .nav-links { display: flex; gap: 1.7rem; margin-left: auto; }
@@ -166,7 +165,7 @@
   .panel-bar { display: flex; align-items: center; justify-content: space-between;
     gap: 1rem; padding: .95rem 1.3rem; border-bottom: 1px solid var(--line);
     background: var(--band); }
-  .panel-bar b { font-family: var(--font-display); font-size: 1rem; font-weight: 600; color: var(--ink); }
+  .panel-bar b { font-size: .93rem; font-weight: 680; letter-spacing: -.01em; color: var(--ink); }
   .panel { position: relative; }
   .panel-bar { border-bottom: 3px double var(--line-2); }
   /* The rubber stamp, on the filing that is done. Red, the way it would be on

@@ -5,11 +5,9 @@
    form's navy for the ink and for the full-width sections, white paper in
    light mode, and the red already in the mark used the way a rubber stamp is,
    sparingly and where something is decided: the button that starts, a due
-   date, the word FILED. Headings are set in Source Serif 4, the register of a
-   notice from a registry rather than of an app; the body and every figure stay
-   in IBM Plex, renamed FileClear Sans and Mono as its licence asks of a subset.
-   All of it is served from site/fonts, so no font service sees who is doing
-   their books.
+   date, the word FILED. Type is the system's own, the same as
+   antipodetech.com: a serif and IBM Plex were tried in October 2026 and taken
+   out because they read as heavy, so nothing is loaded.
 
    It replaced a palette measured off QuickBooks, black and red, in October
    2026, because it looked like QuickBooks.
@@ -20,16 +18,6 @@
    own label. Where a status genuinely needs to be distinguished, amber carries
    it. Every pairing below was measured; the lowest is 5.3:1. */
 
-@font-face { font-family: "Source Serif 4"; src: url("/fonts/sourceserif4.woff2") format("woff2");
-  font-weight: 500 700; font-display: swap; }
-@font-face { font-family: "FileClear Sans"; src: url("/fonts/fileclear-sans.woff2") format("woff2");
-  font-weight: 400 700; font-display: swap; }
-@font-face { font-family: "FileClear Mono"; src: url("/fonts/fileclear-mono-regular.woff2") format("woff2");
-  font-weight: 400; font-display: swap; }
-@font-face { font-family: "FileClear Mono"; src: url("/fonts/fileclear-mono-medium.woff2") format("woff2");
-  font-weight: 500; font-display: swap; }
-@font-face { font-family: "FileClear Mono"; src: url("/fonts/fileclear-mono-semibold.woff2") format("woff2");
-  font-weight: 600; font-display: swap; }
 
 :root {
   color-scheme: light dark;
@@ -76,14 +64,12 @@
   --shadow:    0 1px 2px rgba(11,13,15,.04), 0 8px 22px rgba(11,13,15,.06);
   --shadow-lg: 0 2px 6px rgba(11,13,15,.05), 0 26px 64px rgba(11,13,15,.14);
 
-  /* Three roles. A serif for headings, because a filing notice is set in one
-     and an app is not; IBM Plex for the words and the figures, so a ledger's
-     numbers and the text around them were drawn by the same hand. Plex is
-     looser than a geometric face, so its display sizes take tighter tracking,
-     which is set alongside the sizes. */
-  --font-display: "Source Serif 4", Charter, "Iowan Old Style", Georgia, serif;
-  --font-body: "FileClear Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "FileClear Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Three roles, all the system's own faces: nothing to download, and the
+     type people already read all day. Dates and figures keep a monospace so
+     a column of them lines up. */
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {

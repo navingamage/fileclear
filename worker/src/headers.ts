@@ -31,9 +31,6 @@ export const CSP = [
   // Inline <style> is how every page is styled, and the desktop app's preload
   // adds one of its own for the title bar.
   "style-src 'self' 'unsafe-inline'",
-  // The three faces are served from site/fonts, so no font service sees who
-  // is doing their books. They used to come from Google Fonts.
-  "font-src 'self'",
   "img-src 'self' data:",
   "connect-src 'self' https://cloudflareinsights.com",
   "form-action 'self' https://checkout.stripe.com https://billing.stripe.com",

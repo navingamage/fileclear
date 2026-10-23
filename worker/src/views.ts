@@ -78,8 +78,8 @@ const CHROME = `<style>
     font-weight: 500; }
   a:hover { color: var(--brand); }
   :focus-visible { outline: 2.5px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
-  h1, h2, h3 { font-family: var(--font-display); font-weight: 600;
-    letter-spacing: -.015em; line-height: 1.1; margin: 0; text-wrap: balance; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 640;
+    letter-spacing: -.033em; line-height: 1.08; margin: 0; text-wrap: balance; }
   h1 { font-size: clamp(2rem, 4.4vw, 2.9rem); }
   h2 { font-size: 1.35rem; }
   h3 { font-size: 1.02rem; font-weight: 700; }
@@ -106,8 +106,8 @@ const CHROME = `<style>
     padding-top: .75rem; padding-bottom: .75rem; }
   .app-in.has-nav { padding-bottom: 0; }
   .brand { display: flex; align-items: center; gap: .55rem; color: var(--ink);
-    font-family: var(--font-display); font-weight: 700; font-size: 1.18rem;
-    letter-spacing: -.01em; text-decoration: none; }
+    font-family: var(--font-display); font-weight: 680; font-size: 1.1rem;
+    letter-spacing: -.03em; text-decoration: none; }
   .brand:hover { text-decoration: none; color: var(--ink); }
   .brand img { width: 30px; height: 30px; border-radius: 8px; }
   .app-nav { order: 3; flex-basis: 100%; display: flex; gap: 1.5rem; margin-top: .45rem;
@@ -614,8 +614,6 @@ const HEAD = (title: string) => `<!doctype html>
 <link rel="icon" type="image/png" sizes="32x32" href="/brand/icon-32.png">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b1324" media="(prefers-color-scheme: dark)">
-<link rel="preload" href="/fonts/sourceserif4.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/fileclear-sans.woff2" as="font" type="font/woff2" crossorigin>
 <script src="/app.js" defer></script>
 ${CHROME}
 </head>

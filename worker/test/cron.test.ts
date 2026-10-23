@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   torontoNow, SEND_HOUR, sweep, enqueueSweep, remindBatch, REMIND_BATCH, type CronEnv, type RemindMessage,
 } from '../src/cron';
@@ -12,6 +12,12 @@ import { reminderMail, welcomeMail, formatDue, send } from '../src/email';
  */
 
 describe('the Toronto clock', () => {
+  // The first Intl formatter for a named time zone loads that zone's data,
+  // and in a cold Workers Builds container that once took longer than a
+  // test's five seconds, failing a deploy over nothing. Done here, with room,
+  // so the tests below measure the arithmetic rather than the warm-up.
+  beforeAll(() => { torontoNow(new Date('2026-01-15T12:00:00Z')); }, 60_000);
+
   /**
    * Cloudflare fires crons in UTC and Ontario changes offset twice a year, so
    * both candidate hours are scheduled and the wrong one has to return. This
